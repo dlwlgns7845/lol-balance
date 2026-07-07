@@ -1,0 +1,20 @@
+{
+  "name": "lol-balance",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "LoL 내전 밸런싱 + 기록 + 통계",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "demo": "node demo.js",
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.108.2",
+    "next": "^14.2.35",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  }
+}
