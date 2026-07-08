@@ -475,6 +475,10 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mode-toggle button.on { background: var(--gold); color: #08131a; }
 .mode-toggle button:not(.on):hover { color: var(--text); }
 .lobby-note { display: flex; align-items: center; padding: 12px 16px; font-size: 13px; }
+.mode20-toggle { display: inline-flex; background: var(--panel2); border: 1px solid var(--line2); border-radius: 999px; padding: 3px; flex-shrink: 0; }
+.mode20-toggle button { font-size: 12px; font-weight: 700; padding: 4px 11px; border-radius: 999px; border: 0; background: transparent; color: var(--muted); cursor: pointer; transition: all .12s; white-space: nowrap; }
+.mode20-toggle button.on { background: var(--gold); color: #08131a; }
+.mode20-toggle button:not(.on):hover { color: var(--text); }
 /* ── 라인 탭 (리더보드 포지션 필터) ── */
 .lane-tabs { display: flex; gap: 6px; padding: 10px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .lane-tabs button { font-size: 12.5px; font-weight: 600; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line2); background: transparent; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all .12s; }

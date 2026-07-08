@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { balance, balance20, scoreTeams } from '../src/engine.js';
+import { balance, balance20, balance20Split, scoreTeams } from '../src/engine.js';
 import { TIER_LABEL } from '../src/table.js';
 import RosterEditor from '../components/RosterEditor.jsx';
 import { arraysToRoles, rolesToArrays } from '../components/PositionToggles.jsx';
@@ -36,7 +36,10 @@ export default function BalancerPage() {
   const [people, setPeople] = useState([]);
   const [totalWeight, setTotalWeight] = useState(0.3);
   const [result, setResult] = useState(null);
-  const [result20, setResult20] = useState(null); // { arrangements }
+  const [result20, setResult20] = useState(null); // 평균균등 { arrangements }
+  const [mode20, setMode20] = useState('even');    // 'even'(평균균등) | 'split'(고저분리)
+  const [split20, setSplit20] = useState(null);    // 고저분리 { games, lobbies }
+  const [candIdx20, setCandIdx20] = useState([0, 0]); // 고저분리 게임별 후보 인덱스
   const [arr20, setArr20] = useState(0);
   const [views20, setViews20] = useState([null, null]);
   const [outliers20, setOutliers20] = useState([[], []]);
@@ -58,7 +61,7 @@ export default function BalancerPage() {
   // 10명 ↔ 20명 전환: 로스터 크기 조정 (채워진 인원 보존)
   function switchMode(m) {
     if (m === mode) return;
-    setMode(m); setResult(null); setResult20(null); setView(null); setViews20([null, null]); setSel(null); setSel20(null); setErr(null); setRerollNote(null); setNote20(null);
+    setMode(m); setResult(null); setResult20(null); setSplit20(null); setView(null); setViews20([null, null]); setSel(null); setSel20(null); setErr(null); setRerollNote(null); setNote20(null);
     setRoster((r) => {
       if (m === 20) return [...r, ...EMPTY(20 - r.length > 0 ? 20 - r.length : 0)].slice(0, 20);
       const filled = r.filter((p) => p.name.trim());
@@ -324,39 +327,70 @@ export default function BalancerPage() {
     });
   }
 
-  // 20명: arrangement 적용 (리롤/최초 실행 공용)
+  // 20명: arrangement 적용 (평균균등 리롤/최초 공용)
   function applyArrangement(res, idx) {
     const a = res.arrangements[idx];
     setArr20(idx); setViews20([a.views[0], a.views[1]]); setOutliers20([a.outliers[0], a.outliers[1]]);
     setSel20(null); setNote20(null);
   }
 
+  // 20명 계산 (m: 'even' 평균균등 | 'split' 고저분리)
+  function compute20(m) {
+    const opts = { totalWeight, topK: 12, table: customTable || undefined };
+    const players = roster.map(toPlayer).map((pl) => ({ ...pl, adj: adjOf(pl.name) }));
+    setPmap20(new Map(players.map((p) => [p.name, p])));
+    if (m === 'split') {
+      const res = balance20Split(players, opts);
+      setSplit20(res); setResult20(null); setCandIdx20([0, 0]); setSel20(null); setNote20(null);
+      setViews20([res.games[0].candidates[0] || null, res.games[1].candidates[0] || null]);
+      setOutliers20([res.games[0].outliers || [], res.games[1].outliers || []]);
+    } else {
+      const res = balance20(players, opts);
+      setResult20(res); setSplit20(null);
+      applyArrangement(res, 0);
+    }
+  }
+
   function run() {
-    setErr(null); setResult(null); setResult20(null); setView(null); setSel(null); setSel20(null); setRerollNote(null); setNote20(null);
+    setErr(null); setResult(null); setResult20(null); setSplit20(null); setView(null); setSel(null); setSel20(null); setRerollNote(null); setNote20(null);
     const filled = roster.filter((p) => p.name.trim());
     if (filled.length !== mode) { setErr(`${mode}명을 채우세요 (현재 ${filled.length}명).`); return; }
     if (new Set(filled.map((p) => p.name.trim())).size !== mode) { setErr('이름이 중복됩니다.'); return; }
     if (roster.some((p) => p.name.trim() && Object.keys(p.roles).length === 0)) { setErr('모든 인원의 포지션(주/부)을 지정하세요.'); return; }
     try {
-      const opts = { totalWeight, topK: 12, table: customTable || undefined };
-      const withAdj = (pl) => ({ ...pl, adj: adjOf(pl.name) });
       if (mode === 20) {
-        const players = roster.map(toPlayer).map(withAdj);
-        const res = balance20(players, opts);
-        setResult20(res); setPmap20(new Map(players.map((p) => [p.name, p])));
-        applyArrangement(res, 0);
+        compute20(mode20);
       } else {
-        const r = balance(roster.map(toPlayer).map(withAdj), opts);
+        const opts = { totalWeight, topK: 12, table: customTable || undefined };
+        const r = balance(roster.map(toPlayer).map((pl) => ({ ...pl, adj: adjOf(pl.name) })), opts);
         setResult(r); setCandIdx(0); setView(r.candidates[0] || null);
       }
     } catch (e) { setErr('계산 오류: ' + e.message); }
   }
 
-  // 전체 리롤: 다음 배치로 (게임1·게임2 함께)
+  // 평균균등 서브모드 전환 — 이미 짜여있으면 즉시 재계산
+  function switch20(m) {
+    if (m === mode20) return;
+    setMode20(m);
+    if (usedNames.size === 20 && (result20 || split20)) { try { compute20(m); } catch (e) { setErr('계산 오류: ' + e.message); } }
+  }
+
+  // 평균균등: 전체 리롤
   function reroll20() {
     if (!result20?.arrangements?.length) return;
     if (result20.arrangements.length <= 1) { setNote20('다른 균형 조합이 없어요 — 선수를 클릭해 수동으로 바꿔보세요.'); return; }
     applyArrangement(result20, (arr20 + 1) % result20.arrangements.length);
+  }
+
+  // 고저분리: 게임별 리롤 (그 게임 내부만 다시)
+  function rerollGame(g) {
+    const game = split20?.games?.[g];
+    if (!game?.candidates?.length) return;
+    if (game.candidates.length <= 1) { setNote20('이 게임은 다른 균형 조합이 없어요 — 선수 이동으로 조정하세요.'); return; }
+    const ni = (candIdx20[g] + 1) % game.candidates.length;
+    setCandIdx20((c) => c.map((x, i) => (i === g ? ni : x)));
+    setViews20((v) => v.map((x, i) => (i === g ? game.candidates[ni] : x)));
+    setSel20(null); setNote20(null);
   }
 
   // 선수 클릭 스왑: 같은 게임=자리 교환, 다른 게임=게임 간 인원 교환. 둘 다 재채점(scoreTeams).
@@ -459,7 +493,7 @@ export default function BalancerPage() {
       <div className="panel">
         <div className="controls">
           <button className="btn" onClick={run} disabled={usedNames.size !== mode}>팀 짜기{mode === 20 ? ' (2게임)' : ''}</button>
-          <button className="btn ghost" onClick={() => { setRoster(EMPTY(mode)); setResult(null); setResult20(null); setView(null); setViews20([null, null]); setSel(null); setSel20(null); setErr(null); }}>비우기</button>
+          <button className="btn ghost" onClick={() => { setRoster(EMPTY(mode)); setResult(null); setResult20(null); setSplit20(null); setView(null); setViews20([null, null]); setSel(null); setSel20(null); setErr(null); }}>비우기</button>
           <button className="btn ghost" title="이름·티어는 두고 모든 포지션(주/부)만 초기화"
             onClick={() => { setRoster((r) => r.map((p) => ({ ...p, roles: {} }))); setResult(null); setView(null); setSel(null); setErr(null); }}>포지션 비우기</button>
           {gid && newNames.length > 0 && canEdit && (
@@ -488,28 +522,39 @@ export default function BalancerPage() {
           idx={candIdx} total={result?.candidates?.length || 0} />
       )}
 
-      {mode === 20 && result20 && views20[0] && (() => {
+      {mode === 20 && (result20 || split20) && views20[0] && (() => {
+        const split = mode20 === 'split';
         const sums4 = [views20[0].sumA, views20[0].sumB, views20[1].sumA, views20[1].sumB];
         const spread = Math.max(...sums4) - Math.min(...sums4);
         const spCls = spread <= 8 ? 'green' : spread <= 18 ? 'yellow' : 'red';
+        const gTotal = (i) => (split ? (split20.games[i].candidates.length) : (result20?.arrangements.length || 0));
+        const gIdx = (i) => (split ? candIdx20[i] : arr20);
         return (
           <>
-            <div className="panel lobby-note">
-              <span>🎮 <b>4팀 균등</b> 편성 · 팀 점수 {sums4.map((s) => s.toFixed(1)).join(' / ')}
-                <b className={spCls}> (편차 {spread.toFixed(1)})</b>
-                <span className="muted"> · 선수 클릭 후 다른 게임 선수 클릭 = 게임 간 교환</span>
+            <div className="panel lobby-note" style={{ gap: 12, flexWrap: 'wrap' }}>
+              <div className="mode20-toggle">
+                <button className={!split ? 'on' : ''} onClick={() => switch20('even')} type="button">⚖️ 평균 균등</button>
+                <button className={split ? 'on' : ''} onClick={() => switch20('split')} type="button">📊 고저 분리</button>
+              </div>
+              <span>
+                {split
+                  ? <>🎮 <b>고저 분리</b> · 상위10=고티어 게임, 하위10=저티어 게임 · 게임별 리롤</>
+                  : <>🎮 <b>4팀 균등</b> · 팀 점수 {sums4.map((s) => s.toFixed(1)).join(' / ')} <b className={spCls}>(편차 {spread.toFixed(1)})</b></>}
+                <span className="muted"> · 선수 클릭 후 다른 게임 선수 클릭 = 게임 간 이동</span>
               </span>
-              <button className="btn" onClick={reroll20}>🎲 전체 다시 짜기{result20.arrangements.length > 1 ? ` (${arr20 + 1}/${result20.arrangements.length})` : ''}</button>
+              {!split && <button className="btn" onClick={reroll20}>🎲 전체 다시 짜기{result20.arrangements.length > 1 ? ` (${arr20 + 1}/${result20.arrangements.length})` : ''}</button>}
             </div>
             {note20 && <div className="panel reroll-note" style={{ marginTop: 0 }}>ℹ️ {note20}</div>}
-            <h2 style={{ margin: '16px 2px 6px' }}>🎮 게임 1</h2>
+            <h2 style={{ margin: '16px 2px 6px' }}>🎮 게임 1{split ? ' · 고티어' : ''}</h2>
             <Results feasible outliers={outliers20[0]} view={views20[0]}
               onSwap={(team, pos) => swap20(0, team, pos)} sel={sel20 && sel20.g === 0 ? { team: sel20.team, pos: sel20.pos } : null}
-              meta={nameMeta} idx={arr20} total={result20.arrangements.length} />
-            <h2 style={{ margin: '20px 2px 6px' }}>🎮 게임 2</h2>
+              onReroll={split ? () => rerollGame(0) : undefined}
+              meta={nameMeta} idx={gIdx(0)} total={gTotal(0)} />
+            <h2 style={{ margin: '20px 2px 6px' }}>🎮 게임 2{split ? ' · 저티어' : ''}</h2>
             <Results feasible outliers={outliers20[1]} view={views20[1]}
               onSwap={(team, pos) => swap20(1, team, pos)} sel={sel20 && sel20.g === 1 ? { team: sel20.team, pos: sel20.pos } : null}
-              meta={nameMeta} idx={arr20} total={result20.arrangements.length} />
+              onReroll={split ? () => rerollGame(1) : undefined}
+              meta={nameMeta} idx={gIdx(1)} total={gTotal(1)} />
           </>
         );
       })()}

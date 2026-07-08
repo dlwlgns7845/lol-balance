@@ -256,3 +256,29 @@ export function balance20(players, opts = {}) {
   }
   return { arrangements };
 }
+
+// 10명 → 항상 편성. feasible면 balance() 후보, 아니면 off-role 강제 5v5 1개.
+function forceBalance(ten, opts) {
+  const { table = TABLE } = opts;
+  const b = balance(ten, opts);
+  if (b.feasible) return b;
+  const slots = assignRoles(ten, 2);
+  const A = new Array(5), B = new Array(5);
+  POS.forEach((pos, pi) => { A[pi] = ten[slots[pos][0]]; B[pi] = ten[slots[pos][1]]; });
+  return { feasible: true, candidates: [{ ...scoreTeams(A, B, opts), forced: true }], outliers: detectOutliers(ten, 1.5, table), forced: true };
+}
+
+/**
+ * balance20Split(players, opts) — 20명 → 고저 분리. 점수순 상위10=게임1(고티어), 하위10=게임2(저티어).
+ * 각 게임 내부만 5v5 밸런싱(독립). 게임별 리롤용 candidates 각각 보유.
+ * @returns { games:[balanceResult, balanceResult], lobbies:[[..10],[..10]] }
+ */
+export function balance20Split(players, opts = {}) {
+  const { table = TABLE } = opts;
+  if (players.length !== 20) throw new Error('정확히 20명 필요');
+  const power = (p) => Math.max(...p.positions.map((pos) => pPts(p, POS.indexOf(pos), table)));
+  const order = players.map((_, i) => i).sort((a, b) => power(players[b]) - power(players[a]));
+  const top = order.slice(0, 10).map((i) => players[i]);
+  const bot = order.slice(10).map((i) => players[i]);
+  return { games: [forceBalance(top, opts), forceBalance(bot, opts)], lobbies: [top, bot] };
+}
