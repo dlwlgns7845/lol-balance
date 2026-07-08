@@ -257,14 +257,35 @@ export function balance20(players, opts = {}) {
   return { arrangements };
 }
 
-// 10명 → 항상 편성. feasible면 balance() 후보, 아니면 off-role 강제 5v5 1개.
+// 10명 → 항상 편성. feasible면 balance() 후보, 아니면 off-role 강제 5v5(팀 총점 균형까지).
 function forceBalance(ten, opts) {
   const { table = TABLE } = opts;
   const b = balance(ten, opts);
   if (b.feasible) return b;
+  // 포지션당 2명 배정(off-role 허용). 라인 매치업은 고정, A/B 배정만 최적화해 총점차 최소.
   const slots = assignRoles(ten, 2);
   const A = new Array(5), B = new Array(5);
-  POS.forEach((pos, pi) => { A[pi] = ten[slots[pos][0]]; B[pi] = ten[slots[pos][1]]; });
+  let rsa = 0, rsb = 0;
+  POS.forEach((pos, pi) => { // 초기: 약한 팀에 강한 선수 (그리디, 러닝 합계)
+    const [x, y] = slots[pos];
+    const px = pPts(ten[x], pi, table), py = pPts(ten[y], pi, table);
+    const [strong, ps, weak, pw] = px >= py ? [ten[x], px, ten[y], py] : [ten[y], py, ten[x], px];
+    if (rsa <= rsb) { A[pi] = strong; B[pi] = weak; rsa += ps; rsb += pw; }
+    else { A[pi] = weak; B[pi] = strong; rsa += pw; rsb += ps; }
+  });
+  // 로컬 개선: 라인별 A↔B 스왑으로 총점차 더 줄이기
+  const sums = () => { let sa = 0, sb = 0; for (let i = 0; i < 5; i++) { sa += pPts(A[i], i, table); sb += pPts(B[i], i, table); } return [sa, sb]; };
+  let improved = true;
+  while (improved) {
+    improved = false;
+    const [sa, sb] = sums();
+    let best = Math.abs(sa - sb);
+    for (let i = 0; i < 5; i++) {
+      const na = sa - pPts(A[i], i, table) + pPts(B[i], i, table);
+      const nb = sb - pPts(B[i], i, table) + pPts(A[i], i, table);
+      if (Math.abs(na - nb) < best - 1e-9) { best = Math.abs(na - nb); const t = A[i]; A[i] = B[i]; B[i] = t; improved = true; break; }
+    }
+  }
   return { feasible: true, candidates: [{ ...scoreTeams(A, B, opts), forced: true }], outliers: detectOutliers(ten, 1.5, table), forced: true };
 }
 
