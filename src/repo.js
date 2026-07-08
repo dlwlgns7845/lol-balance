@@ -202,7 +202,7 @@ export async function createPerson(groupId, p = {}) {
 }
 
 export async function updatePerson(id, patch) {
-  const allowed = ['display_name', 'nickname', 'base_tier', 'secondary_tier', 'primary_positions', 'secondary_positions', 'adjust', 'rating_games', 'notes'];
+  const allowed = ['display_name', 'nickname', 'base_tier', 'secondary_tier', 'primary_positions', 'secondary_positions', 'adjust', 'rating_games', 'notes', 'discord_id'];
   const clean = {};
   for (const k of allowed) if (k in patch) clean[k] = patch[k];
   const { data, error } = await db().from('persons').update(clean).eq('id', id).select().single();
