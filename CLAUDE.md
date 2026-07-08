@@ -1,5 +1,7 @@
 # lol-balance — 작업/배포 규칙 (AI 먼저 읽기)
 
+> 🔐 **시크릿·보안 규칙은 [AGENTS.md](./AGENTS.md) 참고** (Claude·Codex 등 공통). 커밋 전 시크릿 스캔 필수.
+
 LoL 내전 밸런서·통계 웹앱 (Next.js 14 App Router, JS/JSX, Supabase, Vercel).
 
 ## 배포 = git push (Vercel 자동배포)
