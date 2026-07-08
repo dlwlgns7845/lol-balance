@@ -5,6 +5,9 @@ LoL 내전 밸런서·통계 웹앱 (Next.js 14 App Router, JS/JSX, Supabase, Ve
 ## 배포 = git push (Vercel 자동배포)
 - 원격: `fbwlgkr7845-hash/lol-balance` (main). Vercel이 이 repo에 연결돼 **push하면 자동 빌드·배포**.
 - **`vercel` CLI 절대 쓰지 말 것** (`npx vercel --prod` 금지). 계정이 달라서 엉뚱한 데로 나감. 배포는 오직 git push.
+- ⚠️ **커밋 author = Vercel 소유자(fbwlgkr7845) 여야 배포됨.** Vercel Hobby(무료)는 private repo에서 **소유자 명의 커밋만** 자동배포. 다른 명의는 "contributing access 없음"으로 차단.
+  - 이 repo git 설정 확인/고정: `git config user.email fbwlgkr7845@gmail.com` · `git config user.name fbwlgkr7845`
+  - (진짜 공동작업으로 여러 명의가 push해야 하면 → repo public 전환 or Vercel Pro 필요.)
 
 ## 🤝 공동작업 — push 전 필수 절차 (파트너와 협업)
 파트너도 같은 main에 push하므로, **내 변경을 push하기 전에 항상 원격을 먼저 확인**한다:
