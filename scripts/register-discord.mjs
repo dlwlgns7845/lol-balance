@@ -21,6 +21,9 @@ const commands = [
   { name: '칭호', description: '명예의 전당 (공공의적·캐리왕 등)', type: 1 },
   { name: '방', description: '내전 방 요약 통계', type: 1 },
   { name: '밸런스', description: '멘션 10명으로 팀 짜기', type: 1, options: [S('명단', '@a @b … @j (10명 멘션)')] },
+  { name: '모집', description: '내전 모집 시작 (버튼으로 라인 선착순)', type: 1,
+    options: [{ name: '인원', description: '10 또는 20 (기본 10)', type: 4, required: false,
+      choices: [{ name: '10인', value: 10 }, { name: '20인', value: 20 }] }] },
 ];
 
 const url = GUILD_ID

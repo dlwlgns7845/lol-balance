@@ -488,6 +488,57 @@ export async function dedupeByNick(groupId) {
   return { merged, cleaned };
 }
 
+// ── 내전 모집 큐 (디스코드 봇) ── 상태는 recruit_queues / recruit_signups 에 저장(서버리스라 무상태)
+export async function createQueue(gid, size, hostId) {
+  const { data, error } = await db().from('recruit_queues')
+    .insert({ gid, size, status: 'open', host_id: hostId || null }).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function getQueue(id) {
+  if (!id) return null;
+  const { data, error } = await db().from('recruit_queues').select('*').eq('id', id).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function closeQueue(id) {
+  const { error } = await db().from('recruit_queues').update({ status: 'closed' }).eq('id', id);
+  if (error) throw error;
+}
+
+export async function listSignups(queueId) {
+  const { data, error } = await db().from('recruit_signups')
+    .select('*').eq('queue_id', queueId).order('created_at', { ascending: true }); // created_at = 선착순
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getSignup(queueId, discordId) {
+  const { data, error } = await db().from('recruit_signups')
+    .select('*').eq('queue_id', queueId).eq('discord_id', discordId).maybeSingle();
+  if (error) throw error;
+  return data || null;
+}
+
+// patch: { name?, main?, sub? } — 있으면 갱신(created_at 유지=선착순 보존), 없으면 신규
+export async function upsertSignup(queueId, discordId, patch) {
+  const ex = await getSignup(queueId, discordId);
+  if (ex) {
+    const { error } = await db().from('recruit_signups').update(patch).eq('id', ex.id);
+    if (error) throw error;
+  } else {
+    const { error } = await db().from('recruit_signups').insert({ queue_id: queueId, discord_id: discordId, ...patch });
+    if (error) throw error;
+  }
+}
+
+export async function removeSignup(queueId, discordId) {
+  const { error } = await db().from('recruit_signups').delete().eq('queue_id', queueId).eq('discord_id', discordId);
+  if (error) throw error;
+}
+
 // ── 통계 (승패 + 스샷 추출 상세: KDA/CS/골드/챔프) ──
 export async function getStats(groupId) {
   const persons = await listPersons(groupId);
