@@ -129,8 +129,12 @@ export default function PeoplePage() {
                     title="사람 알아보기용 별명 — 통계에 닉과 함께 표시"
                     onBlur={(e) => canEdit && (e.target.value || '') !== (p.nickname || '') && patchPerson(p.id, { nickname: e.target.value })} />
                   <div className="m-tiercell">
-                    <select className="m-tier" value={p.base_tier} disabled={!canEdit} onChange={(e) => patchPerson(p.id, { base_tier: e.target.value })}>
+                    <select className="m-tier" value={p.base_tier} disabled={!canEdit} title="주라인 티어 (메인 포지션 기준)" onChange={(e) => patchPerson(p.id, { base_tier: e.target.value })}>
                       {TIER_ORDER.map((k) => <option key={k} value={k}>{TIER_LABEL[k]}</option>)}
+                    </select>
+                    <select className="m-sectier" value={p.secondary_tier || ''} disabled={!canEdit} title="부라인 티어 — 주포지션 아닌 라인에 배치되면 이 티어로 계산 (보통 더 낮게). 비우면 주라인 티어 그대로." onChange={(e) => patchPerson(p.id, { secondary_tier: e.target.value || null })}>
+                      <option value="">부라인 —</option>
+                      {TIER_ORDER.map((k) => <option key={k} value={k}>부: {TIER_LABEL[k]}</option>)}
                     </select>
                     {isAdmin && (
                       <select className="m-adjust" value={p.adjust || 0} title="어드민 수동 보정 태그 (자동보정과 합산)"

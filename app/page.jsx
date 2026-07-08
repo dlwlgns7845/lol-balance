@@ -116,6 +116,14 @@ export default function BalancerPage() {
   const manualOf = (name) => manualByName[normNm(name)] || 0;
   // 유효보정 = 자동 + 수동, 합계 ±10 캡 (토글 ON일 때만)
   const adjOf = (name) => (adjustOn ? Math.max(-10, Math.min(10, autoOf(name) + manualOf(name))) : 0);
+  // 이름 → 부라인 티어 (부라인 배치 시 이 티어로 계산)
+  const secTierByName = useMemo(() => {
+    const m = {};
+    people.forEach((p) => { if (p.secondary_tier) [p.display_name, p.nickname].filter(Boolean).forEach((s) => { m[normNm(s)] = p.secondary_tier; }); });
+    return m;
+  }, [people]);
+  // 선수 객체에 보정·부라인티어 주입 (밸런서 계산 전 공통)
+  const withMeta = (pl) => ({ ...pl, adj: adjOf(pl.name), secondaryTier: secTierByName[normNm(pl.name)] || null });
   const titlesOf = (id) => (id && awards?.byPerson?.[id]) || [];
 
   // 이름(정규화) → 승률/판수 (팀짜기 결과 표시용)
@@ -337,7 +345,7 @@ export default function BalancerPage() {
   // 20명 계산 (m: 'even' 평균균등 | 'split' 고저분리)
   function compute20(m) {
     const opts = { totalWeight, topK: 12, table: customTable || undefined };
-    const players = roster.map(toPlayer).map((pl) => ({ ...pl, adj: adjOf(pl.name) }));
+    const players = roster.map(toPlayer).map(withMeta);
     setPmap20(new Map(players.map((p) => [p.name, p])));
     if (m === 'split') {
       const res = balance20Split(players, opts);
@@ -362,7 +370,7 @@ export default function BalancerPage() {
         compute20(mode20);
       } else {
         const opts = { totalWeight, topK: 12, table: customTable || undefined };
-        const r = balance(roster.map(toPlayer).map((pl) => ({ ...pl, adj: adjOf(pl.name) })), opts);
+        const r = balance(roster.map(toPlayer).map(withMeta), opts);
         setResult(r); setCandIdx(0); setView(r.candidates[0] || null);
       }
     } catch (e) { setErr('계산 오류: ' + e.message); }
@@ -435,7 +443,7 @@ export default function BalancerPage() {
     if (!view) return;
     if (!sel) { setSel({ team, pos }); return; }
     if (sel.team === team && sel.pos === pos) { setSel(null); return; } // 같은 거 재클릭=취소
-    const nameMap = new Map(roster.filter((p) => p.name.trim()).map((p) => [p.name.trim(), { ...toPlayer(p), adj: adjOf(p.name) }]));
+    const nameMap = new Map(roster.filter((p) => p.name.trim()).map((p) => [p.name.trim(), withMeta(toPlayer(p))]));
     const A = view.lanes.map((l) => nameMap.get(l.a.name));
     const B = view.lanes.map((l) => nameMap.get(l.b.name));
     const i1 = view.lanes.findIndex((l) => l.pos === sel.pos);

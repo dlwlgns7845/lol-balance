@@ -9,9 +9,12 @@ export function tierPts(tier, posIdx, table = TABLE) {
   return row[posIdx];
 }
 
-// 선수 유효점수 = 티어점수 + 보정(adj). adj는 에메랄드↓ 자동/수동 보정값(±). 없으면 0.
+// 선수 유효점수 = 티어점수 + 보정(adj).
+//  부라인(주포지션 아닌 곳)에 배치되면 부라인 티어(secondaryTier)로 계산, 주라인이면 기존 티어.
 export function pPts(p, posIdx, table = TABLE) {
-  return tierPts(p.tier, posIdx, table) + (p.adj || 0);
+  const offRole = p.primary && p.primary.length > 0 && !p.primary.includes(POS[posIdx]);
+  const tier = (offRole && p.secondaryTier) ? p.secondaryTier : p.tier;
+  return tierPts(tier, posIdx, table) + (p.adj || 0);
 }
 
 // 신호등: 총점차 기준

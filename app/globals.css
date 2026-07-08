@@ -197,8 +197,10 @@ input[type=range] { padding: 0; accent-color: var(--gold); }
 .member { padding: 14px 0; border-bottom: 1px solid var(--line); }
 .member:last-child { border-bottom: 0; }
 .m-main { display: grid; grid-template-columns: minmax(120px, 160px) 110px auto 230px minmax(140px, 1fr) auto; gap: 10px; align-items: center; }
-.m-tiercell { display: flex; gap: 6px; align-items: center; }
-.m-tiercell .m-tier { width: 122px; }
+.m-tiercell { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.m-tiercell .m-tier { width: 118px; }
+.m-sectier { width: 132px; font-size: 11.5px; padding: 4px 4px; border-radius: 6px; background: var(--panel2); border: 1px dashed var(--line2); color: var(--muted); }
+.m-sectier:disabled { opacity: .6; }
 .m-name { font-weight: 600; }
 .m-nick { font-size: 13px; color: var(--gold); }
 .m-accts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
