@@ -58,9 +58,12 @@ function evaluate(A, B, totalWeight, shapeWeight, offRoleWeight, table, W) {
     const aOff = isOffRole(A[i], i), bOff = isOffRole(B[i], i);
     if (aOff) offRole++;
     if (bOff) offRole++;
+    // 부라인 배치 + 부라인티어 있으면 그 티어를 표시(점수와 일치). 아니면 기본 티어.
+    const aTier = (aOff && A[i].secondaryTier) ? A[i].secondaryTier : A[i].tier;
+    const bTier = (bOff && B[i].secondaryTier) ? B[i].secondaryTier : B[i].tier;
     lanes.push({ pos: POS[i], weight: W[i], gap,
-      a: { name: A[i].name, tier: A[i].tier, pts: a, off: aOff },
-      b: { name: B[i].name, tier: B[i].tier, pts: b, off: bOff } });
+      a: { name: A[i].name, tier: aTier, baseTier: A[i].tier, secApplied: aTier !== A[i].tier, pts: a, off: aOff },
+      b: { name: B[i].name, tier: bTier, baseTier: B[i].tier, secApplied: bTier !== B[i].tier, pts: b, off: bOff } });
   }
   const totalDiff = Math.abs(sumA - sumB);
   // 실력 분포 차이: 각 팀 점수를 정렬해 같은 순위끼리 비교(약한선수↔약한선수).

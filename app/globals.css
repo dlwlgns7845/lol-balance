@@ -469,6 +469,7 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .adj-badge.on { color: #08131a; background: var(--gold); border-color: var(--gold); }
 .adj-btn.on { background: var(--gold); color: #08131a; }
 .tr-adj { font-size: 9.5px; font-weight: 700; margin-left: 6px; padding: 1px 5px; border-radius: 4px; color: #08131a; background: var(--gold); vertical-align: middle; }
+.tr-sec { font-size: 9px; font-weight: 700; margin-left: 5px; padding: 1px 4px; border-radius: 4px; color: var(--muted); background: rgba(255,255,255,.07); border: 1px dashed var(--line2); vertical-align: middle; }
 .m-adjust { width: 108px; font-size: 11.5px; padding: 4px 4px; border-radius: 6px; background: var(--panel2); border: 1px solid var(--line2); color: var(--text); }
 /* ── 밸런서 10/20명 모드 토글 ── */
 .bal-mode { display: flex; align-items: center; gap: 12px; }

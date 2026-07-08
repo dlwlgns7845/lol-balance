@@ -27,7 +27,7 @@ export default function Results({ feasible, outliers = [], view, onReroll, onSwa
         <span className="tr-av"><span className="tr-av-none" aria-hidden /></span>
         <div className="tr-id">
           <div className="tr-name"><span className="tr-nm">{p.name}</span>{p.off && <sup className="offtag">부</sup>}<TitleBadges titles={m.titles} max={6} /></div>
-          <div className={`tr-tier ${tierClass(p.tier)}`}>{TIER_LABEL[p.tier] || p.tier}</div>
+          <div className={`tr-tier ${tierClass(p.tier)}`} title={p.secApplied ? `부라인 배치 — 부라인 티어 적용 (원래 ${TIER_LABEL[p.baseTier] || p.baseTier})` : undefined}>{TIER_LABEL[p.tier] || p.tier}{p.secApplied ? <span className="tr-sec">부라인</span> : null}</div>
         </div>
         <div className="tr-wr">
           {m.games ? (
