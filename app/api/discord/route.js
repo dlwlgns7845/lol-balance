@@ -2,7 +2,7 @@
 // 상시봇(gateway) 아님 = 서버리스라 항상 켜져 있음(컴퓨터 꺼짐 무관).
 import crypto from 'crypto';
 import { NextResponse } from 'next/server';
-import { getStats, getAwards, listPersons, updatePerson,
+import { getStats, getAwards, listPersons, updatePerson, createPerson,
   createQueue, getQueue, closeQueue, listSignups, getSignup, upsertSignup, removeSignup } from '../../../src/repo.js';
 import { balance } from '../../../src/engine.js';
 import { allocateQueue, LANES } from '../../../src/queue.js';
@@ -92,6 +92,32 @@ async function cmdLink(i) {
   if (!target) return reply(`"${opt(i, '선수')}" 선수를 못 찾았어요. 사람관리에 등록된 이름으로.`);
   await updatePerson(target.id, { discord_id: callerId(i) });
   return reply(`✅ <@${callerId(i)}> ↔ **${target.display_name}** 연동 완료! 이제 \`/내전적\`·\`/밸런스\`에서 자동 인식돼요.`);
+}
+
+// 신규 셀프 가입: 디코계정당 사람 카드 1개 생성 + 연동. 웹 로그인/권한 없이 봇으로 온보딩.
+async function cmdRegister(i) {
+  const me = callerId(i);
+  const persons = await listPersons(GID);
+  const already = persons.find((p) => p.discord_id === me);
+  if (already) return reply(`이미 **${already.nickname || already.display_name}** 으로 가입돼 있어요. 정보 수정은 웹 사람관리에서.`);
+  const name = (opt(i, '이름') || '').trim();
+  if (!name) return reply('이름을 입력하세요.');
+  const main = opt(i, '주라인');
+  if (!main) return reply('주라인을 선택하세요.');
+  const tier = opt(i, '티어') || 'G2';
+  const sub = opt(i, '부라인');
+  const key = normNm(name);
+  const exist = persons.find((p) => normNm(p.display_name) === key || normNm(p.nickname || '') === key);
+  if (exist) { // 같은 이름 카드가 이미 있음 → 미연동이면 그 카드에 연결, 남의 것이면 거부
+    if (exist.discord_id) return reply(`"${name}" 이름은 이미 다른 사람이 연동돼 있어요. 다른 이름으로 하거나 관리자에게 문의.`);
+    await updatePerson(exist.id, { discord_id: me });
+    return reply(`✅ 기존 **${exist.display_name}** 카드에 연동했어요. (티어/라인은 웹 사람관리 값 유지)`);
+  }
+  const secondary = sub && sub !== main ? [sub] : [];
+  const p = await createPerson(GID, { display_name: name, base_tier: tier, primary_positions: [main], secondary_positions: secondary });
+  await updatePerson(p.id, { discord_id: me });
+  const laneTxt = LANE_KR[main] + (secondary.length ? ` / 부:${LANE_KR[sub]}` : '');
+  return reply(`🎉 **${name}** 가입 완료! (${TIER_LABEL[tier] || tier} · ${laneTxt}) 이제 \`/내전적\`·\`/밸런스\`·\`/모집\`에서 인식돼요.`);
 }
 
 async function cmdAwards() {
@@ -239,7 +265,7 @@ async function handleComponent(i) {
   return updateMsg(queueData(queue, await listSignups(qid), false));
 }
 
-const HANDLERS = { 리더보드: cmdLeaderboard, 전적: cmdRecord, 내전적: cmdMyRecord, 연동: cmdLink, 칭호: cmdAwards, 방: cmdRoom, 밸런스: cmdBalance, 모집: cmdRecruit };
+const HANDLERS = { 리더보드: cmdLeaderboard, 전적: cmdRecord, 내전적: cmdMyRecord, 연동: cmdLink, 가입: cmdRegister, 칭호: cmdAwards, 방: cmdRoom, 밸런스: cmdBalance, 모집: cmdRecruit };
 
 export async function POST(request) {
   const body = await request.text();
