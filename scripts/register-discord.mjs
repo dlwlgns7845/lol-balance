@@ -51,15 +51,20 @@ const commands = [
     options: [{ name: '코드', description: '사이트 방 코드', type: 3, required: true }] },
 ];
 
-const url = GUILD_ID
-  ? `https://discord.com/api/v10/applications/${APP_ID}/guilds/${GUILD_ID}/commands`
-  : `https://discord.com/api/v10/applications/${APP_ID}/commands`;
+// --global (또는 GUILD_ID 없음) = 전역 등록(모든 서버, ~1시간). 아니면 GUILD_ID 서버에 즉시(테스트).
+const headers = { Authorization: `Bot ${TOKEN}`, 'Content-Type': 'application/json' };
+const GLOBAL = process.argv.includes('--global') || !GUILD_ID;
+const url = GLOBAL
+  ? `https://discord.com/api/v10/applications/${APP_ID}/commands`
+  : `https://discord.com/api/v10/applications/${APP_ID}/guilds/${GUILD_ID}/commands`;
 
-const res = await fetch(url, {
-  method: 'PUT',
-  headers: { Authorization: `Bot ${TOKEN}`, 'Content-Type': 'application/json' },
-  body: JSON.stringify(commands),
-});
+const res = await fetch(url, { method: 'PUT', headers, body: JSON.stringify(commands) });
 const txt = await res.text();
 if (!res.ok) { console.error('등록 실패', res.status, txt); process.exit(1); }
-console.log(`✅ 커맨드 등록됨 (${GUILD_ID ? '서버 ' + GUILD_ID + ' 즉시' : '글로벌 · 최대 1시간 반영'}):`, JSON.parse(txt).map((c) => '/' + c.name).join(', '));
+console.log(`✅ 커맨드 등록됨 (${GLOBAL ? '글로벌 · 모든 서버 · 최대 1시간 반영' : '서버 ' + GUILD_ID + ' 즉시'}):`, JSON.parse(txt).map((c) => '/' + c.name).join(', '));
+
+// 전역 등록 시 테스트 서버 길드 커맨드는 정리(같은 커맨드 중복 표시 방지)
+if (GLOBAL && GUILD_ID) {
+  await fetch(`https://discord.com/api/v10/applications/${APP_ID}/guilds/${GUILD_ID}/commands`, { method: 'PUT', headers, body: JSON.stringify([]) });
+  console.log('🧹 테스트 서버 길드 커맨드 정리 (중복 방지)');
+}
