@@ -210,6 +210,22 @@ export async function updatePerson(id, patch) {
   return data;
 }
 
+// 프로필 사진: 외부(디코 첨부) URL을 받아 Supabase Storage에 재호스팅 → 영구 public URL 반환.
+// (디코 첨부 URL은 만료되므로 반드시 우리 저장소로 옮겨야 함). 버킷 없으면 자동 생성.
+export async function uploadAvatarFromUrl(personId, srcUrl, contentType) {
+  const res = await fetch(srcUrl);
+  if (!res.ok) throw new Error('이미지 다운로드 실패');
+  const buf = Buffer.from(await res.arrayBuffer());
+  const ext = ((contentType || 'image/png').split('/')[1] || 'png').split('+')[0].replace(/[^a-z0-9]/gi, '') || 'png';
+  const path = `${personId}.${ext}`;
+  const sb = db();
+  try { await sb.storage.createBucket('avatars', { public: true }); } catch { /* 이미 있음 */ }
+  const up = await sb.storage.from('avatars').upload(path, buf, { contentType: contentType || 'image/png', upsert: true });
+  if (up.error) throw up.error;
+  const { data } = sb.storage.from('avatars').getPublicUrl(path);
+  return data?.publicUrl || null;
+}
+
 export async function deletePerson(id) {
   // match_participants 는 FK에 cascade가 없어 직접 정리 (accounts·rating_events는 cascade)
   const { error: e1 } = await db().from('match_participants').delete().eq('person_id', id);

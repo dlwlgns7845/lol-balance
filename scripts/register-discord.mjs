@@ -32,6 +32,7 @@ const commands = [
     { name: '부라인', description: '서브 라인 (선택)', type: 3, required: false, choices: LANE_CHOICES },
   ] },
   { name: '프로필', description: '내 사이트 아바타 꾸미기 (기본=디코 프로필 사진)', type: 1, options: [
+    { name: '사진', description: '프로필 사진 업로드 (이미지, 4MB 이하)', type: 11, required: false },
     { name: '색', description: '아바타 색', type: 3, required: false, choices: COLOR_CHOICES },
     { name: '이모지', description: '이모지/글자 (없음=제거)', type: 3, required: false },
     { name: '디코사진', description: '디스코드 프로필 사진으로 되돌리기', type: 5, required: false },

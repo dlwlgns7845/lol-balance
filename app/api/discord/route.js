@@ -3,7 +3,7 @@
 import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { waitUntil } from '@vercel/functions';
-import { getStats, getAwards, listPersons, updatePerson, createPerson, addAccount,
+import { getStats, getAwards, listPersons, updatePerson, createPerson, addAccount, uploadAvatarFromUrl,
   createQueue, getQueue, closeQueue, listSignups, getSignup, upsertSignup, removeSignup, setQueueMessage } from '../../../src/repo.js';
 import { balance } from '../../../src/engine.js';
 import { queueMessage, LANE_KR } from '../../../src/discord-queue.js';
@@ -184,8 +184,32 @@ async function cmdRegister(i) {
   return NextResponse.json({ type: 5, data: { content: `🔎 **${raw}** 티어 측정 중… (몇 초 걸려요)` } }); // deferred
 }
 
-// 셀프 프로필: 기본=디코 프로필 사진, 색/이모지로 커스텀. 디코사진=true면 사진으로 되돌림.
+// 업로드 사진 → Supabase Storage 재호스팅 (디코 첨부는 만료). 느려서 defer 후 처리.
+async function processProfilePhoto(i, photoId) {
+  try {
+    const me = callerId(i);
+    const persons = await listPersons(GID);
+    const meP = persons.find((p) => p.discord_id === me);
+    if (!meP) return followup(i, '먼저 `/가입` 또는 `/연동` 하세요.');
+    const att = i.data?.resolved?.attachments?.[photoId];
+    if (!att || !(att.content_type || '').startsWith('image/')) return followup(i, '❌ 이미지 파일만 올릴 수 있어요.');
+    if (att.size > 4 * 1024 * 1024) return followup(i, '❌ 이미지가 너무 커요 (4MB 이하로).');
+    let url;
+    try { url = await uploadAvatarFromUrl(meP.id, att.url, att.content_type); }
+    catch (e) { return followup(i, '사진 저장 실패: ' + e.message + ' (관리자에게 profile 컬럼/스토리지 확인 요청)'); }
+    if (!url) return followup(i, '사진 저장 실패 — 잠시 후 다시 시도하세요.');
+    const profile = { ...(meP.profile || {}), avatar: `${url}?v=${Date.now()}` };
+    delete profile.color; delete profile.emoji; // 사진 보이게 커스텀 제거
+    try { await updatePerson(meP.id, { profile }); }
+    catch { return followup(i, '프로필 저장 실패 — 관리자에게 `profile` 컬럼 추가를 요청하세요.'); }
+    return followup(i, `✅ **${meP.nickname || meP.display_name}** 프로필 사진 업데이트! 사이트 아바타에 반영돼요.`);
+  } catch (e) { return followup(i, '사진 처리 오류: ' + e.message); }
+}
+
+// 셀프 프로필: 기본=디코 프로필 사진, 사진 업로드/색/이모지로 커스텀. 디코사진=true면 사진으로 되돌림.
 async function cmdProfile(i) {
+  const photoId = opt(i, '사진'); // 첨부 업로드 → 재호스팅(느림) → defer
+  if (photoId) { waitUntil(processProfilePhoto(i, photoId)); return NextResponse.json({ type: 5, data: { content: '📷 프로필 사진 저장 중…' } }); }
   const me = callerId(i);
   const persons = await listPersons(GID);
   const meP = persons.find((p) => p.discord_id === me);
