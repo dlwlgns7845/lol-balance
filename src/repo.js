@@ -385,7 +385,7 @@ async function findOrCreatePerson(groupId, name, tier, primary, secondary) {
   if (error) throw error;
   const hit = (rows || []).find((p) => norm(p.display_name) === key || (p.nickname && norm(p.nickname) === key));
   if (hit) return hit.id;
-  const cleanName = stripInvisible(nm).split('#')[0].trim() || nm;
+  const cleanName = stripInvisible(nm).trim() || nm; // #태그 보존 (인게임닉 = 이름#태그)
   const p = await createPerson(groupId, {
     display_name: cleanName, base_tier: tier || 'G2',
     primary_positions: primary || [], secondary_positions: secondary || [],
@@ -591,11 +591,11 @@ export async function dedupeByNick(groupId) {
       merged++;
     }
   }
-  // 병합 후, 남은 모든 사람의 display_name에서 #태그 제거 (표시 통일)
+  // 병합 후, 보이지 않는 문자만 정리 (#태그는 보존 — 인게임닉 = 이름#태그)
   let cleaned = 0;
   const after = await listPersons(groupId);
   for (const p of after) {
-    const clean = stripInvisible(p.display_name).split('#')[0].trim();
+    const clean = stripInvisible(p.display_name).trim();
     if (clean && clean !== p.display_name) { await updatePerson(p.id, { display_name: clean }); cleaned++; }
   }
   return { merged, cleaned };

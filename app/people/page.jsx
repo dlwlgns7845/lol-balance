@@ -79,7 +79,7 @@ export default function PeoplePage() {
       const patch = {};
       if (p.accounts.length === 0) {
         if (prof.suggestedTier) patch.base_tier = prof.suggestedTier;
-        if (!p.display_name) patch.display_name = prof.gameName || gameName;
+        if (!p.display_name) patch.display_name = `${prof.gameName || gameName}#${tag}`; // 인게임닉은 #태그까지 보존
       }
       if (Object.keys(patch).length) await api(`/api/persons/${p.id}?gid=${gid}`, 'PATCH', patch);
       setAcctInput((s) => ({ ...s, [p.id]: '' }));

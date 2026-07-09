@@ -159,8 +159,8 @@ export default function BalancerPage() {
       const prof = await fetch(`/api/seed?name=${encodeURIComponent(gameName)}&tag=${encodeURIComponent(tag)}&region=${region}`).then((x) => x.json());
       if (!prof.found) { setSeedStatus((s) => ({ ...s, [i]: { error: prof.error || '못 찾음' } })); return; }
       if (prof.suggestedTier) {
-        // name=순수 닉, tag/region은 행에 보존 → 등록 시 계정으로 저장(op.gg 재측정용)
-        setRoster((r) => r.map((p, idx) => (idx === i ? { ...p, name: prof.gameName || gameName, tier: prof.suggestedTier, tag, region } : p)));
+        // 이름은 #태그까지 보존. tag/region은 행에 보존 → 등록 시 계정으로 저장(op.gg 재측정용)
+        setRoster((r) => r.map((p, idx) => (idx === i ? { ...p, name: `${prof.gameName || gameName}#${tag}`, tier: prof.suggestedTier, tag, region } : p)));
       } else {
         setSeedStatus((s) => ({ ...s, [i]: { error: prof.basis || '랭크 기록 없음 — 직접 선택' } })); return;
       }
