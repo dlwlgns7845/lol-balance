@@ -32,7 +32,24 @@ const embed = (e) => NextResponse.json({ type: 4, data: { embeds: [e], allowed_m
 const ephem = (content) => NextResponse.json({ type: 4, data: { content, flags: 64 } }); // 나만 보이는 답
 const updateMsg = (data) => NextResponse.json({ type: 7, data }); // 버튼 눌린 메시지 갱신
 const callerId = (i) => i.member?.user?.id || i.user?.id;
+const discordUser = (i) => i.member?.user || i.user;
 const opt = (i, name) => (i.data?.options || []).find((o) => o.name === name)?.value;
+
+// 디코 프로필 사진 URL (커스텀 없으면 기본 아바타)
+function discordAvatarUrl(u) {
+  if (!u?.id) return null;
+  if (u.avatar) return `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=128`;
+  let idx = 0;
+  try { idx = u.discriminator && u.discriminator !== '0' ? Number(u.discriminator) % 5 : Number((BigInt(u.id) >> 22n) % 6n); } catch { idx = 0; }
+  return `https://cdn.discordapp.com/embed/avatars/${idx}.png`;
+}
+// 연동/가입 시 디코 사진을 기본 아바타로 세팅 (기존 색/이모지는 유지). profile 컬럼 없으면 조용히 스킵.
+async function setDiscordAvatar(person, i) {
+  try {
+    const url = discordAvatarUrl(discordUser(i));
+    if (url) await updatePerson(person.id, { profile: { ...(person.profile || {}), avatar: url } });
+  } catch { /* profile 컬럼 미반영 → 링크 자체는 유지 */ }
+}
 const wr = (w) => `${Math.round((w || 0) * 100)}%`;
 const posLabel = (p) => (p ? POS_KR[p] : '-');
 
@@ -93,7 +110,8 @@ async function cmdLink(i) {
     || persons.find((p) => normNm(p.display_name).includes(q));
   if (!target) return reply(`"${opt(i, '선수')}" 선수를 못 찾았어요. 사람관리에 등록된 이름으로.`);
   await updatePerson(target.id, { discord_id: callerId(i) });
-  return reply(`✅ <@${callerId(i)}> ↔ **${target.display_name}** 연동 완료! 이제 \`/내전적\`·\`/밸런스\`에서 자동 인식돼요.`);
+  await setDiscordAvatar(target, i); // 기본 아바타 = 디코 프로필 사진
+  return reply(`✅ <@${callerId(i)}> ↔ **${target.display_name}** 연동 완료! 아바타는 디코 프로필 사진으로 설정됐어요 (\`/프로필\`로 변경 가능). 이제 \`/내전적\`·\`/밸런스\`에서 자동 인식돼요.`);
 }
 
 // 티어 측정 (seed API와 동일 파이프라인): Riot키 있으면 하이브리드, 없으면 op.gg 단독
@@ -152,8 +170,9 @@ async function processRegister(i) {
       personId = p.id;
     }
     try { await addAccount({ person_id: personId, game_name: displayName, tag_line: tag, region, opgg_tier: tier, opgg_confidence: est.confidence }); } catch { /* 계정저장 실패는 무시 */ }
+    await setDiscordAvatar({ id: personId, profile: exist?.profile || null }, i); // 기본 아바타 = 디코 프로필 사진
     const laneTxt = LANE_KR[main] + (sub && sub !== main ? ` / 부:${LANE_KR[sub]}` : '');
-    return followup(i, `🎉 **${displayName}** 가입 완료!\n측정 티어 **${TIER_LABEL[tier] || tier}** · ${laneTxt}\n${est.basis ? `_${est.basis}_\n` : ''}이제 \`/내전적\`·\`/밸런스\`·\`/모집\`에서 인식돼요.`);
+    return followup(i, `🎉 **${displayName}** 가입 완료!\n측정 티어 **${TIER_LABEL[tier] || tier}** · ${laneTxt}\n${est.basis ? `_${est.basis}_\n` : ''}아바타는 디코 프로필 사진 (\`/프로필\`로 변경). 이제 \`/내전적\`·\`/밸런스\`·\`/모집\`에서 인식돼요.`);
   } catch (e) { return followup(i, '가입 처리 중 오류: ' + e.message); }
 }
 
@@ -163,6 +182,31 @@ async function cmdRegister(i) {
   if (!opt(i, '주라인')) return reply('주라인을 선택하세요.');
   waitUntil(processRegister(i)); // 측정 7초+ → 백그라운드
   return NextResponse.json({ type: 5, data: { content: `🔎 **${raw}** 티어 측정 중… (몇 초 걸려요)` } }); // deferred
+}
+
+// 셀프 프로필: 기본=디코 프로필 사진, 색/이모지로 커스텀. 디코사진=true면 사진으로 되돌림.
+async function cmdProfile(i) {
+  const me = callerId(i);
+  const persons = await listPersons(GID);
+  const meP = persons.find((p) => p.discord_id === me);
+  if (!meP) return reply('먼저 `/가입`(신규) 또는 `/연동`(기존)으로 등록하세요.');
+  const useDiscord = opt(i, '디코사진') === true;
+  const color = opt(i, '색');
+  const emoji = opt(i, '이모지');
+  const avatar = discordAvatarUrl(discordUser(i));
+  let profile;
+  if (useDiscord) {
+    profile = { avatar }; // 색/이모지 제거 → 사진 표시
+  } else {
+    profile = { ...(meP.profile || {}), avatar: (meP.profile?.avatar || avatar) };
+    if (color) profile.color = color;
+    if (emoji != null) { if (emoji === '없음' || emoji === '') delete profile.emoji; else profile.emoji = emoji; }
+    if (!color && emoji == null && !meP.profile) profile = { avatar }; // 옵션 없이 첫 호출 = 사진 세팅
+  }
+  try { await updatePerson(meP.id, { profile }); }
+  catch { return reply('프로필 저장 실패 — 관리자에게 `profile` 컬럼 추가를 요청하세요.'); }
+  const how = (profile.color || profile.emoji) ? '커스텀(색/이모지)' : '디코 프로필 사진';
+  return reply(`✅ **${meP.nickname || meP.display_name}** 프로필 업데이트 → ${how}. 사이트 아바타에 바로 반영돼요.`);
 }
 
 async function cmdAwards() {
@@ -282,7 +326,7 @@ async function handleComponent(i) {
   return updateMsg(queueMessage(queue, await listSignups(qid), false));
 }
 
-const HANDLERS = { 리더보드: cmdLeaderboard, 전적: cmdRecord, 내전적: cmdMyRecord, 연동: cmdLink, 가입: cmdRegister, 칭호: cmdAwards, 방: cmdRoom, 밸런스: cmdBalance, 모집: cmdRecruit };
+const HANDLERS = { 리더보드: cmdLeaderboard, 전적: cmdRecord, 내전적: cmdMyRecord, 연동: cmdLink, 가입: cmdRegister, 프로필: cmdProfile, 칭호: cmdAwards, 방: cmdRoom, 밸런스: cmdBalance, 모집: cmdRecruit };
 
 export async function POST(request) {
   const body = await request.text();

@@ -16,6 +16,10 @@ const S = (name, description, required = true) => ({ name, description, type: 3,
 const LANE_CHOICES = [['탑', 'top'], ['정글', 'jungle'], ['미드', 'mid'], ['원딜', 'adc'], ['서폿', 'sup']].map(([name, value]) => ({ name, value }));
 // 티어는 사용자가 안 고름 — 닉네임을 우리 시스템이 측정. 지역만 선택(라이엇 라우팅용).
 const REGION_CHOICES = ['NA', 'KR', 'EUW', 'EUNE', 'BR', 'JP', 'OCE', 'LAN', 'LAS', 'TR', 'RU'].map((r) => ({ name: r, value: r }));
+const COLOR_CHOICES = [
+  ['빨강', '#e84d4d'], ['주황', '#e8944d'], ['노랑', '#e8d24d'], ['초록', '#4dc85f'], ['청록', '#4dc8b0'],
+  ['파랑', '#4d7de8'], ['보라', '#9b4de8'], ['분홍', '#e84db0'], ['회색', '#8a8a92'], ['검정', '#2a2a30'], ['흰색', '#e8e8ee'],
+].map(([name, value]) => ({ name, value }));
 const commands = [
   { name: '리더보드', description: '내전 리더보드 TOP 10 (3판+)', type: 1 },
   { name: '전적', description: '선수 전적·챔프·포지션', type: 1, options: [S('선수', '선수 이름')] },
@@ -26,6 +30,11 @@ const commands = [
     { name: '주라인', description: '메인 라인', type: 3, required: true, choices: LANE_CHOICES },
     { name: '지역', description: '서버 (기본 NA)', type: 3, required: false, choices: REGION_CHOICES },
     { name: '부라인', description: '서브 라인 (선택)', type: 3, required: false, choices: LANE_CHOICES },
+  ] },
+  { name: '프로필', description: '내 사이트 아바타 꾸미기 (기본=디코 프로필 사진)', type: 1, options: [
+    { name: '색', description: '아바타 색', type: 3, required: false, choices: COLOR_CHOICES },
+    { name: '이모지', description: '이모지/글자 (없음=제거)', type: 3, required: false },
+    { name: '디코사진', description: '디스코드 프로필 사진으로 되돌리기', type: 5, required: false },
   ] },
   { name: '칭호', description: '명예의 전당 (공공의적·캐리왕 등)', type: 1 },
   { name: '방', description: '내전 방 요약 통계', type: 1 },
