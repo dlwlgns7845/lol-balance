@@ -263,15 +263,6 @@ function queueData(queue, signups, closed) {
   return { embeds: [embed], components: closed ? [] : queueComponents(queue.id), allowed_mentions: { parse: [] } };
 }
 
-async function resolveName(i, discordId) {
-  try {
-    const persons = await listPersons(GID);
-    const p = persons.find((x) => x.discord_id === discordId);
-    if (p) return p.nickname || p.display_name;
-  } catch { /* 폴백 */ }
-  return i.member?.nick || i.member?.user?.global_name || i.member?.user?.username || '익명';
-}
-
 async function cmdRecruit(i) {
   const size = opt(i, '인원') === 20 ? 20 : 10;
   const q = await createQueue(GID, size, callerId(i));
@@ -288,10 +279,13 @@ async function handleComponent(i) {
   const me = callerId(i);
 
   if (action === 'qm') { // 메인 라인 선택/변경 → 참가
+    const persons = await listPersons(GID);
+    const meP = persons.find((p) => p.discord_id === me);
+    if (!meP) return ephem('먼저 `/가입`(신규) 또는 `/연동`(기존 카드)으로 등록해야 참가할 수 있어요. (팀 밸런스에 티어가 필요해요)');
     const ex = await getSignup(qid, me);
     const patch = { main: lane };
     if (ex?.sub === lane) patch.sub = null; // 부라인이 새 메인과 겹치면 해제
-    if (!ex) patch.name = await resolveName(i, me);
+    if (!ex) patch.name = meP.nickname || meP.display_name; // 등록 이름으로 표시
     await upsertSignup(qid, me, patch);
   } else if (action === 'qs') { // 부라인 드롭다운
     const ex = await getSignup(qid, me);
