@@ -115,13 +115,17 @@ async function cmdMyRecord(i, gid) {
 async function cmdLink(i, gid) {
   const q = normNm(opt(i, '선수') || '');
   if (!q) return reply('연동할 선수 이름을 입력하세요.');
+  const me = callerId(i);
   const persons = await listPersons(gid);
+  const mine = persons.find((p) => p.discord_id === me);
+  if (mine) return reply(`이미 **${mine.nickname || mine.display_name}** 에 연동돼 있어요. 연동은 **한 번만** 가능해요. (바꾸려면 관리자에게 문의)`);
   const target = persons.find((p) => normNm(p.display_name) === q || normNm(p.nickname || '') === q)
     || persons.find((p) => normNm(p.display_name).includes(q));
   if (!target) return reply(`"${opt(i, '선수')}" 선수를 못 찾았어요. 사람관리에 등록된 이름으로.`);
-  await updatePerson(target.id, { discord_id: callerId(i) });
+  if (target.discord_id && target.discord_id !== me) return reply(`"${target.display_name}" 는 이미 다른 계정에 연동돼 있어요. 관리자에게 문의하세요.`);
+  await updatePerson(target.id, { discord_id: me });
   await setDiscordAvatar(target, i); // 기본 아바타 = 디코 프로필 사진
-  return reply(`✅ <@${callerId(i)}> ↔ **${target.display_name}** 연동 완료! 아바타는 디코 프로필 사진으로 설정됐어요 (\`/프로필\`로 변경 가능). 이제 \`/내전적\`·\`/밸런스\`에서 자동 인식돼요.`);
+  return reply(`✅ <@${me}> ↔ **${target.display_name}** 연동 완료! 아바타는 디코 프로필 사진으로 설정됐어요 (\`/프로필\`로 변경 가능). 이제 \`/내전적\`·\`/밸런스\`에서 자동 인식돼요.`);
 }
 
 // 티어 측정 (seed API와 동일 파이프라인): Riot키 있으면 하이브리드, 없으면 op.gg 단독
@@ -173,9 +177,10 @@ async function processRegister(i, gid) {
     const tier = est.suggestedTier;
     const displayName = est.gameName || gameName;
 
-    const key = normNm(displayName);
-    const exist = persons.find((p) => normNm(p.display_name) === key || normNm(p.nickname || '') === key);
-    if (exist && exist.discord_id) return followup(i, `"${displayName}" 이름은 이미 다른 사람이 연동돼 있어요. 관리자에게 문의.`);
+    const key = normNm(displayName), gkey = normNm(gameName);
+    const exist = persons.find((p) => normNm(p.display_name) === key || normNm(p.nickname || '') === key
+      || (p.accounts || []).some((a) => normNm(a.game_name) === gkey)); // 이름·별명·등록계정(Riot ID)까지 매칭 → 중복 방지
+    if (exist && exist.discord_id) return followup(i, `"${displayName}" 은(는) 이미 다른 계정에 연동돼 있어요. 관리자에게 문의.`);
     let personId;
     if (exist) { // 미연동 동명 카드 → 연결 + 측정 티어로 갱신
       await updatePerson(exist.id, { discord_id: me, base_tier: tier });
