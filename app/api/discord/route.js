@@ -40,6 +40,7 @@ function verifySignature(sig, ts, body) {
 const reply = (content) => NextResponse.json({ type: 4, data: { content, allowed_mentions: { parse: [] } } });
 const embed = (e) => NextResponse.json({ type: 4, data: { embeds: [e], allowed_mentions: { parse: [] } } });
 const ephem = (content) => NextResponse.json({ type: 4, data: { content, flags: 64 } }); // 나만 보이는 답
+const eembed = (e) => NextResponse.json({ type: 4, data: { embeds: [e], flags: 64, allowed_mentions: { parse: [] } } }); // 나만 보이는 임베드
 const updateMsg = (data) => NextResponse.json({ type: 7, data }); // 버튼 눌린 메시지 갱신
 const callerId = (i) => i.member?.user?.id || i.user?.id;
 const discordUser = (i) => i.member?.user || i.user;
@@ -94,38 +95,38 @@ function playerEmbed(p) {
 
 async function cmdRecord(i, gid) {
   const q = normNm(opt(i, '선수') || '');
-  if (!q) return reply('선수 이름을 입력하세요.');
+  if (!q) return ephem('선수 이름을 입력하세요.');
   const { players } = await getStats(gid);
   const hit = players.filter((p) => p.games > 0).find((p) => normNm(p.nickname || p.name) === q)
     || players.filter((p) => p.games > 0).find((p) => normNm(p.nickname || p.name).includes(q));
-  if (!hit) return reply(`"${opt(i, '선수')}" 선수를 못 찾았어요.`);
-  return embed(playerEmbed(hit));
+  if (!hit) return ephem(`"${opt(i, '선수')}" 선수를 못 찾았어요.`);
+  return eembed(playerEmbed(hit));
 }
 
 async function cmdMyRecord(i, gid) {
   const persons = await listPersons(gid);
   const me = persons.find((p) => p.discord_id === callerId(i));
-  if (!me) return reply('아직 연동 안 됐어요. `/연동 선수:내닉` 으로 먼저 연결하세요.');
+  if (!me) return ephem('아직 연동 안 됐어요. `/연동 선수:내닉` 으로 먼저 연결하세요.');
   const { players } = await getStats(gid);
   const p = players.find((x) => x.id === me.id);
-  if (!p || !p.games) return reply('연동은 됐는데 아직 기록이 없어요.');
-  return embed(playerEmbed(p));
+  if (!p || !p.games) return ephem('연동은 됐는데 아직 기록이 없어요.');
+  return eembed(playerEmbed(p));
 }
 
 async function cmdLink(i, gid) {
   const q = normNm(opt(i, '선수') || '');
-  if (!q) return reply('연동할 선수 이름을 입력하세요.');
+  if (!q) return ephem('연동할 선수 이름을 입력하세요.');
   const me = callerId(i);
   const persons = await listPersons(gid);
   const mine = persons.find((p) => p.discord_id === me);
-  if (mine) return reply(`이미 **${mine.nickname || mine.display_name}** 에 연동돼 있어요. 연동은 **한 번만** 가능해요. (바꾸려면 관리자에게 문의)`);
+  if (mine) return ephem(`이미 **${mine.nickname || mine.display_name}** 에 연동돼 있어요. 연동은 **한 번만** 가능해요. (바꾸려면 관리자에게 문의)`);
   const target = persons.find((p) => normNm(p.display_name) === q || normNm(p.nickname || '') === q)
     || persons.find((p) => normNm(p.display_name).includes(q));
-  if (!target) return reply(`"${opt(i, '선수')}" 선수를 못 찾았어요. 사람관리에 등록된 이름으로.`);
-  if (target.discord_id && target.discord_id !== me) return reply(`"${target.display_name}" 는 이미 다른 계정에 연동돼 있어요. 관리자에게 문의하세요.`);
+  if (!target) return ephem(`"${opt(i, '선수')}" 선수를 못 찾았어요. 사람관리에 등록된 이름으로.`);
+  if (target.discord_id && target.discord_id !== me) return ephem(`"${target.display_name}" 는 이미 다른 계정에 연동돼 있어요. 관리자에게 문의하세요.`);
   await updatePerson(target.id, { discord_id: me });
   await setDiscordAvatar(target, i); // 기본 아바타 = 디코 프로필 사진
-  return reply(`✅ <@${me}> ↔ **${target.display_name}** 연동 완료! 아바타는 디코 프로필 사진으로 설정됐어요 (\`/프로필\`로 변경 가능). 이제 \`/내전적\`·\`/밸런스\`에서 자동 인식돼요.`);
+  return ephem(`✅ <@${me}> ↔ **${target.display_name}** 연동 완료! 아바타는 디코 프로필 사진으로 설정됐어요 (\`/프로필\`로 변경 가능). 이제 \`/내전적\`·\`/밸런스\`에서 자동 인식돼요.`);
 }
 
 // 티어 측정 (seed API와 동일 파이프라인): Riot키 있으면 하이브리드, 없으면 op.gg 단독
@@ -200,10 +201,10 @@ async function processRegister(i, gid) {
 
 async function cmdRegister(i, gid) {
   const raw = (opt(i, '닉네임') || '').trim();
-  if (!raw.includes('#')) return reply('❌ 라이엇 ID를 #태그까지 정확히 입력하세요. 예: `홍길동#KR1` (해시태그 없으면 측정 불가)');
-  if (!opt(i, '주라인')) return reply('주라인을 선택하세요.');
+  if (!raw.includes('#')) return ephem('❌ 라이엇 ID를 #태그까지 정확히 입력하세요. 예: `홍길동#KR1` (해시태그 없으면 측정 불가)');
+  if (!opt(i, '주라인')) return ephem('주라인을 선택하세요.');
   waitUntil(processRegister(i, gid)); // 측정 7초+ → 백그라운드
-  return NextResponse.json({ type: 5, data: { content: `🔎 **${raw}** 티어 측정 중… (몇 초 걸려요)` } }); // deferred
+  return NextResponse.json({ type: 5, data: { content: `🔎 **${raw}** 티어 측정 중… (몇 초 걸려요)`, flags: 64 } }); // deferred·나만보기
 }
 
 // 업로드 사진 → Supabase Storage 재호스팅 (디코 첨부는 만료). 느려서 defer 후 처리.
@@ -231,11 +232,11 @@ async function processProfilePhoto(i, photoId, gid) {
 // 셀프 프로필: 기본=디코 프로필 사진, 사진 업로드/색/이모지로 커스텀. 디코사진=true면 사진으로 되돌림.
 async function cmdProfile(i, gid) {
   const photoId = opt(i, '사진'); // 첨부 업로드 → 재호스팅(느림) → defer
-  if (photoId) { waitUntil(processProfilePhoto(i, photoId, gid)); return NextResponse.json({ type: 5, data: { content: '📷 프로필 사진 저장 중…' } }); }
+  if (photoId) { waitUntil(processProfilePhoto(i, photoId, gid)); return NextResponse.json({ type: 5, data: { content: '📷 프로필 사진 저장 중…', flags: 64 } }); }
   const me = callerId(i);
   const persons = await listPersons(gid);
   const meP = persons.find((p) => p.discord_id === me);
-  if (!meP) return reply('먼저 `/가입`(신규) 또는 `/연동`(기존)으로 등록하세요.');
+  if (!meP) return ephem('먼저 `/가입`(신규) 또는 `/연동`(기존)으로 등록하세요.');
   const useDiscord = opt(i, '디코사진') === true;
   const color = opt(i, '색');
   const emoji = opt(i, '이모지');
@@ -250,9 +251,9 @@ async function cmdProfile(i, gid) {
     if (!color && emoji == null && !meP.profile) profile = { avatar }; // 옵션 없이 첫 호출 = 사진 세팅
   }
   try { await updatePerson(meP.id, { profile }); }
-  catch { return reply('프로필 저장 실패 — 관리자에게 `profile` 컬럼 추가를 요청하세요.'); }
+  catch { return ephem('프로필 저장 실패 — 관리자에게 `profile` 컬럼 추가를 요청하세요.'); }
   const how = (profile.color || profile.emoji) ? '커스텀(색/이모지)' : '디코 프로필 사진';
-  return reply(`✅ **${meP.nickname || meP.display_name}** 프로필 업데이트 → ${how}. 사이트 아바타에 바로 반영돼요.`);
+  return ephem(`✅ **${meP.nickname || meP.display_name}** 프로필 업데이트 → ${how}. 사이트 아바타에 바로 반영돼요.`);
 }
 
 async function cmdAwards(i, gid) {
@@ -685,26 +686,26 @@ async function handleModalSubmit(i) {
 
 async function cmdMatchShot(i, gid) {
   const photoId = opt(i, '스샷');
-  if (!photoId) return reply('스코어보드 스샷을 첨부하세요: `/기록 스샷:<이미지>`');
+  if (!photoId) return ephem('스코어보드 스샷을 첨부하세요: `/기록 스샷:<이미지>`');
   waitUntil(processMatchShot(i, photoId, gid)); // OCR 느림 → 백그라운드
-  return NextResponse.json({ type: 5, data: { content: '📸 스코어보드 판독 중… (10초쯤 걸려요)' } });
+  return NextResponse.json({ type: 5, data: { content: '📸 스코어보드 판독 중… (10초쯤 걸려요)', flags: 64 } }); // 판독/수정은 나만보기
 }
 
 // 서버 ↔ 방 연결 요청 (승인 방식). 요청만 생성 → 방장/관리자가 사이트에서 승인해야 활성화(테러 방지).
 async function cmdLinkGuild(i, gid) {
-  if (!i.guild_id) return reply('서버(길드) 안에서만 쓸 수 있어요.');
+  if (!i.guild_id) return ephem('서버(길드) 안에서만 쓸 수 있어요.');
   const perms = BigInt(i.member?.permissions || '0');
   const canManage = (perms & 0x20n) !== 0n || (perms & 0x8n) !== 0n; // Manage Guild | Administrator
-  if (!canManage) return reply('⚠️ 서버 관리 권한이 있는 사람만 방 연결을 요청할 수 있어요.');
+  if (!canManage) return ephem('⚠️ 서버 관리 권한이 있는 사람만 방 연결을 요청할 수 있어요.');
   const code = (opt(i, '코드') || '').trim();
-  if (!code) return reply('방 코드를 입력하세요. 예: `/방연결 코드:빙수`');
+  if (!code) return ephem('방 코드를 입력하세요. 예: `/방연결 코드:빙수`');
   const group = await getGroupByCode(code);
-  if (!group) return reply(`"${code}" 코드의 방을 못 찾았어요. 사이트에서 방 코드를 확인하세요.`);
+  if (!group) return ephem(`"${code}" 코드의 방을 못 찾았어요. 사이트에서 방 코드를 확인하세요.`);
   const existing = await getGuildLink(i.guild_id);
-  if (existing?.status === 'approved' && existing.group_id === group.id) return reply(`이미 **${group.name || group.code}** 에 연결돼 있어요.`);
+  if (existing?.status === 'approved' && existing.group_id === group.id) return ephem(`이미 **${group.name || group.code}** 에 연결돼 있어요.`);
   const requester = i.member?.user?.global_name || i.member?.user?.username || callerId(i);
   await requestGuildLink(i.guild_id, group.id, requester, null);
-  return reply(`📨 **${group.name || group.code}** (#${group.code}) 연결 **요청**을 보냈어요.\n방장/관리자가 **사이트 → 점수표(설정) 페이지**에서 승인하면 이 서버에서 커맨드를 쓸 수 있어요. (승인 전까지는 대기)`);
+  return ephem(`📨 **${group.name || group.code}** (#${group.code}) 연결 **요청**을 보냈어요.\n방장/관리자가 **사이트 → 점수표(설정) 페이지**에서 승인하면 이 서버에서 커맨드를 쓸 수 있어요. (승인 전까지는 대기)`);
 }
 
 const HANDLERS = { 리더보드: cmdLeaderboard, 전적: cmdRecord, 내전적: cmdMyRecord, 연동: cmdLink, 가입: cmdRegister, 프로필: cmdProfile, 칭호: cmdAwards, 방: cmdRoom, 밸런스: cmdBalance, 모집: cmdRecruit, 기록: cmdMatchShot, 방연결: cmdLinkGuild };
@@ -718,14 +719,14 @@ export async function POST(request) {
   if (i.type === 1) return NextResponse.json({ type: 1 }); // PING → PONG
   if (i.type === 2) { // 슬래시 커맨드
     const h = HANDLERS[i.data?.name];
-    if (!h) return reply('알 수 없는 명령어예요.');
+    if (!h) return ephem('알 수 없는 명령어예요.');
     const gid = await resolveGid(i); // 이 서버가 승인 연결한 방 (아니면 null)
     if (!gid && i.data?.name !== '방연결') {
       const link = i.guild_id ? await getGuildLink(i.guild_id) : null;
-      if (link?.status === 'pending') return reply('⏳ 방 연결 **승인 대기중**이에요. 방장이 사이트에서 승인하면 사용할 수 있어요.');
-      return reply('⚠️ 이 서버에 연결된 방이 없어요. `/방연결 코드:<방코드>` 로 요청하세요.');
+      if (link?.status === 'pending') return ephem('⏳ 방 연결 **승인 대기중**이에요. 방장이 사이트에서 승인하면 사용할 수 있어요.');
+      return ephem('⚠️ 이 서버에 연결된 방이 없어요. `/방연결 코드:<방코드>` 로 요청하세요.');
     }
-    try { return await h(i, gid); } catch (e) { return reply('오류: ' + e.message); }
+    try { return await h(i, gid); } catch (e) { return ephem('오류: ' + e.message); }
   }
   if (i.type === 3) { // 버튼·드롭다운 (모집 큐 / 스샷 판독)
     try { return await handleComponent(i); } catch (e) { return ephem('오류: ' + e.message); }
