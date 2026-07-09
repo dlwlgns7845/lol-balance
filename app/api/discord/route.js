@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { waitUntil } from '@vercel/functions';
 import { getStats, getAwards, getMatchHistory, listPersons, updatePerson, createPerson, addAccount, uploadAvatarFromUrl, saveMatch,
-  createQueue, getQueue, closeQueue, listSignups, getSignup, upsertSignup, removeSignup, setQueueMessage,
+  createQueue, getQueue, getOpenQueue, closeQueue, listSignups, getSignup, upsertSignup, removeSignup, setQueueMessage,
   createPending, getPending, updatePending, deletePending,
   getGuildRoom, getGuildLink, requestGuildLink, getGroupByCode } from '../../../src/repo.js';
 import { balance, balance20Split } from '../../../src/engine.js';
@@ -344,6 +344,9 @@ async function captureMessageId(i, queueId) {
 }
 
 async function cmdRecruit(i, gid) {
+  // 방 하나당 열린 모집은 하나만 — 기존 모집 마감 전엔 새 /모집 금지 (사이트 '오늘 내전' 갈아껴짐 방지)
+  const existing = await getOpenQueue(gid);
+  if (existing) return ephem('이미 열린 모집이 있어요. 그 모집을 먼저 **🔒 마감**한 뒤에 다시 `/모집` 해주세요.\n(안 그러면 사이트 "오늘 내전"이 새 모집으로 갈아껴져요.)');
   const size = opt(i, '인원') === 20 ? 20 : 10;
   const q = await createQueue(gid, size, callerId(i), i.channel_id);
   waitUntil(captureMessageId(i, q.id));
