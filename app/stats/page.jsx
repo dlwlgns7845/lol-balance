@@ -1,11 +1,11 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { TIER_LABEL, tierClass } from '../../src/table.js';
 import { useGroup } from '../../components/GroupProvider.jsx';
 import { useDdragon } from '../../components/ddragon.js';
 import ChampImg from '../../components/ChampImg.jsx';
-import PlayerCard from '../../components/PlayerCard.jsx';
 import MatchHistory from '../../components/MatchHistory.jsx';
 import Awards from '../../components/Awards.jsx';
 import Avatar from '../../components/Avatar.jsx';
@@ -30,12 +30,12 @@ export default function StatsPage() {
   const { group } = useGroup();
   const gid = group?.id;
   const dd = useDdragon();
+  const router = useRouter();
   const [data, setData] = useState(null);
   const [champs, setChamps] = useState(null);
   const [tab, setTab] = useState('lb');
   const [lane, setLane] = useState('all'); // 리더보드 라인 필터
   const [sort, setSort] = useState({ key: 'score', dir: 'desc' }); // 리더보드 정렬
-  const [sel, setSel] = useState(null);
   const [query, setQuery] = useState('');
   const [searchFocus, setSearchFocus] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -76,7 +76,7 @@ export default function StatsPage() {
   const pickSearch = (p) => {
     setQuery('');
     setSearchFocus(false);
-    setSel(players.find((x) => x.id === p.id) || p);
+    router.push('/player?id=' + p.id);
   };
   const maxDmg = Math.max(1, ...lbList.map((p) => p.avgDamage || 0)); // 딜량 막대 기준 (표시 목록 중 최대)
   const setSortDir = (key, dir) => setSort({ key, dir });
@@ -88,13 +88,6 @@ export default function StatsPage() {
   const topPool = best(ranked, 'champPool');
   const topCsMin = best(ranked.filter((p) => p.csPerMin != null), 'csPerMin');
   const topDmg = best(ranked.filter((p) => p.statGames), 'avgDamage');
-  const max = useMemo(() => ({
-    kda: Math.max(1, ...played.map((p) => p.kda || 0)),
-    dmg: Math.max(1, ...played.map((p) => p.avgDamage || 0)),
-    cs: Math.max(1, ...played.map((p) => p.avgCs || 0)),
-    pool: Math.max(1, ...played.map((p) => p.champPool || 0)),
-  }), [played]);
-
   return (
     <div className="stats-pink">
       <div className="page-head stats-hero">
@@ -193,7 +186,7 @@ export default function StatsPage() {
                   {rowsToShow.map((p, i) => {
                     const splash = dd.splash(p.topChamps?.[0]?.champion);
                     return (
-                      <div key={p.id} className={`lbx-row ${i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : ''}`} onClick={() => setSel(players.find((x) => x.id === p.id) || p)}>
+                      <div key={p.id} className={`lbx-row ${i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : ''}`} onClick={() => router.push('/player?id=' + p.id)}>
                         {splash && <div className="lbx-splash" style={{ backgroundImage: `url(${splash})` }} />}
                         <div className="lbx-rank">{medal(i) || <span className="num">{i + 1}</span>}</div>
                         <div className="lbx-name">
@@ -233,7 +226,6 @@ export default function StatsPage() {
         </>
       )}
 
-      {sel && <PlayerCard player={sel} gid={gid} max={max} dd={dd} onClose={() => setSel(null)} />}
     </div>
   );
 }
