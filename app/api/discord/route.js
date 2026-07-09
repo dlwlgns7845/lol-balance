@@ -3,15 +3,17 @@
 import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { waitUntil } from '@vercel/functions';
-import { getStats, getAwards, listPersons, updatePerson, createPerson, addAccount, uploadAvatarFromUrl,
+import { getStats, getAwards, listPersons, updatePerson, createPerson, addAccount, uploadAvatarFromUrl, saveMatch,
   createQueue, getQueue, closeQueue, listSignups, getSignup, upsertSignup, removeSignup, setQueueMessage } from '../../../src/repo.js';
 import { balance } from '../../../src/engine.js';
 import { queueMessage, buildTeams, LANE_KR } from '../../../src/discord-queue.js';
+import { extractScoreboard } from '../../../src/vision.js';
 import { fetchTierEstimate } from '../../../src/opgg.js';
 import { fetchTierEstimateHybrid, fetchRiotProfile, hasRiotKey } from '../../../src/riot.js';
 import { TIER_LABEL, POS_KR } from '../../../src/table.js';
 
 export const runtime = 'nodejs';
+export const maxDuration = 60; // 스샷 OCR(gpt-4o) + 저장 여유
 
 const PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY;
 const GID = process.env.DISCORD_DEFAULT_GID;
@@ -375,7 +377,46 @@ async function handleComponent(i) {
   return updateMsg(queueMessage(queue, await listSignups(qid), false));
 }
 
-const HANDLERS = { 리더보드: cmdLeaderboard, 전적: cmdRecord, 내전적: cmdMyRecord, 연동: cmdLink, 가입: cmdRegister, 프로필: cmdProfile, 칭호: cmdAwards, 방: cmdRoom, 밸런스: cmdBalance, 모집: cmdRecruit };
+// ── 스샷 자동 전적기록 ── 로비 종료 스코어보드 → gpt-4o OCR → saveMatch(자동 사람등록+중복검사)
+async function processMatchShot(i, photoId) {
+  try {
+    const att = i.data?.resolved?.attachments?.[photoId];
+    if (!att || !(att.content_type || '').startsWith('image/')) return followup(i, '❌ 이미지(스코어보드 스샷)를 올려주세요.');
+    if (att.size > 8 * 1024 * 1024) return followup(i, '❌ 이미지가 너무 커요 (8MB 이하).');
+    const res = await fetch(att.url);
+    if (!res.ok) return followup(i, '이미지 다운로드 실패, 다시 시도하세요.');
+    const buf = Buffer.from(await res.arrayBuffer());
+    const dataUrl = `data:${att.content_type};base64,${buf.toString('base64')}`;
+
+    let parsed;
+    try { parsed = await extractScoreboard(dataUrl); }
+    catch (e) { return followup(i, '스샷 판독 실패: ' + e.message); }
+    const teams = parsed?.teams;
+    if (!Array.isArray(teams) || teams.length !== 2 || teams.some((t) => !Array.isArray(t.players) || t.players.length !== 5)) {
+      return followup(i, '❌ 스코어보드를 제대로 못 읽었어요. **로비 종료 스코어보드 전체**(10명)가 다 보이게 다시 찍어 올려주세요.');
+    }
+    const [t1, t2] = teams;
+    const winner = t1.win ? 'A' : (t2.win ? 'B' : 'A');
+    const mk = (pl, team) => ({ name: (pl.name || '').trim(), team, champion: pl.champion || null, k: pl.k, d: pl.d, a: pl.a, damage: pl.damage, cs: pl.cs, gold: pl.gold });
+    const participants = [...t1.players.map((p) => mk(p, 'A')), ...t2.players.map((p) => mk(p, 'B'))];
+    if (participants.some((p) => !p.name)) return followup(i, '❌ 소환사명을 다 못 읽었어요. 이름이 가려지지 않게 다시 찍어주세요.');
+
+    const r = await saveMatch(GID, { winner, participants, durationMin: parsed.durationMin });
+    if (r?.duplicate) return followup(i, '⚠️ 이미 기록된 경기예요 (중복). 저장 안 함.');
+    const winName = winner === 'A' ? '팀1(위)' : '팀2(아래)';
+    const dur = parsed.durationMin ? ` · ${Math.round(parsed.durationMin)}분` : '';
+    return followup(i, `✅ **경기 기록 완료!** ${winName} 승리 · 10명 저장${dur}\n통계·리더보드·칭호에 반영됐어요. (\`/리더보드\`·\`/칭호\` 확인)`);
+  } catch (e) { return followup(i, '기록 처리 오류: ' + e.message); }
+}
+
+async function cmdMatchShot(i) {
+  const photoId = opt(i, '스샷');
+  if (!photoId) return reply('스코어보드 스샷을 첨부하세요: `/기록 스샷:<이미지>`');
+  waitUntil(processMatchShot(i, photoId)); // OCR 느림 → 백그라운드
+  return NextResponse.json({ type: 5, data: { content: '📸 스코어보드 판독 중… (10초쯤 걸려요)' } });
+}
+
+const HANDLERS = { 리더보드: cmdLeaderboard, 전적: cmdRecord, 내전적: cmdMyRecord, 연동: cmdLink, 가입: cmdRegister, 프로필: cmdProfile, 칭호: cmdAwards, 방: cmdRoom, 밸런스: cmdBalance, 모집: cmdRecruit, 기록: cmdMatchShot };
 
 export async function POST(request) {
   const body = await request.text();
