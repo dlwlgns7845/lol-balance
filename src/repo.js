@@ -1,5 +1,19 @@
 // Supabase 데이터 접근 (서버 전용). groups / persons / accounts CRUD.
 import { db } from './supabase.js';
+import { TIER_ORDER } from './table.js';
+
+// 티어 순위(작을수록 높음). base_tier = 계정들 중 가장 높은 티어로.
+const tierRank = (t) => { const i = TIER_ORDER.indexOf(t); return i === -1 ? 9999 : i; };
+// 기존 base_tier + 계정 티어들 중 가장 높은 것으로 (더 높은 쪽 채택, 낮추지 않음)
+export async function recomputeBaseTier(personId) {
+  if (!personId) return;
+  const { data: person } = await db().from('persons').select('base_tier').eq('id', personId).maybeSingle();
+  const { data: accts } = await db().from('accounts').select('opgg_tier').eq('person_id', personId);
+  const tiers = [person?.base_tier, ...(accts || []).map((x) => x.opgg_tier)].filter(Boolean);
+  if (!tiers.length) return;
+  const best = tiers.reduce((b, t) => (tierRank(t) < tierRank(b) ? t : b), tiers[0]);
+  if (best !== person?.base_tier) await db().from('persons').update({ base_tier: best }).eq('id', personId);
+}
 
 // ── 방(그룹) ──
 export async function getGroupByCode(code) {
@@ -329,12 +343,15 @@ export async function addAccount(a) {
     last_synced_at: new Date().toISOString(),
   }).select().single();
   if (error) throw error;
+  await recomputeBaseTier(a.person_id); // 계정 추가 → 가장 높은 티어로 base_tier 갱신
   return data;
 }
 
 export async function deleteAccount(id) {
+  const { data: acc } = await db().from('accounts').select('person_id').eq('id', id).maybeSingle();
   const { error } = await db().from('accounts').delete().eq('id', id);
   if (error) throw error;
+  if (acc?.person_id) await recomputeBaseTier(acc.person_id); // 계정 삭제 → 남은 계정 기준 재계산
 }
 
 // 본캐 지정 (같은 사람의 다른 계정은 해제)
