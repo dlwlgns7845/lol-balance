@@ -2,10 +2,13 @@
 // 상시봇(gateway) 아님 = 서버리스라 항상 켜져 있음(컴퓨터 꺼짐 무관).
 import crypto from 'crypto';
 import { NextResponse } from 'next/server';
-import { getStats, getAwards, listPersons, updatePerson, createPerson,
+import { waitUntil } from '@vercel/functions';
+import { getStats, getAwards, listPersons, updatePerson, createPerson, addAccount,
   createQueue, getQueue, closeQueue, listSignups, getSignup, upsertSignup, removeSignup } from '../../../src/repo.js';
 import { balance } from '../../../src/engine.js';
 import { allocateQueue, LANES } from '../../../src/queue.js';
+import { fetchTierEstimate } from '../../../src/opgg.js';
+import { fetchTierEstimateHybrid, fetchRiotProfile, hasRiotKey } from '../../../src/riot.js';
 import { TIER_LABEL, POS_KR } from '../../../src/table.js';
 
 export const runtime = 'nodejs';
@@ -94,30 +97,73 @@ async function cmdLink(i) {
   return reply(`✅ <@${callerId(i)}> ↔ **${target.display_name}** 연동 완료! 이제 \`/내전적\`·\`/밸런스\`에서 자동 인식돼요.`);
 }
 
-// 신규 셀프 가입: 디코계정당 사람 카드 1개 생성 + 연동. 웹 로그인/권한 없이 봇으로 온보딩.
-async function cmdRegister(i) {
-  const me = callerId(i);
-  const persons = await listPersons(GID);
-  const already = persons.find((p) => p.discord_id === me);
-  if (already) return reply(`이미 **${already.nickname || already.display_name}** 으로 가입돼 있어요. 정보 수정은 웹 사람관리에서.`);
-  const name = (opt(i, '이름') || '').trim();
-  if (!name) return reply('이름을 입력하세요.');
-  const main = opt(i, '주라인');
-  if (!main) return reply('주라인을 선택하세요.');
-  const tier = opt(i, '티어') || 'G2';
-  const sub = opt(i, '부라인');
-  const key = normNm(name);
-  const exist = persons.find((p) => normNm(p.display_name) === key || normNm(p.nickname || '') === key);
-  if (exist) { // 같은 이름 카드가 이미 있음 → 미연동이면 그 카드에 연결, 남의 것이면 거부
-    if (exist.discord_id) return reply(`"${name}" 이름은 이미 다른 사람이 연동돼 있어요. 다른 이름으로 하거나 관리자에게 문의.`);
-    await updatePerson(exist.id, { discord_id: me });
-    return reply(`✅ 기존 **${exist.display_name}** 카드에 연동했어요. (티어/라인은 웹 사람관리 값 유지)`);
+// 티어 측정 (seed API와 동일 파이프라인): Riot키 있으면 하이브리드, 없으면 op.gg 단독
+async function measureTier(name, tag, region) {
+  if (hasRiotKey()) {
+    try { const hy = await fetchTierEstimateHybrid(name, tag, region); if (hy.found) return hy; } catch { /* 폴백 */ }
   }
-  const secondary = sub && sub !== main ? [sub] : [];
-  const p = await createPerson(GID, { display_name: name, base_tier: tier, primary_positions: [main], secondary_positions: secondary });
-  await updatePerson(p.id, { discord_id: me });
-  const laneTxt = LANE_KR[main] + (secondary.length ? ` / 부:${LANE_KR[sub]}` : '');
-  return reply(`🎉 **${name}** 가입 완료! (${TIER_LABEL[tier] || tier} · ${laneTxt}) 이제 \`/내전적\`·\`/밸런스\`·\`/모집\`에서 인식돼요.`);
+  const est = await fetchTierEstimate(name, tag, region);
+  if (est.found) return est;
+  if (hasRiotKey()) { const riot = await fetchRiotProfile(name, tag, region); if (riot.found) return riot; }
+  return est;
+}
+
+// 슬래시 응답 뒤 결과를 원본 메시지에 채움(15분 유효). 봇토큰 불필요(interaction 토큰).
+async function followup(i, content) {
+  await fetch(`https://discord.com/api/v10/webhooks/${i.application_id}/${i.token}/messages/@original`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
+  });
+}
+
+// 신규 셀프 가입: 닉네임 → 우리 시스템이 티어 측정 → 카드 생성 + 연동. 측정 실패면 가입 거부.
+// 측정이 3초를 넘겨(7초+) defer(type 5) 후 waitUntil로 백그라운드 처리 + followup.
+async function processRegister(i) {
+  try {
+    const me = callerId(i);
+    const persons = await listPersons(GID);
+    const already = persons.find((p) => p.discord_id === me);
+    if (already) return followup(i, `이미 **${already.nickname || already.display_name}** 으로 가입돼 있어요. 정보 수정은 웹 사람관리에서.`);
+    const raw = (opt(i, '닉네임') || '').trim();
+    const hash = raw.indexOf('#');
+    const gameName = raw.slice(0, hash).trim();
+    const tag = raw.slice(hash + 1).trim();
+    if (!gameName || !tag) return followup(i, '❌ 라이엇 ID를 `게임닉#태그` 형식으로 정확히 입력하세요. 예: `홍길동#KR1`');
+    const region = opt(i, '지역') || 'NA';
+    const main = opt(i, '주라인');
+    const sub = opt(i, '부라인');
+
+    const est = await measureTier(gameName, tag, region);
+    if (!est.found) return followup(i, `❌ "${raw}" (${region}) 을 못 찾았어요. 정확한 라이엇 ID(#태그 포함)와 지역을 확인하세요.`);
+    if (!est.suggestedTier) return followup(i, `❌ "${raw}" 는 랭크 기록이 없어 티어 측정이 안 돼요(언랭). 솔랭 배치 후 다시 시도하세요.`);
+    const tier = est.suggestedTier;
+    const displayName = est.gameName || gameName;
+
+    const key = normNm(displayName);
+    const exist = persons.find((p) => normNm(p.display_name) === key || normNm(p.nickname || '') === key);
+    if (exist && exist.discord_id) return followup(i, `"${displayName}" 이름은 이미 다른 사람이 연동돼 있어요. 관리자에게 문의.`);
+    let personId;
+    if (exist) { // 미연동 동명 카드 → 연결 + 측정 티어로 갱신
+      await updatePerson(exist.id, { discord_id: me, base_tier: tier });
+      personId = exist.id;
+    } else {
+      const secondary = sub && sub !== main ? [sub] : [];
+      const p = await createPerson(GID, { display_name: displayName, base_tier: tier, primary_positions: [main], secondary_positions: secondary });
+      await updatePerson(p.id, { discord_id: me });
+      personId = p.id;
+    }
+    try { await addAccount({ person_id: personId, game_name: displayName, tag_line: tag, region, opgg_tier: tier, opgg_confidence: est.confidence }); } catch { /* 계정저장 실패는 무시 */ }
+    const laneTxt = LANE_KR[main] + (sub && sub !== main ? ` / 부:${LANE_KR[sub]}` : '');
+    return followup(i, `🎉 **${displayName}** 가입 완료!\n측정 티어 **${TIER_LABEL[tier] || tier}** · ${laneTxt}\n${est.basis ? `_${est.basis}_\n` : ''}이제 \`/내전적\`·\`/밸런스\`·\`/모집\`에서 인식돼요.`);
+  } catch (e) { return followup(i, '가입 처리 중 오류: ' + e.message); }
+}
+
+async function cmdRegister(i) {
+  const raw = (opt(i, '닉네임') || '').trim();
+  if (!raw.includes('#')) return reply('❌ 라이엇 ID를 #태그까지 정확히 입력하세요. 예: `홍길동#KR1` (해시태그 없으면 측정 불가)');
+  if (!opt(i, '주라인')) return reply('주라인을 선택하세요.');
+  waitUntil(processRegister(i)); // 측정 7초+ → 백그라운드
+  return NextResponse.json({ type: 5, data: { content: `🔎 **${raw}** 티어 측정 중… (몇 초 걸려요)` } }); // deferred
 }
 
 async function cmdAwards() {
