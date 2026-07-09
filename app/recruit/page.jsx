@@ -16,8 +16,8 @@ const ROSTER_KEY = 'lol-balance-roster';
 const subLabel = (p) => {
   if (p.all) return null;
   if (p.sub) return `부:${p.sub === 'all' ? 'ALL' : LANE_KR[p.sub]}`;
-  if (p.regSub) return `부:${LANE_KR[p.regSub]}`;
-  return null;
+  const subs = (p.regSubs || []).filter((x) => x !== p.lane).map((x) => LANE_KR[x]);
+  return subs.length ? `부:${subs.join('/')}` : null;
 };
 
 export default function RecruitPage() {

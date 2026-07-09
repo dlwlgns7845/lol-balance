@@ -40,7 +40,7 @@ export function buildMetaMap(persons) {
   const m = new Map();
   (persons || []).forEach((p) => {
     const acc = (p.accounts || []).find((a) => a.is_main) || (p.accounts || [])[0];
-    const meta = { tier: p.base_tier, game: acc?.game_name || null, tag: acc?.tag_line || null };
+    const meta = { tier: p.base_tier, game: acc?.game_name || null, tag: acc?.tag_line || null, regSubs: p.secondary_positions || [] };
     if (p.discord_id) m.set(p.discord_id, meta);
     m.set(`site:${p.id}`, meta);
   });
@@ -62,7 +62,7 @@ export function queueView(queue, signups, personMap) {
   const map = (id, lane) => {
     const s = byId.get(id);
     const p = personMap && personMap.get(id);
-    return { id: s?.id, name: s?.name || '?', main: s?.main, sub: s?.sub || null, regSub: p?.regSub || null, off: !!(s && lane && s.main !== lane && s.main !== 'all'), all: s?.main === 'all', tier: p?.tier || null, profile: p?.profile || null, lane };
+    return { id: s?.id, name: s?.name || '?', main: s?.main, sub: s?.sub || null, regSubs: p?.regSubs || [], off: !!(s && lane && s.main !== lane && s.main !== 'all'), all: s?.main === 'all', tier: p?.tier || null, profile: p?.profile || null, lane };
   };
   const lanes = {};
   LANES.forEach((l) => { lanes[l] = alloc.lanes[l].map((id) => map(id, l)); });
@@ -100,6 +100,10 @@ export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20
     if (s?.main === 'all') role = ' · 올라운더';
     else if (s && s.main !== lane) role = ` · 부(원래 ${LANE_KR[s.main]})`;
     else if (s?.sub) role = ` · 부:${s.sub === 'all' ? 'ALL' : LANE_KR[s.sub]}`;
+    else if (m.regSubs?.length) { // 큐에서 안 골랐으면 사람관리 등록 부라인
+      const subs = m.regSubs.filter((x) => x !== lane).map((x) => LANE_KR[x]);
+      if (subs.length) role = ` · 부:${subs.join('/')}`;
+    }
     return `${n}. **${riot}**${mention}${tier}${role}`;
   };
   const lines = LANES.map((l) => {
