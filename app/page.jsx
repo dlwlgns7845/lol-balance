@@ -67,7 +67,8 @@ export default function StatsPage() {
   const LANE_LB_ENABLED = false; // 포지션별(라인) 리더보드 탭
   const SORT_ENABLED = false;    // 정렬 가능한 표 헤더
   const LANE_TABS = [['all', '전체'], ['top', '탑'], ['jungle', '정글'], ['mid', '미드'], ['adc', '원딜'], ['sup', '서폿']];
-  const lbList = (LANE_LB_ENABLED && lane !== 'all') ? (data?.lanes?.[lane] || []) : played;
+  // 리더보드: 전체 노출. 0판(등록만·미출전)은 getStats가 이미 맨 뒤로 정렬 → 아래에 붙음.
+  const lbList = (LANE_LB_ENABLED && lane !== 'all') ? (data?.lanes?.[lane] || []) : players;
   const sortedLb = [...lbList].sort((a, b) => {
     const va = a[sort.key] ?? -Infinity, vb = b[sort.key] ?? -Infinity;
     return sort.dir === 'desc' ? vb - va : va - vb;
@@ -186,9 +187,9 @@ export default function StatsPage() {
                   {rowsToShow.map((p, i) => {
                     const splash = dd.splash(p.topChamps?.[0]?.champion);
                     return (
-                      <div key={p.id} className={`lbx-row ${i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : ''}`} onClick={() => setSel(players.find((x) => x.id === p.id) || p)}>
+                      <div key={p.id} className={`lbx-row ${p.games && i === 0 ? 'top1' : p.games && i === 1 ? 'top2' : p.games && i === 2 ? 'top3' : ''} ${p.games ? '' : 'no-games'}`} onClick={() => setSel(players.find((x) => x.id === p.id) || p)}>
                         {splash && <div className="lbx-splash" style={{ backgroundImage: `url(${splash})` }} />}
-                        <div className="lbx-rank">{medal(i) || <span className="num">{i + 1}</span>}</div>
+                        <div className="lbx-rank">{p.games ? (medal(i) || <span className="num">{i + 1}</span>) : <span className="num">-</span>}</div>
                         <div className="lbx-name">
                           <Avatar name={p.nickname || p.name} profile={p.profile} size={30} />
                           <div className="lbx-nm-txt">
@@ -215,7 +216,7 @@ export default function StatsPage() {
                         <div className="lbx-most">
                           {p.topChamps?.map((c) => <ChampImg key={c.champion} name={c.champion} iconUrl={dd.icon} size={26} title={`${c.champion} ${c.games}판`} />)}
                         </div>
-                        <div className="lbx-score"><b>{p.score}</b><span>점</span></div>
+                        <div className="lbx-score">{p.games ? <><b>{p.score}</b><span>점</span></> : <span className="muted">미출전</span>}</div>
                       </div>
                     );
                   })}

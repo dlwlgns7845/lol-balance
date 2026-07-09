@@ -430,6 +430,8 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .sh-arrows button:hover { color: var(--muted); }
 .sh-arrows button.on { color: var(--gold); }
 .lbx-row:hover { background: rgba(79,182,214,.07); }
+.lbx-row.no-games { opacity: .5; } /* 0판(미출전) — 흐리게, 순위·점수 대신 '-'/'미출전' */
+.lbx-row.no-games:hover { opacity: .72; }
 /* 1등: 은은한 골드 반짝임 (가끔 빛이 스윽 지나감) */
 .lbx-row.top1 { background: linear-gradient(90deg, rgba(232,192,125,.09), transparent 55%); box-shadow: inset 3px 0 0 #e8c07d; }
 .lbx-row.top1:hover { background: linear-gradient(90deg, rgba(232,192,125,.13), rgba(79,182,214,.05) 55%); }
