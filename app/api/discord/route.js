@@ -351,7 +351,10 @@ async function handleComponent(i) {
   if (action === 'rec' || action === 'rex') return handleRecordConfirm(action, qid); // 스샷 판독 확인/취소
   if (action === 'rswap') return handleRecordSwap(qid); // 승패 뒤집기
   if (action === 'rdur') return handleRecordDurOpen(i, qid); // 시간 수정 모달
-  if (action === 'redit') return handleRecordEditOpen(i, qid); // 선수 수정 모달
+  if (action === 'redit') return handleRecordEditOpen(i, qid); // 선수 값수정 모달
+  if (action === 'rmap') return handleRecordMapOpen(i, qid); // 🆕 → 기존선수 지정 열기
+  if (action === 'rmapto') return handleRecordMapTo(i, qid, lane); // 지정 완료 (lane=idx)
+  if (action === 'rback') { const pd = await getPending(qid); return pd ? updateMsg(await reviewData(pd)) : updateMsg({ content: '⌛ 만료된 판독이에요.', embeds: [], components: [] }); }
   const queue = await getQueue(qid);
   if (!queue) return ephem('모집을 찾을 수 없어요 (오래된 메시지일 수 있어요).');
   if (queue.status !== 'open') return ephem('이미 마감된 모집이에요.');
@@ -419,29 +422,53 @@ async function processMatchShot(i, photoId) {
   } catch (e) { return followup(i, '기록 처리 오류: ' + e.message); }
 }
 
-// 판독 리뷰 메시지(embed + 선수수정 셀렉트 + 저장/승패/취소) — 초기 표시·수정 후 재렌더 공용
-async function reviewData(pend) {
+const LANE_EMOJI = ['🔝', '🌲', '⚡', '🏹', '🛡️']; // 탑·정글·미드·원딜·서폿 (스샷 슬롯 순서)
+
+// 판독 리뷰 메시지(embed + 셀렉트/버튼) — 초기 표시·수정 후 재렌더 공용.
+// mapSlot 지정 시: 그 자리를 "기존 선수로 지정"하는 person 셀렉트를 보여줌.
+async function reviewData(pend, mapSlot) {
   const persons = await listPersons(pend.gid);
   const known = new Set(persons.flatMap((p) => [p.display_name, p.nickname].filter(Boolean).map(normNm)));
   const { winner, participants, durationMin } = pend.data;
-  const econ = (p) => (p.cs ? `${p.cs}cs` : (p.gold ? `${p.gold}g` : ''));
-  const line = (p) => `${known.has(normNm(p.name)) ? '•' : '🆕'} ${p.name} · ${p.champion || '?'} ${p.k ?? 0}/${p.d ?? 0}/${p.a ?? 0}${econ(p) ? ` · ${econ(p)}` : ''}${p.damage ? ` · ${Math.round(p.damage / 1000)}k딜` : ''}`;
-  const field = (team, label, win) => ({ name: `${win ? '🏆 ' : ''}${label}`, value: participants.filter((x) => x.team === team).map(line).join('\n') || '—', inline: true });
-  const embed = {
-    title: '📋 판독 결과 — 확인·수정 후 저장', color: GOLD,
-    fields: [field('A', '팀1(위)', winner === 'A'), field('B', '팀2(아래)', winner === 'B')],
-    footer: { text: `${durationMin ? Math.round(durationMin) + '분 · ' : ''}🆕=미등록(저장 시 자동생성) · 아래에서 선수 골라 바로 수정 가능` },
+  const isMapped = (p) => !!p.person_id || known.has(normNm(p.name));
+  const teamField = (team, blue) => {
+    const list = participants.filter((x) => x.team === team);
+    const val = list.map((p, li) => {
+      const kda = `\`${p.k ?? 0}/${p.d ?? 0}/${p.a ?? 0}\``;
+      const econ = p.cs ? `${p.cs}cs` : (p.gold ? `${p.gold}g` : '-');
+      const dmg = p.damage ? ` · ${Math.round(p.damage / 1000)}k` : '';
+      return `${LANE_EMOJI[li] || '•'} ${isMapped(p) ? '' : '🆕'}**${p.name}**\n　${p.champion || '?'} · ${kda} · ${econ}${dmg}`;
+    }).join('\n');
+    return { name: `${blue ? '🟦' : '🟥'} 팀 ${blue ? '1 · 블루' : '2 · 레드'}${(blue ? winner === 'A' : winner === 'B') ? '　🏆 승리' : ''}`, value: val || '—', inline: true };
   };
-  const options = participants.map((p, idx) => ({ label: `${p.team === 'A' ? '1팀' : '2팀'} ${p.name}`.slice(0, 90), value: String(idx), description: `${p.champion || ''} ${p.k ?? 0}/${p.d ?? 0}/${p.a ?? 0}`.slice(0, 90) }));
+  const embed = {
+    title: '📋 판독 결과 — 확인·수정 후 저장', color: winner === 'A' ? 0x4d7de8 : 0xe84d4d,
+    fields: [teamField('A', true), teamField('B', false)],
+    footer: { text: `${durationMin ? Math.round(durationMin) + '분 · ' : ''}🆕=미등록(저장 시 자동생성) · 정렬: 탑>정글>미드>원딜>서폿` },
+  };
+
+  if (mapSlot != null) { // 기존 선수로 지정 모드
+    const p = participants[mapSlot];
+    const opts = persons.slice(0, 25).map((x) => ({ label: (x.nickname || x.display_name || '?').slice(0, 90), value: x.id, description: (TIER_LABEL[x.base_tier] || x.base_tier || '').slice(0, 90) }));
+    embed.footer = { text: `"${p?.name}" → 어느 기존 선수인가요? (아래 목록${persons.length > 25 ? ' · 상위25명' : ''})` };
+    return { content: '', embeds: [embed], components: [
+      { type: 1, components: [{ type: 3, custom_id: `rmapto:${pend.id}:${mapSlot}`, placeholder: '🔗 이 자리를 어느 기존 선수로?', options: opts.length ? opts : [{ label: '(등록된 선수 없음)', value: 'none' }] }] },
+      { type: 1, components: [{ type: 2, style: 2, label: '← 취소', custom_id: `rback:${pend.id}` }] },
+    ] };
+  }
+
+  const newSlots = participants.map((p, idx) => ({ p, idx })).filter((x) => !isMapped(x.p));
+  const editOpts = participants.map((p, idx) => ({ label: `${p.team === 'A' ? '1팀' : '2팀'} ${LANE_EMOJI[idx % 5]} ${p.name}`.slice(0, 90), value: String(idx), description: `${p.champion || ''} ${p.k ?? 0}/${p.d ?? 0}/${p.a ?? 0}`.slice(0, 90) }));
   const components = [
-    { type: 1, components: [{ type: 3, custom_id: `redit:${pend.id}`, placeholder: '✏️ 수정할 선수 선택', options }] },
-    { type: 1, components: [
-      { type: 2, style: 3, label: '✅ 저장', custom_id: `rec:${pend.id}` },
-      { type: 2, style: 1, label: '🔄 승패 바꾸기', custom_id: `rswap:${pend.id}` },
-      { type: 2, style: 2, label: '⏱ 시간', custom_id: `rdur:${pend.id}` },
-      { type: 2, style: 4, label: '❌ 취소', custom_id: `rex:${pend.id}` },
-    ] },
+    { type: 1, components: [{ type: 3, custom_id: `redit:${pend.id}`, placeholder: '✏️ 값 수정할 선수 선택', options: editOpts }] },
   ];
+  if (newSlots.length) components.push({ type: 1, components: [{ type: 3, custom_id: `rmap:${pend.id}`, placeholder: '🔗 미등록(🆕) → 기존 선수로 지정', options: newSlots.map((x) => ({ label: `${x.p.name}`.slice(0, 90), value: String(x.idx), description: `${x.p.champion || ''}`.slice(0, 90) })) }] });
+  components.push({ type: 1, components: [
+    { type: 2, style: 3, label: '✅ 저장', custom_id: `rec:${pend.id}` },
+    { type: 2, style: 1, label: '🔄 승패', custom_id: `rswap:${pend.id}` },
+    { type: 2, style: 2, label: '⏱ 시간', custom_id: `rdur:${pend.id}` },
+    { type: 2, style: 4, label: '❌ 취소', custom_id: `rex:${pend.id}` },
+  ] });
   return { content: '', embeds: [embed], components };
 }
 
@@ -465,6 +492,29 @@ async function handleRecordSwap(pendingId) {
   if (!pend) return updateMsg({ content: '⌛ 만료된 판독이에요.', embeds: [], components: [] });
   pend.data.winner = pend.data.winner === 'A' ? 'B' : 'A';
   await updatePending(pendingId, pend.data);
+  return updateMsg(await reviewData(pend));
+}
+
+// 🆕 선수 선택 → 기존 선수 지정 셀렉트 표시
+async function handleRecordMapOpen(i, pendingId) {
+  const pend = await getPending(pendingId);
+  if (!pend) return updateMsg({ content: '⌛ 만료된 판독이에요.', embeds: [], components: [] });
+  const idx = Number(i.data?.values?.[0]);
+  return updateMsg(await reviewData(pend, idx));
+}
+
+// 기존 선수 지정 완료 → person_id 연결 후 리뷰로 복귀
+async function handleRecordMapTo(i, pendingId, idxStr) {
+  const pend = await getPending(pendingId);
+  if (!pend) return updateMsg({ content: '⌛ 만료된 판독이에요.', embeds: [], components: [] });
+  const personId = i.data?.values?.[0];
+  const idx = Number(idxStr);
+  if (personId && personId !== 'none' && pend.data.participants[idx]) {
+    const persons = await listPersons(pend.gid);
+    const person = persons.find((p) => p.id === personId);
+    if (person) { pend.data.participants[idx].person_id = person.id; pend.data.participants[idx].name = person.nickname || person.display_name; }
+    await updatePending(pendingId, pend.data);
+  }
   return updateMsg(await reviewData(pend));
 }
 
