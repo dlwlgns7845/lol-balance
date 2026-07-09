@@ -35,6 +35,7 @@ export default function StatsPage() {
   const [lane, setLane] = useState('all'); // 리더보드 라인 필터
   const [sort, setSort] = useState({ key: 'score', dir: 'desc' }); // 리더보드 정렬
   const [sel, setSel] = useState(null);
+  const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
 
@@ -65,7 +66,19 @@ export default function StatsPage() {
     const va = a[sort.key] ?? -Infinity, vb = b[sort.key] ?? -Infinity;
     return sort.dir === 'desc' ? vb - va : va - vb;
   });
-  const rowsToShow = SORT_ENABLED ? sortedLb : lbList;
+  const rawRows = SORT_ENABLED ? sortedLb : lbList;
+  const q = query.trim().toLowerCase();
+  const rowsToShow = q
+    ? rawRows.filter((p) => {
+        const hay = [
+          p.name,
+          p.nickname,
+          TIER_LABEL[p.base_tier],
+          ...(p.topChamps || []).map((c) => c.champion),
+        ].filter(Boolean).join(' ').toLowerCase();
+        return hay.includes(q);
+      })
+    : rawRows;
   const maxDmg = Math.max(1, ...lbList.map((p) => p.avgDamage || 0)); // 딜량 막대 기준 (표시 목록 중 최대)
   const setSortDir = (key, dir) => setSort({ key, dir });
   // 통계 카드(최고승률·딜량·CS·챔프폭)도 3판 이상만 (1~2판 반짝 1등 방지)
@@ -84,9 +97,16 @@ export default function StatsPage() {
   }), [played]);
 
   return (
-    <div>
-      <div className="page-head">
+    <div className="stats-pink">
+      <div className="page-head stats-hero">
         <div className="title"><h1>통계</h1><p className="sub" style={{ margin: 0 }}>스크린샷 기록 기반 · 사람(본캐+부캐 합산) 단위. 선수를 클릭하면 상세 프로필이 열려요.</p></div>
+        <input
+          className="stats-search"
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="선수, 챔피언, 태그 검색"
+        />
       </div>
 
       {loading && <div className="panel center muted">불러오는 중…</div>}
@@ -123,7 +143,7 @@ export default function StatsPage() {
                   ))}
                 </div>
               )}
-              {lbList.length === 0 ? (
+              {rowsToShow.length === 0 ? (
                 <div className="center muted" style={{ padding: '28px 0' }}>
                   {lane === 'all'
                     ? <>아직 {MIN_RANK_GAMES}판 이상 뛴 선수가 없어요. {played.length > 0 ? '조금 더 기록되면 순위가 떠요.' : <><Link href="/record" className="accent">경기 기록</Link>에서 스샷을 올리세요.</>}</>
