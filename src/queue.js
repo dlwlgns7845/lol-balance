@@ -13,16 +13,19 @@ export const LANES = ['top', 'jungle', 'mid', 'adc', 'sup'];
 export function allocateQueue(signups, size = 10) {
   const N = Math.max(1, Math.floor(size / 5));
   const byId = new Map(signups.map((s) => [s.id, s]));
-  // 선호 라인 목록: [메인, (부라인)]. sub='all' 이면 메인 밀렸을 때 나머지 전 라인 후보(올라운더).
+  // 특정 주라인(부라인 ALL 포함)은 안정매칭, 주라인 ALL(올라운더)은 2단계에서 빈 라인 채움.
+  const fixed = signups.filter((s) => s.main !== 'all');
+  const rovers = signups.filter((s) => s.main === 'all').slice().sort((a, b) => a.order - b.order);
   const subsOf = (s) => (s.sub === 'all' ? LANES.filter((l) => l !== s.main) : (s.sub && s.sub !== s.main ? [s.sub] : []));
-  const prefs = new Map(signups.map((s) => [s.id, [s.main, ...subsOf(s)]]));
-  const nextIdx = new Map(signups.map((s) => [s.id, 0]));
+  const prefs = new Map(fixed.map((s) => [s.id, [s.main, ...subsOf(s)]]));
+  const nextIdx = new Map(fixed.map((s) => [s.id, 0]));
   const held = {}; LANES.forEach((l) => { held[l] = []; });
   // 라인 내 우선순위(낮을수록 우선): 메인전용(0) < 메인+부(1) < 부라인(2), 동급이면 선착순(order)
   const classAt = (s, lane) => (s.main === lane ? (s.sub ? 1 : 0) : 2);
   const rank = (id, lane) => classAt(byId.get(id), lane) * 1e9 + byId.get(id).order;
 
-  const free = signups.map((s) => s.id);
+  // Phase 1: 특정 주라인 신청자 안정매칭 (선착순·밀림·연쇄)
+  const free = fixed.map((s) => s.id);
   const waitlist = [];
   let guard = 0;
   while (free.length && guard++ < 100000) {
@@ -37,6 +40,14 @@ export function allocateQueue(signups, size = 10) {
       held[lane].sort((a, b) => rank(a, lane) - rank(b, lane));
       free.push(held[lane].pop());
     }
+  }
+
+  // Phase 2: 올라운더(주라인 ALL) → 선착순으로 가장 빈 라인부터 채움 (없으면 대기)
+  for (const s of rovers) {
+    const open = LANES.filter((l) => held[l].length < N);
+    if (!open.length) { waitlist.push(s.id); continue; }
+    open.sort((a, b) => held[a].length - held[b].length || LANES.indexOf(a) - LANES.indexOf(b));
+    held[open[0]].push(s.id);
   }
   const lanes = {}; LANES.forEach((l) => { lanes[l] = held[l].slice().sort((a, b) => byId.get(a).order - byId.get(b).order); });
   return { lanes, waitlist };

@@ -19,7 +19,7 @@ export async function POST(request) {
       const person = persons.find((p) => p.id === personId);
       if (!person) throw new Error('없는 사람');
       const discordId = person.discord_id || `site:${person.id}`;
-      await upsertSignup(queueId, discordId, { name: person.nickname || person.display_name, main, sub: sub && sub !== main ? sub : null });
+      await upsertSignup(queueId, discordId, { name: person.nickname || person.display_name, main, sub: (main === 'all' || !sub || sub === main) ? null : sub });
     } else throw new Error('알 수 없는 액션');
     const fresh = await getQueue(queueId);
     const signups = await listSignups(queueId);

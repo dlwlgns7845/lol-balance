@@ -411,7 +411,8 @@ async function handleComponent(i) {
     if (!meP) return ephem('먼저 `/가입`(신규) 또는 `/연동`(기존 카드)으로 등록해야 참가할 수 있어요. (팀 밸런스에 티어가 필요해요)');
     const ex = await getSignup(qid, me);
     const patch = { main: lane };
-    if (ex?.sub === lane) patch.sub = null; // 부라인이 새 메인과 겹치면 해제
+    if (lane === 'all') patch.sub = null; // 주라인 ALL이면 부라인 무의미 → 해제
+    else if (ex?.sub === lane) patch.sub = null; // 부라인이 새 메인과 겹치면 해제
     if (!ex) patch.name = meP.nickname || meP.display_name; // 등록 이름으로 표시
     await upsertSignup(qid, me, patch);
   } else if (action === 'qs') { // 부라인 드롭다운

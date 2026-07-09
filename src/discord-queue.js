@@ -11,7 +11,7 @@ export function buildTeamsRanked(queue, signups, personMap) {
   const info = new Map(signups.map((s) => [s.discord_id, s]));
   const cell = (id, lane) => {
     const s = info.get(id); const p = personMap?.get(id) || {};
-    const tier = (s && lane !== s.main && p.secondaryTier) ? p.secondaryTier : (p.tier || 'G2'); // 부라인이면 부라인티어
+    const tier = (s && s.main !== 'all' && lane !== s.main && p.secondaryTier) ? p.secondaryTier : (p.tier || 'G2'); // 부라인 배치면 부라인티어 (ALL은 기본티어)
     const idx = POS.indexOf(lane);
     return { pts: (TABLE[tier]?.[idx] ?? 15), tier, name: s?.name || '?', discordId: id, lane };
   };
@@ -50,7 +50,7 @@ export function queueView(queue, signups, personMap) {
   const map = (id, lane) => {
     const s = byId.get(id);
     const p = personMap && personMap.get(id);
-    return { id: s?.id, name: s?.name || '?', main: s?.main, sub: s?.sub || null, off: !!(s && lane && s.main !== lane), tier: p?.tier || null, profile: p?.profile || null, lane };
+    return { id: s?.id, name: s?.name || '?', main: s?.main, sub: s?.sub || null, off: !!(s && lane && s.main !== lane && s.main !== 'all'), all: s?.main === 'all', tier: p?.tier || null, profile: p?.profile || null, lane };
   };
   const lanes = {};
   LANES.forEach((l) => { lanes[l] = alloc.lanes[l].map((id) => map(id, l)); });
@@ -63,6 +63,7 @@ export function queueComponents(qid) {
   const btn = (custom_id, label, style) => ({ type: 2, style, label, custom_id });
   return [
     { type: 1, components: LANES.map((l) => btn(`qm:${qid}:${l}`, LANE_KR[l], 1)) },
+    { type: 1, components: [btn(`qm:${qid}:all`, '🌐 주라인 ALL (아무 라인)', 2)] },
     { type: 1, components: [{ type: 3, custom_id: `qs:${qid}`, placeholder: '부라인 선택 (선택 · 없어도 됨)',
       options: [{ label: '부라인 없음', value: 'none' }, { label: '🌐 ALL (아무 라인 가능)', value: 'all' }, ...LANES.map((l) => ({ label: LANE_KR[l], value: l }))] }] },
     { type: 1, components: [btn(`ql:${qid}`, '❌ 나가기', 4), btn(`qc:${qid}`, '🔒 마감', 2)] },
@@ -77,7 +78,7 @@ export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20
   const info = new Map(signups.map((s) => [s.discord_id, s]));
   const lines = LANES.map((l) => {
     const ids = alloc.lanes[l];
-    const names = ids.map((id) => { const s = info.get(id); return `${s?.name || '?'}${s && s.main !== l ? '(부)' : ''}`; });
+    const names = ids.map((id) => { const s = info.get(id); const t = !s ? '' : (s.main === 'all' ? '(올)' : (s.main !== l ? '(부)' : '')); return `${s?.name || '?'}${t}`; });
     const dot = ids.length >= N ? '🔵' : (ids.length ? '🟢' : '⬜');
     return `${dot} **${LANE_KR[l]}** (${ids.length}/${N}) ${names.join(', ') || '—'}`;
   });

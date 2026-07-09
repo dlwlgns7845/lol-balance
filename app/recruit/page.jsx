@@ -98,7 +98,7 @@ export default function RecruitPage() {
                     {list.map((p) => (
                       <div key={p.id} className="rc-player">
                         <Avatar name={p.name} profile={p.profile} size={22} />
-                        <span className="rc-nm">{p.name}{p.off && <span className="rc-off">부</span>}</span>
+                        <span className="rc-nm">{p.name}{p.off && <span className="rc-off">부</span>}{p.all && <span className="rc-off">올</span>}</span>
                         <span className="rc-ti">{TIER_LABEL[p.tier] || p.tier || '?'}</span>
                         {isAdmin && <button className="rc-kick" disabled={busy} onClick={() => act({ queueId: queue.id, action: 'kick', signupId: p.id })} title="강퇴">✕</button>}
                       </div>
@@ -135,6 +135,7 @@ export default function RecruitPage() {
               </select>
               <select value={addMain} onChange={(e) => setAddMain(e.target.value)}>
                 {LANES.map((l) => <option key={l} value={l}>주:{LANE_KR[l]}</option>)}
+                <option value="all">주:ALL (아무 라인)</option>
               </select>
               <select value={addSub} onChange={(e) => setAddSub(e.target.value)}>
                 <option value="">부라인 없음</option>
