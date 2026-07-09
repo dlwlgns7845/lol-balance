@@ -127,11 +127,9 @@ export default function PeoplePage() {
                     <Avatar name={p.nickname || p.display_name} profile={p.profile} size={34} />
                   </div>
                   <input className="m-name" defaultValue={p.display_name} placeholder="인게임 닉 (스샷 매칭)" readOnly={!canEdit}
-                    title="인게임 닉네임 — 스샷의 닉과 같아야 자동 매칭돼요"
+                    title="인게임 닉네임 — 스샷 매칭용. 표시이름은 연동 시 디코 서버별명, 아니면 이 인게임닉."
                     onBlur={(e) => canEdit && e.target.value !== p.display_name && patchPerson(p.id, { display_name: e.target.value })} />
-                  <input className="m-nick" defaultValue={p.nickname || ''} placeholder="별명(선택)" readOnly={!canEdit}
-                    title="사람 알아보기용 별명 — 통계에 닉과 함께 표시"
-                    onBlur={(e) => canEdit && (e.target.value || '') !== (p.nickname || '') && patchPerson(p.id, { nickname: e.target.value })} />
+                  <span className="m-nick-view" title={p.discord_id ? '디스코드 서버 별명(자동 동기화)' : '미연동 — 인게임 닉으로 표시'}>{p.discord_id ? `🔗 ${p.nickname || '…'}` : ''}</span>
                   <div className="m-tiercell">
                     <select className="m-tier" value={p.base_tier} disabled={!canEdit} title="주라인 티어 (메인 포지션 기준)" onChange={(e) => patchPerson(p.id, { base_tier: e.target.value })}>
                       {TIER_ORDER.map((k) => <option key={k} value={k}>{TIER_LABEL[k]}</option>)}
