@@ -11,7 +11,12 @@ export async function GET(request) {
     if (!queue) return NextResponse.json({ ok: true, queue: null });
     const signups = await listSignups(queue.id);
     const persons = await listPersons(gid);
-    const pmap = new Map(persons.filter((p) => p.discord_id).map((p) => [p.discord_id, { tier: p.base_tier, profile: p.profile || null }]));
+    const pmap = new Map(); // discord_id 와 site:<personId> 둘 다로 조회 가능하게
+    persons.forEach((p) => {
+      const meta = { tier: p.base_tier, profile: p.profile || null, regSub: (p.secondary_positions || [])[0] || null };
+      if (p.discord_id) pmap.set(p.discord_id, meta);
+      pmap.set(`site:${p.id}`, meta);
+    });
     return NextResponse.json({ ok: true, queue: { id: queue.id, size: queue.size, status: queue.status }, ...queueView(queue, signups, pmap) });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });

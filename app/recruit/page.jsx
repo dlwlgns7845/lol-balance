@@ -6,12 +6,19 @@ import { useRouter } from 'next/navigation';
 import { useGroup } from '../../components/GroupProvider.jsx';
 import { apiFetch } from '../../components/api.js';
 import { arraysToRoles } from '../../components/PositionToggles.jsx';
-import { TIER_LABEL } from '../../src/table.js';
+import { tierClass } from '../../src/table.js';
 import Avatar from '../../components/Avatar.jsx';
 
 const LANES = ['top', 'jungle', 'mid', 'adc', 'sup'];
 const LANE_KR = { top: '탑', jungle: '정글', mid: '미드', adc: '원딜', sup: '서폿' };
 const ROSTER_KEY = 'lol-balance-roster';
+// 부라인 라벨: 큐에서 고른 부라인 우선, 없으면 사람관리 등록 부라인. 올라운더/부배치는 태그로 이미 표시.
+const subLabel = (p) => {
+  if (p.all) return null;
+  if (p.sub) return `부:${p.sub === 'all' ? 'ALL' : LANE_KR[p.sub]}`;
+  if (p.regSub) return `부:${LANE_KR[p.regSub]}`;
+  return null;
+};
 
 export default function RecruitPage() {
   const { group, isAdmin } = useGroup();
@@ -97,17 +104,24 @@ export default function RecruitPage() {
                   <div className="rc-slots">
                     {list.map((p) => (
                       <div key={p.id} className="rc-player">
-                        <Avatar name={p.name} profile={p.profile} size={22} />
-                        <span className="rc-nm">{p.name}{p.off && <span className="rc-off">부</span>}{p.all && <span className="rc-off">올</span>}</span>
-                        <span className="rc-ti">{TIER_LABEL[p.tier] || p.tier || '?'}</span>
+                        <Avatar name={p.name} profile={p.profile} size={24} />
+                        <div className="rc-p-info">
+                          <span className="rc-nm">{p.name}{p.off && <span className="rc-off">부</span>}{p.all && <span className="rc-off">올</span>}</span>
+                          <span className="rc-meta">
+                            <span className={`rc-ti ${tierClass(p.tier)}`}>{p.tier || '?'}</span>
+                            {subLabel(p) && <span className="rc-sub">{subLabel(p)}</span>}
+                          </span>
+                        </div>
                         {isAdmin && (
-                          <select className="rc-move" value={p.main} disabled={busy} title="라인 이동"
-                            onChange={(e) => act({ queueId: queue.id, action: 'move', signupId: p.id, main: e.target.value })}>
-                            {LANES.map((L) => <option key={L} value={L}>{LANE_KR[L]}</option>)}
-                            <option value="all">ALL</option>
-                          </select>
+                          <div className="rc-ctrl">
+                            <select className="rc-move" value={p.main} disabled={busy} title="라인 이동"
+                              onChange={(e) => act({ queueId: queue.id, action: 'move', signupId: p.id, main: e.target.value })}>
+                              {LANES.map((L) => <option key={L} value={L}>{LANE_KR[L]}</option>)}
+                              <option value="all">ALL</option>
+                            </select>
+                            <button className="rc-kick" disabled={busy} onClick={() => act({ queueId: queue.id, action: 'kick', signupId: p.id })} title="강퇴">✕</button>
+                          </div>
                         )}
-                        {isAdmin && <button className="rc-kick" disabled={busy} onClick={() => act({ queueId: queue.id, action: 'kick', signupId: p.id })} title="강퇴">✕</button>}
                       </div>
                     ))}
                     {Array.from({ length: Math.max(0, N - list.length) }).map((_, k) => <div key={'e' + k} className="rc-player empty">—</div>)}
@@ -175,11 +189,15 @@ export default function RecruitPage() {
         .rc-lane.done{border-color:#1f7a3f}
         .rc-lane-h{display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px}
         .rc-slots{display:flex;flex-direction:column;gap:6px}
-        .rc-player{display:flex;align-items:center;gap:6px;background:#26262e;border-radius:7px;padding:6px 8px;font-size:13px}
-        .rc-player.empty{color:#555;justify-content:center;background:transparent;border:1px dashed #33333c}
-        .rc-nm{font-weight:600;display:flex;align-items:center;gap:4px}
+        .rc-player{display:flex;align-items:center;gap:7px;background:#26262e;border-radius:7px;padding:6px 8px}
+        .rc-player.empty{color:#555;justify-content:center;background:transparent;border:1px dashed #33333c;min-height:34px}
+        .rc-p-info{display:flex;flex-direction:column;min-width:0;flex:1;gap:1px}
+        .rc-nm{font-weight:600;font-size:12.5px;display:flex;align-items:center;gap:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .rc-meta{display:flex;align-items:center;gap:5px;font-size:10.5px;white-space:nowrap;overflow:hidden}
+        .rc-ti{font-weight:700}
+        .rc-sub{color:#9fc0cf;background:#2c333b;border-radius:4px;padding:0 4px}
         .rc-off{font-size:9px;background:#7a5a1f;color:#fff;border-radius:4px;padding:1px 4px}
-        .rc-ti{margin-left:auto;font-size:11px;color:#9a9}
+        .rc-ctrl{display:flex;align-items:center;gap:3px;flex-shrink:0}
         .rc-move{background:#2a2a33;color:#bbb;border:1px solid #33333c;border-radius:5px;font-size:11px;padding:2px 3px;max-width:52px}
         .rc-kick{background:none;border:none;color:#c66;cursor:pointer;font-size:12px;padding:0 2px}
         .rc-wait{margin-top:14px;background:#1c1c22;border-radius:10px;padding:12px}
