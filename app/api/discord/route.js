@@ -19,13 +19,12 @@ export const runtime = 'nodejs';
 export const maxDuration = 60; // 스샷 OCR(gpt-4o) + 저장 여유
 
 const PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY;
-const DEFAULT_GID = process.env.DISCORD_DEFAULT_GID; // 매핑 없는 서버의 폴백(빙수)
 const GOLD = 0xe8c07d;
 
-// 이 서버(guild)가 연결한 방 → 없으면 DEFAULT_GID(빙수). 멀티테넌트 핵심.
+// 이 서버(guild)가 연결한 방. 연결 안 됐으면 null → 커맨드가 /방연결 안내. (빙수 포함 모든 서버 명시적 연결)
 async function resolveGid(i) {
-  if (i?.guild_id) { const g = await getGuildRoom(i.guild_id); if (g) return g; }
-  return DEFAULT_GID;
+  if (!i?.guild_id) return null;
+  return await getGuildRoom(i.guild_id);
 }
 const normNm = (s) => (s || '').toLowerCase().replace(/\s+/g, '');
 
@@ -675,7 +674,7 @@ export async function POST(request) {
   if (i.type === 2) { // 슬래시 커맨드
     const h = HANDLERS[i.data?.name];
     if (!h) return reply('알 수 없는 명령어예요.');
-    const gid = await resolveGid(i); // 이 서버가 연결한 방 (없으면 DEFAULT_GID)
+    const gid = await resolveGid(i); // 이 서버가 연결한 방 (연결 안 됐으면 null)
     if (!gid && i.data?.name !== '방연결') return reply('⚠️ 이 서버에 연결된 방이 없어요. `/방연결 코드:<방코드>` 로 먼저 연결하세요.');
     try { return await h(i, gid); } catch (e) { return reply('오류: ' + e.message); }
   }
