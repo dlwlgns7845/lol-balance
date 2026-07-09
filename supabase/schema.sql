@@ -115,6 +115,59 @@ alter table champion_refs add column if not exists kind text not null default 'p
 create index if not exists idx_champion_refs_champ on champion_refs(champion);
 create index if not exists idx_champion_refs_kind on champion_refs(kind);
 
+-- ── 디스코드 봇 (2026-07 추가) ──
+-- persons: 디코 연동/프로필/부라인 티어
+alter table persons add column if not exists discord_id text;        -- 디코 유저 ID (1인 1연동)
+alter table persons add column if not exists profile jsonb;          -- { avatar: url } 프로필 사진
+alter table persons add column if not exists secondary_tier text;    -- 부라인 배치 시 적용 티어 (점수표 키)
+-- groups: 저티어 자동보정 on/off
+alter table groups add column if not exists adjust_enabled boolean not null default false;
+
+-- 디스코드 서버(guild) ↔ 방 매핑 (승인 방식: pending → 방장이 사이트에서 approved)
+create table if not exists discord_guilds (
+  guild_id text primary key,
+  group_id uuid not null references groups(id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending','approved')),
+  linked_by text,
+  guild_name text,
+  created_at timestamptz not null default now()
+);
+
+-- 내전 모집 큐 (디코 /모집 + 사이트 미러). 서버리스라 상태는 전부 DB.
+create table if not exists recruit_queues (
+  id uuid primary key default gen_random_uuid(),
+  gid uuid not null references groups(id) on delete cascade,
+  size int not null default 10,
+  status text not null default 'open' check (status in ('open','closed')),
+  host_id text,                                       -- 모집 만든 디코 유저 (마감 권한)
+  channel_id text,                                    -- 디코 채널 (사이트→디코 메시지 갱신용)
+  message_id text,                                    -- 디코 메시지 (사이트→디코 PATCH)
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_recruit_queues_gid on recruit_queues(gid, status);
+
+-- 모집 신청 (discord_id 또는 'site:<personId>'). created_at = 선착순.
+create table if not exists recruit_signups (
+  id uuid primary key default gen_random_uuid(),
+  queue_id uuid not null references recruit_queues(id) on delete cascade,
+  discord_id text not null,
+  name text,
+  main text,                                          -- top/jungle/mid/adc/sup/all
+  sub text,                                           -- 위와 동일 + null
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_recruit_signups_queue on recruit_signups(queue_id);
+-- upsertSignup이 조회→insert 라 동시클릭 중복 방지용 유니크 (이미 중복 있으면 이 줄만 실패 — 정리 후 재실행)
+create unique index if not exists uq_recruit_signups_member on recruit_signups(queue_id, discord_id);
+
+-- 스샷 판독 대기 + /밸런스 리롤 상태 (임시 보관, 생성 24h 후 자동정리 대상)
+create table if not exists pending_matches (
+  id uuid primary key default gen_random_uuid(),
+  gid uuid,
+  data jsonb not null,
+  created_at timestamptz not null default now()
+);
+
 create index if not exists idx_persons_group on persons(group_id);
 create index if not exists idx_matches_group on matches(group_id);
 create index if not exists idx_accounts_person on accounts(person_id);

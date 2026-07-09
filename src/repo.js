@@ -639,7 +639,12 @@ export async function setSignupMain(id, main) {
 }
 
 // ── 스샷 판독 대기(확인 전) ── 디코에서 판독→확인 버튼까지 잠깐 보관. 확인 시 saveMatch, 취소 시 삭제.
+// 밸런스 리롤 pending은 확인 단계가 없어 안 지워짐 → 생성 때마다 24h 지난 행 청소 (무한 누적 방지)
 export async function createPending(gid, data) {
+  try {
+    await db().from('pending_matches').delete()
+      .lt('created_at', new Date(Date.now() - 24 * 3600 * 1000).toISOString());
+  } catch { /* 청소 실패해도 생성은 진행 */ }
   const { data: row, error } = await db().from('pending_matches').insert({ gid, data }).select('id').single();
   if (error) throw error;
   return row.id;

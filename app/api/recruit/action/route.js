@@ -1,15 +1,15 @@
-// 사이트→디코 관리: 강퇴/마감. 로그인 어드민만. DB 변경 후 저장된 디코 메시지를 봇토큰으로 갱신(양방향).
+// 사이트→디코 관리: 강퇴/마감. 방장 또는 전역 관리자. DB 변경 후 저장된 디코 메시지를 봇토큰으로 갱신(양방향).
 import { NextResponse } from 'next/server';
-import { requireAdmin, errStatus } from '../../../../src/auth.js';
+import { requireOwner, errStatus } from '../../../../src/auth.js';
 import { getQueue, listSignups, closeQueue, removeSignupById, listPersons, upsertSignup, setSignupMain } from '../../../../src/repo.js';
 import { syncDiscordMessage, buildMetaMap } from '../../../../src/discord-queue.js';
 
 export async function POST(request) {
   try {
-    await requireAdmin(request);
     const { queueId, action, signupId, personId, main, sub } = await request.json();
     const queue = await getQueue(queueId);
     if (!queue) throw new Error('없는 큐');
+    await requireOwner(request, queue.gid);
     if (queue.status !== 'open' && action !== 'close') throw new Error('마감된 모집이에요');
     if (action === 'close') await closeQueue(queueId);
     else if (action === 'kick' && signupId) await removeSignupById(signupId);

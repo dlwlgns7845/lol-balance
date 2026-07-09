@@ -1,8 +1,9 @@
 // 엔진 스모크 테스트 (프레임워크 없이 node:assert). 실행: node test.js
 import assert from 'node:assert';
-import { balance, detectOutliers, tierPts } from './src/engine.js';
+import { balance, balance20Split, detectOutliers, tierPts } from './src/engine.js';
 import { parseProfile, mapTier } from './src/opgg.js';
 import { hitLimit, checkLimit, recordFail } from './src/ratelimit.js';
+import { allocateQueue } from './src/queue.js';
 
 const even = [
   { name: 'A', tier: 'E2', positions: ['top', 'mid'] },
@@ -147,6 +148,73 @@ t('op.gg 파싱 — 솔랭 미배치면 자유랭 폴백', () => {
   assert.equal(p.basis, '현재 자유랭');
   assert.equal(p.games, 13);
   assert.equal(p.confidence, 'low'); // 13판 < 30 → 낮음
+});
+
+// ── 모집 큐 배정 (allocateQueue) ──
+t('큐: 메인전용이 유연자(메인+부)를 밀어냄 → 유연자는 부라인으로 연쇄', () => {
+  const s = [
+    { id: 'flex', main: 'top', sub: 'mid', order: 0 }, // 유연자가 먼저 신청했어도
+    { id: 'main1', main: 'top', sub: null, order: 1 }, // 메인전용 둘이 탑을 가져감
+    { id: 'main2', main: 'top', sub: null, order: 2 },
+  ];
+  const r = allocateQueue(s, 10); // 라인당 2자리
+  assert.deepEqual([...r.lanes.top].sort(), ['main1', 'main2']);
+  assert.deepEqual(r.lanes.mid, ['flex']); // 밀린 유연자는 부라인 미드로
+  assert.equal(r.waitlist.length, 0);
+});
+
+t('큐: 갈 라인이 없으면 대기 (동급은 선착순)', () => {
+  const s = [
+    { id: 'a', main: 'top', sub: null, order: 0 },
+    { id: 'b', main: 'top', sub: null, order: 1 },
+    { id: 'c', main: 'top', sub: null, order: 2 }, // 전용 셋째 → 자리 없음
+  ];
+  const r = allocateQueue(s, 10);
+  assert.deepEqual([...r.lanes.top].sort(), ['a', 'b']);
+  assert.deepEqual(r.waitlist, ['c']);
+});
+
+t('큐: 주라인 ALL(올라운더)은 빈 라인부터 채움', () => {
+  const s = [
+    { id: 'a', main: 'top', sub: null, order: 0 },
+    { id: 'rover', main: 'all', sub: null, order: 1 },
+  ];
+  const r = allocateQueue(s, 5); // 라인당 1자리
+  assert.equal(r.lanes.top[0], 'a');
+  assert.equal(r.lanes.jungle[0], 'rover'); // 빈 라인 중 첫 번째
+});
+
+t('큐: 부라인 ALL은 주라인 밀리면 아무 빈 라인으로', () => {
+  const s = [
+    { id: 'a', main: 'top', sub: null, order: 0 },
+    { id: 'b', main: 'top', sub: 'all', order: 1 }, // 탑 밀림 → ALL 부라인
+  ];
+  const r = allocateQueue(s, 5);
+  assert.equal(r.lanes.top[0], 'a');
+  const placed = ['jungle', 'mid', 'adc', 'sup'].some((l) => r.lanes[l][0] === 'b');
+  assert.ok(placed, 'b가 다른 라인에 배치돼야 함');
+});
+
+// ── 20인 고저분리 (balance20Split) ──
+t('20인 고저분리: 파워순 상위10/하위10 → 두 게임, 각 10명 배치', () => {
+  const POS5 = ['top', 'jungle', 'mid', 'adc', 'sup'];
+  const tiers = ['M700', 'M600', 'M500', 'M400', 'M300', 'M200', 'M100', 'M0', 'D1', 'D2',
+    'P1', 'P2', 'P3', 'P4', 'G1', 'G2', 'G3', 'G4', 'S1', 'S2'];
+  const roster = tiers.map((tier, i) => ({ name: 'p' + i, tier, positions: [POS5[i % 5]] }));
+  const r = balance20Split(roster);
+  assert.equal(r.games.length, 2);
+  assert.equal(r.lobbies[0].length, 10);
+  assert.equal(r.lobbies[1].length, 10);
+  // 고티어 로비 = 상위 10명(p0~p9) 그대로
+  const hi = new Set(r.lobbies[0].map((p) => p.name));
+  for (let i = 0; i < 10; i++) assert.ok(hi.has('p' + i), `p${i}는 고티어 로비여야 함`);
+  // 각 게임은 성립(feasible)하고 10명 전원 배치
+  for (const g of r.games) {
+    assert.ok(g.feasible);
+    const names = new Set();
+    g.candidates[0].lanes.forEach((l) => { names.add(l.a.name); names.add(l.b.name); });
+    assert.equal(names.size, 10);
+  }
 });
 
 // 레이트리밋 (인메모리 경로) — async라 t() 밖에서 top-level await

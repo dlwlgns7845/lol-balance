@@ -678,6 +678,10 @@ async function handleModalSubmit(i) {
 }
 
 async function cmdMatchShot(i, gid) {
+  // 서버측 권한 검사 — default_member_permissions는 서버 설정에서 풀 수 있는 기본값일 뿐 (GPT 쿼터·오기록 방지)
+  const perms = BigInt(i.member?.permissions || '0');
+  const canManage = (perms & 0x20n) !== 0n || (perms & 0x8n) !== 0n; // Manage Guild | Administrator
+  if (!canManage) return ephem('⚠️ 서버 관리 권한이 있는 사람만 기록할 수 있어요.');
   const photoId = opt(i, '스샷');
   if (!photoId) return ephem('스코어보드 스샷을 첨부하세요: `/기록 스샷:<이미지>`');
   waitUntil(processMatchShot(i, photoId, gid)); // OCR 느림 → 백그라운드
