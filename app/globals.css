@@ -1916,6 +1916,29 @@ table.lanes.lanes-lg thead th.tr,
   border-color: rgba(95, 240, 176, .32);
 }
 
+.pos-toggles button.on {
+  background: linear-gradient(180deg, rgba(255, 111, 173, .50), rgba(255, 111, 173, .34));
+  border-color: rgba(255, 159, 203, .56);
+  color: #fff5fa;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .04);
+}
+
+.pos-toggles button.sec {
+  background: rgba(255, 111, 173, .10);
+  border-color: rgba(255, 111, 173, .38);
+  color: #ffb8d7;
+}
+
+.pos-toggles button:hover {
+  background: rgba(255, 111, 173, .14);
+  border-color: rgba(255, 159, 203, .44);
+  color: #fff5fa;
+}
+
+.pos-toggles button.on:hover {
+  background: linear-gradient(180deg, rgba(255, 111, 173, .58), rgba(255, 111, 173, .40));
+}
+
 @media (max-width: 1120px) {
   .topbar {
     grid-template-columns: 1fr;
