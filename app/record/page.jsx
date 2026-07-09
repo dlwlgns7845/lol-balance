@@ -277,7 +277,7 @@ export default function RecordPage() {
           </table>
           <datalist id="champ-list">{champList.map((c) => <option key={c} value={c} />)}</datalist>
           <p className="hint">
-            챔피언은 스샷에 이름이 적혀 있어 AI가 바로 읽어요. 틀린 값만 고치고 저장하세요. 사람은 닉 같으면 자동 선택, 신규는 자동 등록(<Link href="/people" className="accent">사람 관리</Link>에서 합치기).
+            챔피언은 스샷에 이름이 적혀 있어 AI가 바로 읽어요. 틀린 값만 고치고 저장하세요. 사람은 닉 같으면 자동 선택, 신규는 자동 등록(<Link href="/people" className="accent">멤버 관리</Link>에서 합치기).
           </p>
         </div>
       )}

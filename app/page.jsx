@@ -198,9 +198,9 @@ export default function BalancerPage() {
     return m;
   }, [statPlayers]);
 
-  // 사람 → 소속 포지션 그룹 판정
-  //   5포지션 다 등록(주+부 합쳐 5) → ALL / 주포지션 1개 → 그 라인
-  //   주포지션 2~3개 → 많이 간 라인(통계) / 주포지션 없으면 부·통계로 추정
+  // 사람 → 소속 포지션 그룹 판정 (멤버관리 등록값이 기준 = 형이 직접 통제)
+  //   5포지션 다 등록(주+부 합쳐 5) → ALL(올라운더) / 주포지션 1개 → 그 라인
+  //   주포지션 2~3개 → 그중 많이 간 라인(통계 타이브레이크) / 미등록이면 부·통계로 추정
   const bucketOf = (p) => {
     const prim = (p.primary_positions || []).filter((x) => POS.includes(x));
     const sec = (p.secondary_positions || []).filter((x) => POS.includes(x));

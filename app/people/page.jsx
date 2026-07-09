@@ -93,7 +93,7 @@ export default function PeoplePage() {
   return (
     <div>
       <div className="page-head">
-        <div className="title"><h1>사람 관리</h1><p className="sub" style={{ margin: 0 }}>멤버 등록 · 본캐/부캐 연결 · op.gg 티어 자동. 통계는 사람 단위 합산.</p></div>
+        <div className="title"><h1>멤버 관리</h1><p className="sub" style={{ margin: 0 }}>멤버 등록 · 본캐/부캐 연결 · op.gg 티어 자동. 통계는 사람 단위 합산.</p></div>
         {canEdit && (
           <div className="controls">
             <span className="region-pick">서버
