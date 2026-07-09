@@ -6,7 +6,7 @@ import { waitUntil } from '@vercel/functions';
 import { getStats, getAwards, listPersons, updatePerson, createPerson, addAccount, uploadAvatarFromUrl,
   createQueue, getQueue, closeQueue, listSignups, getSignup, upsertSignup, removeSignup, setQueueMessage } from '../../../src/repo.js';
 import { balance } from '../../../src/engine.js';
-import { queueMessage, LANE_KR } from '../../../src/discord-queue.js';
+import { queueMessage, buildTeams, LANE_KR } from '../../../src/discord-queue.js';
 import { fetchTierEstimate } from '../../../src/opgg.js';
 import { fetchTierEstimateHybrid, fetchRiotProfile, hasRiotKey } from '../../../src/riot.js';
 import { TIER_LABEL, POS_KR } from '../../../src/table.js';
@@ -314,6 +314,26 @@ async function cmdRecruit(i) {
   return NextResponse.json({ type: 4, data: queueMessage(q, [], false) });
 }
 
+// 마감 시 신청자 전원을 태그해 호출 (새 followup 메시지 = 실제 알림 발생). site: 키는 태그 못하니 이름만.
+async function pingTeams(i, signups, teams) {
+  const ids = signups.map((s) => s.discord_id).filter((id) => id && !id.startsWith('site:'));
+  const tag = (p) => (p.discordId && !p.discordId.startsWith('site:') ? `<@${p.discordId}>` : p.name);
+  let content;
+  if (teams) {
+    const side = (arr) => arr.map((p) => `${LANE_KR[p.lane]} ${tag(p)}`).join(' · ');
+    content = `🎮 **내전 시작!** 팀 확정 — 모두 모여요!\n🟦 **블루** ${side(teams.A)}\n🟥 **레드** ${side(teams.B)}`;
+  } else {
+    if (!ids.length) return;
+    content = `🎮 **내전 마감!** 모두 모여요 — ${ids.map((id) => `<@${id}>`).join(' ')}`;
+  }
+  try {
+    await fetch(`https://discord.com/api/v10/webhooks/${i.application_id}/${i.token}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, allowed_mentions: { users: ids.slice(0, 100) } }),
+    });
+  } catch { /* 호출 실패해도 마감·팀은 유지 */ }
+}
+
 async function handleComponent(i) {
   if (!GID) return ephem('⚠️ 방 설정(DISCORD_DEFAULT_GID)이 없어요.');
   const parts = (i.data?.custom_id || '').split(':');
@@ -340,10 +360,15 @@ async function handleComponent(i) {
     await upsertSignup(qid, me, { sub: val === 'none' ? null : val });
   } else if (action === 'ql') { // 나가기
     await removeSignup(qid, me);
-  } else if (action === 'qc') { // 마감 (만든 사람만)
+  } else if (action === 'qc') { // 마감 (만든 사람만) → 자동팀 + 신청자 태그 호출
     if (queue.host_id && me !== queue.host_id) return ephem('모집 만든 사람만 마감할 수 있어요.');
     await closeQueue(qid);
-    return updateMsg(queueMessage({ ...queue, status: 'closed' }, await listSignups(qid), true));
+    const signups = await listSignups(qid);
+    const persons = await listPersons(GID);
+    const pmap = new Map(persons.filter((p) => p.discord_id).map((p) => [p.discord_id, { tier: p.base_tier, secondaryTier: p.secondary_tier || null }]));
+    const teams = buildTeams({ ...queue, status: 'closed' }, signups, pmap);
+    waitUntil(pingTeams(i, signups, teams)); // 태그해서 부르기(새 메시지 = 알림 뜸)
+    return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, teams));
   } else {
     return ephem('알 수 없는 버튼이에요.');
   }

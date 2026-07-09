@@ -1,5 +1,34 @@
 // 내전 모집 큐 — 디코 메시지 렌더 + 배정 + 사이트↔디코 동기화 (route.js·사이트 API 공유)
 import { allocateQueue, LANES } from './queue.js';
+import { TABLE, POS } from './table.js';
+
+// 마감 시 라인배정 로스터 → 균형 2팀 (10인만). personMap: discord_id → { tier, secondaryTier }.
+// 각 라인 2명을 A/B로 나눠 티어점수 합 차이 최소화 (2^5 브루트포스). 라인당 2명 아니면 null(자동팀 스킵).
+export function buildTeams(queue, signups, personMap) {
+  if (queue.size !== 10) return null; // 20인 자동팀은 추후
+  const alloc = allocateSignups(queue, signups);
+  for (const l of LANES) if (alloc.lanes[l].length !== 2) return null;
+  const info = new Map(signups.map((s) => [s.discord_id, s]));
+  const cell = (id, lane) => {
+    const s = info.get(id); const p = personMap?.get(id) || {};
+    const tier = (s && lane !== s.main && p.secondaryTier) ? p.secondaryTier : (p.tier || 'G2'); // 부라인이면 부라인티어
+    const idx = POS.indexOf(lane);
+    return { pts: (TABLE[tier]?.[idx] ?? 15), tier, name: s?.name || '?', discordId: id, lane };
+  };
+  const laneP = LANES.map((l) => alloc.lanes[l].map((id) => cell(id, l)));
+  let best = null;
+  for (let mask = 0; mask < 32; mask++) {
+    const A = [], B = []; let sa = 0, sb = 0;
+    LANES.forEach((l, i) => {
+      const [x, y] = laneP[i]; const flip = (mask >> i) & 1;
+      const a = flip ? y : x, b = flip ? x : y;
+      A.push(a); sa += a.pts; B.push(b); sb += b.pts;
+    });
+    const diff = Math.abs(sa - sb);
+    if (!best || diff < best.diff) best = { A, B, sumA: sa, sumB: sb, diff };
+  }
+  return best;
+}
 
 export const LANE_KR = { top: '탑', jungle: '정글', mid: '미드', adc: '원딜', sup: '서폿' };
 const GOLD = 0xe8c07d;
@@ -38,8 +67,9 @@ export function queueComponents(qid) {
   ];
 }
 
-// 디코 메시지 본문 { embeds, components } — 슬래시 응답(type4)·버튼 갱신(type7)·사이트 되쓰기 공용
-export function queueMessage(queue, signups, closed) {
+// 디코 메시지 본문 { embeds, components } — 슬래시 응답(type4)·버튼 갱신(type7)·사이트 되쓰기 공용.
+// closed + teams 있으면 확정 2팀을 필드로 표시.
+export function queueMessage(queue, signups, closed, teams) {
   const N = Math.max(1, Math.floor(queue.size / 5));
   const alloc = allocateSignups(queue, signups);
   const info = new Map(signups.map((s) => [s.discord_id, s]));
@@ -57,6 +87,14 @@ export function queueMessage(queue, signups, closed) {
     description: desc, color: GOLD,
     footer: closed ? undefined : { text: '메인 라인 버튼으로 참가 · 부라인은 드롭다운(선택) · 라인 다시 눌러 변경 · ❌ 나가기' },
   };
+  if (closed && teams) {
+    const side = (arr) => arr.map((p) => `${LANE_KR[p.lane]} · ${p.name}`).join('\n');
+    embed.fields = [
+      { name: `🟦 블루 (${Math.round(teams.sumA)})`, value: side(teams.A), inline: true },
+      { name: `🟥 레드 (${Math.round(teams.sumB)})`, value: side(teams.B), inline: true },
+    ];
+    embed.title += ' · 팀 확정';
+  }
   return { embeds: [embed], components: closed ? [] : queueComponents(queue.id), allowed_mentions: { parse: [] } };
 }
 
