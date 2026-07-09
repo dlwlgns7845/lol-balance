@@ -30,6 +30,21 @@ export async function getGroupById(id) {
   return data;
 }
 
+// ── 디스코드 서버(guild) ↔ 방 매핑 (봇 멀티테넌트) ── 테이블 없으면 null 폴백(→ DEFAULT_GID)
+export async function getGuildRoom(guildId) {
+  if (!guildId) return null;
+  try {
+    const { data, error } = await db().from('discord_guilds').select('group_id').eq('guild_id', guildId).maybeSingle();
+    if (error) return null;
+    return data?.group_id || null;
+  } catch { return null; }
+}
+export async function linkGuildRoom(guildId, groupId, byUser) {
+  const { error } = await db().from('discord_guilds')
+    .upsert({ guild_id: guildId, group_id: groupId, linked_by: byUser || null }, { onConflict: 'guild_id' });
+  if (error) throw error;
+}
+
 // 로그인 유저가 방에 들어오면 멤버로 등록(없을 때만 viewer). 기존 역할은 안 낮춤.
 export async function registerMembership(groupId, user) {
   if (!groupId || !user?.id) return;
