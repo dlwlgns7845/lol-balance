@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { TIER_LABEL, tierClass } from '../../src/table.js';
 import { useGroup } from '../../components/GroupProvider.jsx';
 import { useDdragon } from '../../components/ddragon.js';
@@ -8,6 +9,7 @@ import ChampImg from '../../components/ChampImg.jsx';
 import PlayerCard from '../../components/PlayerCard.jsx';
 import MatchHistory from '../../components/MatchHistory.jsx';
 import Awards from '../../components/Awards.jsx';
+import Avatar from '../../components/Avatar.jsx';
 
 function wrClass(w) { return w >= 0.6 ? 'green' : w >= 0.5 ? 'yellow' : 'red'; }
 const medal = (i) => ['🥇', '🥈', '🥉'][i] || null;
@@ -29,12 +31,15 @@ export default function StatsPage() {
   const { group } = useGroup();
   const gid = group?.id;
   const dd = useDdragon();
+  const router = useRouter();
   const [data, setData] = useState(null);
   const [champs, setChamps] = useState(null);
   const [tab, setTab] = useState('lb');
   const [lane, setLane] = useState('all'); // 리더보드 라인 필터
   const [sort, setSort] = useState({ key: 'score', dir: 'desc' }); // 리더보드 정렬
   const [sel, setSel] = useState(null);
+  const [q, setQ] = useState('');       // 전적검색 입력
+  const [focus, setFocus] = useState(false);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
 
@@ -83,10 +88,31 @@ export default function StatsPage() {
     pool: Math.max(1, ...played.map((p) => p.champPool || 0)),
   }), [played]);
 
+  // 전적검색: 이름/닉 부분일치 → 선택 시 그 선수 전적 상세페이지로
+  const qn = q.trim().toLowerCase();
+  const searchHits = qn ? played.filter((x) => (x.nickname || x.name || '').toLowerCase().includes(qn)) : played;
+  const pickSearch = (id) => { setQ(''); setFocus(false); router.push('/player?id=' + id); };
+
   return (
     <div>
       <div className="page-head">
         <div className="title"><h1>통계</h1><p className="sub" style={{ margin: 0 }}>스크린샷 기록 기반 · 사람(본캐+부캐 합산) 단위. 선수를 클릭하면 상세 프로필이 열려요.</p></div>
+        <div className="psearch">
+          <input placeholder="🔎 선수 검색 → 전적 상세" value={q}
+            onChange={(e) => setQ(e.target.value)} onFocus={() => setFocus(true)} onBlur={() => setTimeout(() => setFocus(false), 150)} />
+          {focus && (
+            <div className="psearch-list">
+              {searchHits.slice(0, 10).map((x) => (
+                <button key={x.id} className="psearch-item" onMouseDown={() => pickSearch(x.id)}>
+                  <span className="pi-av" style={{ background: 'none', padding: 0 }}><Avatar name={x.nickname || x.name} profile={x.profile} size={22} /></span>
+                  <span className="pi-nm">{x.nickname || x.name}</span>
+                  <span className="muted pi-meta">{TIER_LABEL[x.base_tier]}</span>
+                </button>
+              ))}
+              {searchHits.length === 0 && <div className="muted psearch-none">검색 결과 없음</div>}
+            </div>
+          )}
+        </div>
       </div>
 
       {loading && <div className="panel center muted">불러오는 중…</div>}

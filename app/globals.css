@@ -263,6 +263,19 @@ input[type=range] { padding: 0; accent-color: var(--gold); }
 .reg-chip:hover { border-color: rgba(79,182,214,.5); }
 .reg-chip.used { opacity: .35; cursor: default; }
 
+/* 등록된 사람 — 주 포지션별 그룹 */
+.reg-groups { display: flex; flex-direction: column; gap: 9px; }
+.reg-group { display: flex; align-items: flex-start; gap: 11px; }
+.reg-group + .reg-group { border-top: 1px solid var(--line); padding-top: 9px; }
+.reg-group-label {
+  flex: 0 0 58px; font-size: 12px; font-weight: 800; letter-spacing: .3px;
+  color: var(--gold); padding-top: 6px; display: flex; align-items: center; gap: 5px;
+}
+.reg-group-label .rg-n { font-size: 10.5px; font-weight: 600; color: var(--muted); }
+.reg-group-label.pos-all { color: #d0a24f; }
+.reg-group-label.pos-etc { color: var(--muted); }
+.reg-group .reg-chips { flex: 1; }
+
 /* ── 리더보드 ── */
 table.lb { width: 100%; border-collapse: collapse; }
 table.lb th, table.lb td { padding: 11px 12px; font-size: 13px; text-align: center; }

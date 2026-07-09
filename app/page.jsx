@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { balance, balance20, balance20Split, scoreTeams } from '../src/engine.js';
-import { TIER_LABEL } from '../src/table.js';
+import { TIER_LABEL, POS, POS_KR } from '../src/table.js';
 import RosterEditor from '../components/RosterEditor.jsx';
 import { arraysToRoles, rolesToArrays } from '../components/PositionToggles.jsx';
 import Results from '../components/Results.jsx';
@@ -188,6 +188,43 @@ export default function BalancerPage() {
       || (a.display_name || '').localeCompare(b.display_name || '')),
     [people],
   );
+
+  // 이름(정규화) → 통계(라인별 판수·많이 간 라인) — "주포지션 여러개면 많이 간 포지션" 판정용
+  const statByNorm = useMemo(() => {
+    const m = new Map();
+    statPlayers.forEach((sp) => {
+      [sp.name, sp.nickname].filter(Boolean).forEach((s) => { const k = normNm(s); if (k && !m.has(k)) m.set(k, sp); });
+    });
+    return m;
+  }, [statPlayers]);
+
+  // 사람 → 소속 포지션 그룹 판정
+  //   5포지션 다 등록(주+부 합쳐 5) → ALL / 주포지션 1개 → 그 라인
+  //   주포지션 2~3개 → 많이 간 라인(통계) / 주포지션 없으면 부·통계로 추정
+  const bucketOf = (p) => {
+    const prim = (p.primary_positions || []).filter((x) => POS.includes(x));
+    const sec = (p.secondary_positions || []).filter((x) => POS.includes(x));
+    if (new Set([...prim, ...sec]).size >= 5) return 'all';
+    const sp = statByNorm.get(normNm(p.display_name)) || statByNorm.get(normNm(p.nickname));
+    const mostOf = (lanes) => { // 주어진 라인들 중 통계상 가장 많이 간 라인
+      if (!sp?.positions) return lanes[0];
+      let best = lanes[0], bn = -1;
+      lanes.forEach((l) => { const n = sp.positions[l] || 0; if (n > bn) { bn = n; best = l; } });
+      return best;
+    };
+    if (prim.length === 1) return prim[0];
+    if (prim.length >= 2) return mostOf(prim);
+    if (sec.length === 1) return sec[0];
+    if (sec.length >= 2) return mostOf(sec);
+    return sp?.mainPos || 'etc'; // 포지션 미등록 → 통계 주라인, 그마저 없으면 미지정
+  };
+
+  // 그룹별 사람 목록 (탑·정글·미드·원딜·서폿·ALL·미지정)
+  const chipsByPos = useMemo(() => {
+    const g = { top: [], jungle: [], mid: [], adc: [], sup: [], all: [], etc: [] };
+    chipsPeople.forEach((p) => { (g[bucketOf(p)] || g.etc).push(p); });
+    return g;
+  }, [chipsPeople, statByNorm]);
 
   // 밸런서 팀구성 기반 관계형 뱃지: 최고듀오=같은팀, 견우직녀·인간상성=상대팀일 때만. view 바뀌면 재계산.
   const relCtx = useMemo(() => {
@@ -473,17 +510,25 @@ export default function BalancerPage() {
 
       {people.length > 0 && (
         <div className="panel">
-          <h2>등록된 사람 불러오기 <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>(클릭하면 빈 칸에 들어가요)</span></h2>
-          <div className="reg-chips">
-            {chipsPeople.map((p) => {
-              const used = usedNames.has(p.display_name);
-              return (
-                <button key={p.id} className={`reg-chip ${used ? 'used' : ''}`} disabled={used}
-                  onClick={() => fillFromPerson(p)} type="button">
-                  {p.display_name} <span className="muted">{TIER_LABEL[p.base_tier]}</span>
-                </button>
-              );
-            })}
+          <h2>등록된 사람 불러오기 <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>(주 포지션별 · 클릭하면 빈 칸에 들어가요)</span></h2>
+          <div className="reg-groups">
+            {[['top', '탑'], ['jungle', '정글'], ['mid', '미드'], ['adc', '원딜'], ['sup', '서폿'], ['all', 'ALL'], ['etc', '미지정']]
+              .filter(([k]) => chipsByPos[k].length > 0).map(([k, label]) => (
+                <div className="reg-group" key={k}>
+                  <span className={`reg-group-label pos-${k}`}>{label} <span className="rg-n">{chipsByPos[k].length}</span></span>
+                  <div className="reg-chips">
+                    {chipsByPos[k].map((p) => {
+                      const used = usedNames.has(p.display_name);
+                      return (
+                        <button key={p.id} className={`reg-chip ${used ? 'used' : ''}`} disabled={used}
+                          onClick={() => fillFromPerson(p)} type="button">
+                          {p.display_name} <span className="muted">{TIER_LABEL[p.base_tier]}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
           </div>
         </div>
       )}
