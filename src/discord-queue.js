@@ -13,7 +13,9 @@ export function buildTeamsRanked(queue, signups, personMap) {
     const s = info.get(id); const p = personMap?.get(id) || {};
     const tier = effTier(p, lane) || 'G2'; // 배정 라인이 부라인(사람관리)이면 부라인티어
     const idx = POS.indexOf(lane);
-    return { pts: (TABLE[tier]?.[idx] ?? 15), tier, name: s?.name || '?', discordId: id, lane };
+    let pts = (TABLE[tier]?.[idx] ?? 15);
+    if (s?.main === 'all') pts -= 1; // ALL(아무 라인 양보) → 점수 −1 혜택 (자리 채워주는 보상)
+    return { pts, tier, name: s?.name || '?', discordId: id, lane };
   };
   const laneP = LANES.map((l) => alloc.lanes[l].map((id) => cell(id, l)));
   const out = [];
@@ -85,10 +87,11 @@ export function queueView(queue, signups, personMap) {
 export function queueComponents(qid) {
   const btn = (custom_id, label, style) => ({ type: 2, style, label, custom_id });
   const laneBtns = LANES.map((l) => btn(`qm:${qid}:${l}`, LANE_KR[l], 1));
-  const allBtn = btn(`qm:${qid}:all`, '🌐 ALL (아무 라인)', 1); // 탑 왼쪽·파란버튼
+  // ALL: 라인 5개 아래 줄. 디코는 버튼 폭 지정 불가 → 라벨을 넓게 패딩(　)해 위 5버튼 폭에 근접시킴.
+  const allBtn = btn(`qm:${qid}:all`, '　　🌐 ALL · 아무 라인이나 (점수 −1 혜택)　　', 1);
   return [
-    { type: 1, components: [allBtn, ...laneBtns.slice(0, 4)] }, // ALL·탑·정글·미드·원딜
-    { type: 1, components: laneBtns.slice(4) },                 // 서폿 (5버튼/줄 제한으로 줄바꿈)
+    { type: 1, components: laneBtns },  // 탑 정글 미드 원딜 서폿 (한 줄 · 서폿 안 밀림)
+    { type: 1, components: [allBtn] },  // ALL (아랫줄 · 넓게)
     { type: 1, components: [{ type: 3, custom_id: `qs:${qid}`, placeholder: '부라인 선택 (선택 · 없어도 됨)',
       options: [{ label: '부라인 없음', value: 'none' }, { label: '🌐 ALL (아무 라인 가능)', value: 'all' }, ...LANES.map((l) => ({ label: LANE_KR[l], value: l }))] }] },
     { type: 1, components: [btn(`ql:${qid}`, '❌ 나가기', 4), btn(`qc:${qid}`, '🔒 마감', 2)] },
@@ -97,7 +100,7 @@ export function queueComponents(qid) {
 
 // 디코 메시지 본문 { embeds, components } — 슬래시 응답(type4)·버튼 갱신(type7)·사이트 되쓰기 공용.
 // closed + teams 있으면 확정 2팀을 필드로 표시.
-export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20 = null, metaMap = null, teamTotal = 1) {
+export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20 = null, metaMap = null, teamTotal = 1, confirmed = false) {
   const N = Math.max(1, Math.floor(queue.size / 5));
   const alloc = allocateSignups(queue, signups);
   const info = new Map(signups.map((s) => [s.discord_id, s]));
@@ -133,7 +136,9 @@ export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20
   };
   const intro = closed ? '' : '참가할 **포지션 버튼**을 누르세요. (등록 안 됐으면 먼저 `/가입` 또는 `/연동`)\n\n';
   let desc;
-  if (closed && teams) desc = `**팀 확정** · 총 ${teamTotal}개 조합 중 ${teamIdx + 1}번째 · 점수차 ${teams.diff.toFixed(1)}\n<  ◀ / ▶ 로 미리 계산된 다른 조합 보기 >`;
+  if (closed && teams) desc = confirmed
+    ? `✅ **팀 확정 완료!** · 조합 ${teamIdx + 1}/${teamTotal} · 점수차 ${teams.diff.toFixed(1)} · 전원 호출됨`
+    : `**팀 미리보기** · 총 ${teamTotal}개 조합 중 ${teamIdx + 1}번째 · 점수차 ${teams.diff.toFixed(1)}\n◀ / ▶ 로 다른 조합 보고 → ✅ 확정을 누르면 전원 호출`;
   else if (closed && teams20) desc = '**팀 확정** · 고저분리 4팀';
   else {
     desc = intro + lines.join('\n');
@@ -160,13 +165,23 @@ export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20
     embed.fields = [gameField(teams20.games[0], '🔺 고티어 게임'), gameField(teams20.games[1], '🔻 저티어 게임')];
     embed.title += ' · 고저분리 4팀';
   }
-  const closedComponents = (closed && teams)
-    ? [{ type: 1, components: [
-      { type: 2, style: 2, label: '◀ 이전 조합', custom_id: `tr:${queue.id}:${teamIdx}:p`, disabled: teamTotal <= 1 },
-      { type: 2, style: 1, label: `${teamIdx + 1} / ${teamTotal}`, custom_id: `tr:${queue.id}:${teamIdx}:x`, disabled: true },
-      { type: 2, style: 2, label: '다음 조합 ▶', custom_id: `tr:${queue.id}:${teamIdx}:n`, disabled: teamTotal <= 1 },
-    ] }]
-    : [];
+  let closedComponents = [];
+  if (closed && teams && confirmed) {
+    closedComponents = [{ type: 1, components: [
+      { type: 2, style: 3, label: '✅ 팀 확정 완료 · 전원 호출됨', custom_id: `tx:${queue.id}`, disabled: true },
+    ] }];
+  } else if (closed && teams) {
+    closedComponents = [
+      { type: 1, components: [
+        { type: 2, style: 2, label: '◀ 이전 조합', custom_id: `tr:${queue.id}:${teamIdx}:p`, disabled: teamTotal <= 1 },
+        { type: 2, style: 1, label: `${teamIdx + 1} / ${teamTotal}`, custom_id: `tr:${queue.id}:${teamIdx}:x`, disabled: true },
+        { type: 2, style: 2, label: '다음 조합 ▶', custom_id: `tr:${queue.id}:${teamIdx}:n`, disabled: teamTotal <= 1 },
+      ] },
+      { type: 1, components: [
+        { type: 2, style: 3, label: '✅ 이 조합으로 확정 · 전원 호출', custom_id: `tc:${queue.id}:${teamIdx}` },
+      ] },
+    ];
+  }
   return { embeds: [embed], components: closed ? closedComponents : queueComponents(queue.id), allowed_mentions: { parse: [] } };
 }
 

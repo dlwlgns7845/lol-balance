@@ -52,6 +52,10 @@ render(queueMessage(queue, signups, false, null, 0, null, metaMap), '모집중 (
 const ranked = buildTeamsRanked({ ...queue, status: 'closed' }, signups, metaMap);
 render(
   queueMessage({ ...queue, status: 'closed' }, signups, true, ranked[0], 0, null, metaMap, ranked.length),
-  `마감·팀확정 (CLOSED) — 총 ${ranked.length}개 조합`,
+  `마감 직후 · 팀 미리보기 (조합 넘겨보기) — 총 ${ranked.length}개`,
 );
-console.log('\n' + line + '\n(◀/▶ 눌러 조합 넘길 때: 위 "1 / ' + ranked.length + '" 카운터와 desc가 갱신됩니다)\n');
+render(
+  queueMessage({ ...queue, status: 'closed' }, signups, true, ranked[2], 2, null, metaMap, ranked.length, true),
+  '✅ 확정 후 (조합 3번째로 확정 → 버튼 잠김)',
+);
+console.log('\n' + line + '\n흐름: 마감 → (미리보기, ◀/▶ 넘김) → ✅ 확정 → 전원 호출 + 잠김\n');

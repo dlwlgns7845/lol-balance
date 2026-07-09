@@ -394,6 +394,7 @@ async function handleComponent(i) {
   const parts = (i.data?.custom_id || '').split(':');
   const [action, qid, lane] = parts;
   if (action === 'tr') return handleTeamReroll(qid, lane, parts[3]); // 마감 자동팀 조합 넘기기 (lane=현재idx, parts[3]=방향 p/n)
+  if (action === 'tc') return handleTeamConfirm(i, qid, lane); // 이 조합으로 확정 → 전원 호출 (lane=선택 idx)
   if (action === 'br') return handleBalanceReroll(qid, lane, parts[3]); // /밸런스 조합 넘기기
   if (action === 'rec' || action === 'rex') return handleRecordConfirm(i, action, qid); // 스샷 판독 확인/취소
   if (action === 'rswap') return handleRecordSwap(qid); // 승패 뒤집기
@@ -436,10 +437,9 @@ async function handleComponent(i) {
       waitUntil(pingTeams(i, signups, null, metaMap)); // 전원 태그(4팀은 메시지에 표시)
       return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, null, 0, teams20, metaMap));
     }
+    // 마감 = 팀 '미리보기'만 (자동 핑 없음). 조합 넘겨보고 ✅ 확정 눌러야 전원 호출됨.
     const ranked = buildTeamsRanked({ ...queue, status: 'closed' }, signups, metaMap);
-    const teams = ranked[0];
-    waitUntil(pingTeams(i, signups, teams, metaMap)); // 태그해서 부르기(새 메시지 = 알림 뜸)
-    return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, teams, 0, null, metaMap, ranked.length));
+    return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, ranked[0], 0, null, metaMap, ranked.length));
   } else {
     return ephem('알 수 없는 버튼이에요.');
   }
@@ -492,6 +492,22 @@ async function handleTeamReroll(qid, curIdxStr, dir) {
   const step = dir === 'p' ? -1 : 1; // ◀ 이전 / ▶ 다음
   const nextIdx = (Number(curIdxStr || 0) + step + ranked.length) % ranked.length;
   return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, ranked[nextIdx], nextIdx, null, metaMap, ranked.length));
+}
+
+// 이 조합으로 확정 → 선택한 조합으로 전원 호출(핑) + 메시지를 확정본으로 잠금. 방장만.
+async function handleTeamConfirm(i, qid, idxStr) {
+  const queue = await getQueue(qid);
+  if (!queue) return ephem('⌛ 만료된 모집이에요.');
+  if (queue.host_id && callerId(i) !== queue.host_id) return ephem('모집 만든 사람만 확정할 수 있어요.');
+  const signups = await listSignups(qid);
+  const persons = await listPersons(queue.gid);
+  const metaMap = buildMetaMap(persons);
+  const ranked = buildTeamsRanked({ ...queue, status: 'closed' }, signups, metaMap);
+  if (!ranked.length) return ephem('팀을 확정할 수 없어요 (10인 아님).');
+  const idx = Math.min(Math.max(Number(idxStr || 0), 0), ranked.length - 1);
+  const teams = ranked[idx];
+  waitUntil(pingTeams(i, signups, teams, metaMap)); // 선택한 조합으로 전원 태그 호출
+  return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, teams, idx, null, metaMap, ranked.length, true));
 }
 
 // 판독 리뷰 메시지(embed + 셀렉트/버튼) — 초기 표시·수정 후 재렌더 공용.
