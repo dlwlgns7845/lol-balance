@@ -373,7 +373,7 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 
 /* ── 선수 상세 카드 (모달) ── */
 .modal-back { position: fixed; inset: 0; background: rgba(6,7,10,.72); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 20px; }
-.pcard { position: relative; width: 100%; max-width: 720px; max-height: 90vh; overflow-y: auto; background: var(--panel); border: 1px solid var(--line2); border-radius: 14px; }
+.pcard { position: relative; width: 100%; max-width: 720px; max-height: calc(100vh - 40px); overflow-y: auto; background: var(--panel); border: 1px solid var(--line2); border-radius: 14px; }
 .pcard-x { position: absolute; top: 14px; right: 14px; background: var(--panel2); border: 1px solid var(--line2); color: var(--muted); width: 30px; height: 30px; border-radius: 7px; cursor: pointer; font-family: inherit; }
 .pcard-x:hover { color: var(--text); border-color: var(--gold); }
 .pcard-head { display: flex; align-items: center; gap: 14px; padding: 22px 24px; border-bottom: 1px solid var(--line); }
