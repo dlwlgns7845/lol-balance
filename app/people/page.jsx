@@ -123,16 +123,8 @@ export default function PeoplePage() {
             return (
               <div className="member" key={p.id}>
                 <div className="m-main">
-                  <div className="m-prof" title="아바타 — 색/이모지로 꾸미기">
+                  <div className="m-prof" title="아바타 (프로필 사진은 디코 /프로필 로 설정)">
                     <Avatar name={p.nickname || p.display_name} profile={p.profile} size={34} />
-                    {canEdit && (
-                      <>
-                        <input type="color" className="m-color" value={p.profile?.color || '#888888'} title="아바타 색"
-                          onChange={(e) => patchPerson(p.id, { profile: { ...(p.profile || {}), color: e.target.value } })} />
-                        <input className="m-emoji" maxLength={2} defaultValue={p.profile?.emoji || ''} placeholder="🙂" title="이모지(선택) — 있으면 이니셜 대신 표시"
-                          onBlur={(e) => (e.target.value || '') !== (p.profile?.emoji || '') && patchPerson(p.id, { profile: { ...(p.profile || {}), emoji: e.target.value || null } })} />
-                      </>
-                    )}
                   </div>
                   <input className="m-name" defaultValue={p.display_name} placeholder="인게임 닉 (스샷 매칭)" readOnly={!canEdit}
                     title="인게임 닉네임 — 스샷의 닉과 같아야 자동 매칭돼요"

@@ -229,7 +229,7 @@ async function processProfilePhoto(i, photoId, gid) {
   } catch (e) { return followup(i, '사진 처리 오류: ' + e.message); }
 }
 
-// 셀프 프로필: 기본=디코 프로필 사진, 사진 업로드/색/이모지로 커스텀. 디코사진=true면 사진으로 되돌림.
+// 셀프 프로필: 사진 업로드 또는 디스코드 프로필 사진. (색/이모지 기능 제거)
 async function cmdProfile(i, gid) {
   const photoId = opt(i, '사진'); // 첨부 업로드 → 재호스팅(느림) → defer
   if (photoId) { waitUntil(processProfilePhoto(i, photoId, gid)); return NextResponse.json({ type: 5, data: { content: '📷 프로필 사진 저장 중…', flags: 64 } }); }
@@ -237,23 +237,12 @@ async function cmdProfile(i, gid) {
   const persons = await listPersons(gid);
   const meP = persons.find((p) => p.discord_id === me);
   if (!meP) return ephem('먼저 `/가입`(신규) 또는 `/연동`(기존)으로 등록하세요.');
-  const useDiscord = opt(i, '디코사진') === true;
-  const color = opt(i, '색');
-  const emoji = opt(i, '이모지');
-  const avatar = discordAvatarUrl(discordUser(i));
-  let profile;
-  if (useDiscord) {
-    profile = { avatar }; // 색/이모지 제거 → 사진 표시
-  } else {
-    profile = { ...(meP.profile || {}), avatar: (meP.profile?.avatar || avatar) };
-    if (color) profile.color = color;
-    if (emoji != null) { if (emoji === '없음' || emoji === '') delete profile.emoji; else profile.emoji = emoji; }
-    if (!color && emoji == null && !meP.profile) profile = { avatar }; // 옵션 없이 첫 호출 = 사진 세팅
-  }
+  if (opt(i, '디코사진') !== true) return ephem('`사진:` 으로 이미지를 올리거나, `디코사진:True` 로 디스코드 프로필 사진을 쓰세요.');
+  const profile = { ...(meP.profile || {}), avatar: discordAvatarUrl(discordUser(i)) };
+  delete profile.color; delete profile.emoji; // 남아있던 커스텀 제거
   try { await updatePerson(meP.id, { profile }); }
   catch { return ephem('프로필 저장 실패 — 관리자에게 `profile` 컬럼 추가를 요청하세요.'); }
-  const how = (profile.color || profile.emoji) ? '커스텀(색/이모지)' : '디코 프로필 사진';
-  return ephem(`✅ **${meP.nickname || meP.display_name}** 프로필 업데이트 → ${how}. 사이트 아바타에 바로 반영돼요.`);
+  return ephem(`✅ **${meP.nickname || meP.display_name}** 아바타를 디스코드 프로필 사진으로 설정했어요.`);
 }
 
 async function cmdAwards(i, gid) {
