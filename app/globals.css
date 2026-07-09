@@ -1939,6 +1939,21 @@ table.lanes.lanes-lg thead th.tr,
   background: linear-gradient(180deg, rgba(255, 111, 173, .58), rgba(255, 111, 173, .40));
 }
 
+.psearch-list {
+  background: #17111c;
+  border-color: rgba(255, 111, 173, .34);
+  box-shadow: 0 18px 48px rgba(9, 4, 12, .72);
+}
+
+.psearch-item {
+  background: #17111c;
+}
+
+.psearch-item:hover,
+.psearch-item.on {
+  background: #241827;
+}
+
 @media (max-width: 1120px) {
   .topbar {
     grid-template-columns: 1fr;
