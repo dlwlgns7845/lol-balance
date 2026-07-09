@@ -421,23 +421,29 @@ export default function BalancerPage() {
     if (usedNames.size === 20 && (result20 || split20)) { try { compute20(m); } catch (e) { setErr('계산 오류: ' + e.message); } }
   }
 
-  // 평균균등: 전체 리롤
-  function reroll20() {
+  // 평균균등: 전체 조합 앞/뒤로 넘기기 (arrangements 순환)
+  function goArr20(dir) {
     if (!result20?.arrangements?.length) return;
     if (result20.arrangements.length <= 1) { setNote20('다른 균형 조합이 없어요 — 선수를 클릭해 수동으로 바꿔보세요.'); return; }
-    applyArrangement(result20, (arr20 + 1) % result20.arrangements.length);
+    const n = result20.arrangements.length;
+    applyArrangement(result20, (arr20 + dir + n) % n);
   }
+  const reroll20 = () => goArr20(1);
+  const reroll20Prev = () => goArr20(-1);
 
-  // 고저분리: 게임별 리롤 (그 게임 내부만 다시)
-  function rerollGame(g) {
+  // 고저분리: 게임별 조합 앞/뒤로 넘기기 (그 게임 내부만)
+  function goGame(g, dir) {
     const game = split20?.games?.[g];
     if (!game?.candidates?.length) return;
     if (game.candidates.length <= 1) { setNote20('이 게임은 다른 균형 조합이 없어요 — 선수 이동으로 조정하세요.'); return; }
-    const ni = (candIdx20[g] + 1) % game.candidates.length;
+    const n = game.candidates.length;
+    const ni = (candIdx20[g] + dir + n) % n;
     setCandIdx20((c) => c.map((x, i) => (i === g ? ni : x)));
     setViews20((v) => v.map((x, i) => (i === g ? game.candidates[ni] : x)));
     setSel20(null); setNote20(null);
   }
+  const rerollGame = (g) => goGame(g, 1);
+  const rerollGamePrev = (g) => goGame(g, -1);
 
   // 선수 클릭 스왑: 같은 게임=자리 교환, 다른 게임=게임 간 인원 교환. 둘 다 재채점(scoreTeams).
   function swap20(g, team, pos) {
@@ -465,16 +471,19 @@ export default function BalancerPage() {
     setSel20(null);
   }
 
-  // 리롤: 다음 후보로 순환. 조합이 하나뿐이면 안내.
-  function reroll() {
+  // 조합 넘기기: 미리 계산된 candidates 배열을 앞/뒤로 순환 (랜덤 아님). 하나뿐이면 안내.
+  function goCand(dir) {
     if (!result?.candidates?.length) return;
     if (result.candidates.length <= 1) {
       setRerollNote('이게 유일한 최적 배치예요 — 포지션 맞고 균형 잡히는 다른 조합이 없어요.');
       return;
     }
-    const ni = (candIdx + 1) % result.candidates.length;
+    const n = result.candidates.length;
+    const ni = (candIdx + dir + n) % n;
     setCandIdx(ni); setView(result.candidates[ni]); setSel(null); setRerollNote(null);
   }
+  const reroll = () => goCand(1);      // 다음 조합 ▶
+  const rerollPrev = () => goCand(-1); // 이전 조합 ◀
 
   // 수동 스왑: 선수 두 명 클릭 → 자리 교환 후 재계산
   function doSwap(team, pos) {
@@ -572,7 +581,7 @@ export default function BalancerPage() {
 
       {mode === 10 && (
         <Results feasible={result?.feasible} outliers={result?.outliers || []} view={view}
-          onReroll={reroll} onSwap={doSwap} sel={sel} meta={nameMeta} note={rerollNote}
+          onReroll={reroll} onPrev={rerollPrev} onSwap={doSwap} sel={sel} meta={nameMeta} note={rerollNote}
           idx={candIdx} total={result?.candidates?.length || 0} />
       )}
 
@@ -596,18 +605,24 @@ export default function BalancerPage() {
                   : <>🎮 <b>4팀 균등</b> · 팀 점수 {sums4.map((s) => s.toFixed(1)).join(' / ')} <b className={spCls}>(편차 {spread.toFixed(1)})</b></>}
                 <span className="muted"> · 선수 클릭 후 다른 게임 선수 클릭 = 게임 간 이동</span>
               </span>
-              {!split && <button className="btn" onClick={reroll20}>🎲 전체 다시 짜기{result20.arrangements.length > 1 ? ` (${arr20 + 1}/${result20.arrangements.length})` : ''}</button>}
+              {!split && (
+                <span className="cand-nav">
+                  <button className="mini nav-arrow" onClick={reroll20Prev} disabled={(result20?.arrangements.length || 0) <= 1} aria-label="이전 조합">◀</button>
+                  <span className="cand-count"><b>{result20?.arrangements.length || 0}</b>개 조합 <span className="muted">· {arr20 + 1}/{result20?.arrangements.length || 0}</span></span>
+                  <button className="mini nav-arrow" onClick={reroll20} disabled={(result20?.arrangements.length || 0) <= 1} aria-label="다음 조합">▶</button>
+                </span>
+              )}
             </div>
             {note20 && <div className="panel reroll-note" style={{ marginTop: 0 }}>ℹ️ {note20}</div>}
             <h2 style={{ margin: '16px 2px 6px' }}>🎮 게임 1{split ? ' · 고티어' : ''}</h2>
             <Results feasible outliers={outliers20[0]} view={views20[0]}
               onSwap={(team, pos) => swap20(0, team, pos)} sel={sel20 && sel20.g === 0 ? { team: sel20.team, pos: sel20.pos } : null}
-              onReroll={split ? () => rerollGame(0) : undefined}
+              onReroll={split ? () => rerollGame(0) : undefined} onPrev={split ? () => rerollGamePrev(0) : undefined}
               meta={nameMeta} idx={gIdx(0)} total={gTotal(0)} />
             <h2 style={{ margin: '20px 2px 6px' }}>🎮 게임 2{split ? ' · 저티어' : ''}</h2>
             <Results feasible outliers={outliers20[1]} view={views20[1]}
               onSwap={(team, pos) => swap20(1, team, pos)} sel={sel20 && sel20.g === 1 ? { team: sel20.team, pos: sel20.pos } : null}
-              onReroll={split ? () => rerollGame(1) : undefined}
+              onReroll={split ? () => rerollGame(1) : undefined} onPrev={split ? () => rerollGamePrev(1) : undefined}
               meta={nameMeta} idx={gIdx(1)} total={gTotal(1)} />
           </>
         );

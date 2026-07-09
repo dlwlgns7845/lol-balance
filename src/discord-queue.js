@@ -97,7 +97,7 @@ export function queueComponents(qid) {
 
 // 디코 메시지 본문 { embeds, components } — 슬래시 응답(type4)·버튼 갱신(type7)·사이트 되쓰기 공용.
 // closed + teams 있으면 확정 2팀을 필드로 표시.
-export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20 = null, metaMap = null) {
+export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20 = null, metaMap = null, teamTotal = 1) {
   const N = Math.max(1, Math.floor(queue.size / 5));
   const alloc = allocateSignups(queue, signups);
   const info = new Map(signups.map((s) => [s.discord_id, s]));
@@ -133,7 +133,7 @@ export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20
   };
   const intro = closed ? '' : '참가할 **포지션 버튼**을 누르세요. (등록 안 됐으면 먼저 `/가입` 또는 `/연동`)\n\n';
   let desc;
-  if (closed && teams) desc = `**팀 확정** · 조합 #${teamIdx + 1} · 점수차 ${teams.diff.toFixed(1)}`;
+  if (closed && teams) desc = `**팀 확정** · 총 ${teamTotal}개 조합 중 ${teamIdx + 1}번째 · 점수차 ${teams.diff.toFixed(1)}\n<  ◀ / ▶ 로 미리 계산된 다른 조합 보기 >`;
   else if (closed && teams20) desc = '**팀 확정** · 고저분리 4팀';
   else {
     desc = intro + lines.join('\n');
@@ -161,7 +161,11 @@ export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20
     embed.title += ' · 고저분리 4팀';
   }
   const closedComponents = (closed && teams)
-    ? [{ type: 1, components: [{ type: 2, style: 1, label: '🎲 팀 다시 짜기', custom_id: `tr:${queue.id}:${teamIdx}` }] }]
+    ? [{ type: 1, components: [
+      { type: 2, style: 2, label: '◀ 이전 조합', custom_id: `tr:${queue.id}:${teamIdx}:p`, disabled: teamTotal <= 1 },
+      { type: 2, style: 1, label: `${teamIdx + 1} / ${teamTotal}`, custom_id: `tr:${queue.id}:${teamIdx}:x`, disabled: true },
+      { type: 2, style: 2, label: '다음 조합 ▶', custom_id: `tr:${queue.id}:${teamIdx}:n`, disabled: teamTotal <= 1 },
+    ] }]
     : [];
   return { embeds: [embed], components: closed ? closedComponents : queueComponents(queue.id), allowed_mentions: { parse: [] } };
 }

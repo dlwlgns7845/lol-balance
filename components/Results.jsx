@@ -6,7 +6,7 @@ import Avatar from './Avatar.jsx';
 const LIGHT_KR = { green: '🟢 균형', yellow: '🟡 약간 기움', red: '🔴 불균형' };
 const wrCls = (w) => (w >= 0.6 ? 'green' : w >= 0.5 ? 'yellow' : 'red');
 
-export default function Results({ feasible, outliers = [], view, onReroll, onSwap, sel, idx, total, meta, note }) {
+export default function Results({ feasible, outliers = [], view, onReroll, onPrev, onSwap, sel, idx, total, meta, note }) {
   if (feasible === false) {
     return (
       <div className="panel center muted">
@@ -61,17 +61,23 @@ export default function Results({ feasible, outliers = [], view, onReroll, onSwa
       )}
       <div className="cand top">
         <div className="cand-head">
-          <span className="title">{c.manual ? '✏️ 수동 조정' : `⭐ 추천 ${idx + 1}/${total}`}</span>
+          <span className="title">{c.manual ? '✏️ 수동 조정' : '⭐ 추천 조합'}</span>
           <span className={`badge ${c.light}`}>{LIGHT_KR[c.light]}</span>
           <span className="badge dim">총점차 {c.totalDiff.toFixed(1)}</span>
           <span className="badge dim">최대 라인갭 {c.maxGap.toFixed(1)}</span>
           <span className="badge dim">실력분포 차 {c.shapeDiff.toFixed(1)}</span>
           {c.offRole > 0 && <span className="badge dim">부포지션 {c.offRole}명</span>}
-          {onReroll && <button className="mini reroll" onClick={onReroll} title="다른 균형 조합으로">🎲 다시 짜기</button>}
+          {onReroll && total > 0 && (
+            <span className="cand-nav" title="미리 계산된 균형 조합들을 화살표로 넘겨보기">
+              <button className="mini nav-arrow" onClick={onPrev} disabled={total <= 1} aria-label="이전 조합">◀</button>
+              <span className="cand-count"><b>{total}</b>개 조합 <span className="muted">· {idx + 1}/{total}</span></span>
+              <button className="mini nav-arrow" onClick={onReroll} disabled={total <= 1} aria-label="다음 조합">▶</button>
+            </span>
+          )}
         </div>
         <p className="hint" style={{ margin: '2px 0 12px' }}>
           {sel ? <b className="accent">선수를 하나 더 클릭하면 자리를 바꿔요 (같은 선수 재클릭=취소)</b>
-            : '마음에 안 들면 🎲로 리롤하거나, 선수 두 명을 클릭해 자리를 바꿀 수 있어요.'}
+            : `가능한 균형 조합 ${total}개를 이미 다 계산해뒀어요 — ◀▶로 넘겨보거나, 선수 두 명을 클릭해 자리를 바꿀 수 있어요.`}
         </p>
         {note && <div className="reroll-note">ℹ️ {note}</div>}
 

@@ -9,7 +9,7 @@ import { getStats, getAwards, getMatchHistory, listPersons, updatePerson, create
   getGuildRoom, getGuildLink, requestGuildLink, getGroupByCode } from '../../../src/repo.js';
 import { balance, balance20Split } from '../../../src/engine.js';
 import { LANES } from '../../../src/queue.js';
-import { queueMessage, buildTeams, buildTeamsRanked, buildMetaMap, allocateSignups, LANE_KR } from '../../../src/discord-queue.js';
+import { queueMessage, buildTeamsRanked, buildMetaMap, allocateSignups, LANE_KR } from '../../../src/discord-queue.js';
 import { extractScoreboard } from '../../../src/vision.js';
 import { fetchTierEstimate } from '../../../src/opgg.js';
 import { fetchTierEstimateHybrid, fetchRiotProfile, hasRiotKey } from '../../../src/riot.js';
@@ -291,7 +291,11 @@ function balanceView(candidates, idx, pendingId) {
         { name: `🔴 레드 (${c.sumB.toFixed(0)})`, value: side('b'), inline: true },
       ],
     }],
-    components: candidates.length > 1 ? [{ type: 1, components: [{ type: 2, style: 1, label: '🎲 다시 짜기', custom_id: `br:${pendingId}:${idx}` }] }] : [],
+    components: candidates.length > 1 ? [{ type: 1, components: [
+      { type: 2, style: 2, label: '◀ 이전 조합', custom_id: `br:${pendingId}:${idx}:p` },
+      { type: 2, style: 1, label: `${idx + 1} / ${candidates.length}`, custom_id: `br:${pendingId}:${idx}:x`, disabled: true },
+      { type: 2, style: 2, label: '다음 조합 ▶', custom_id: `br:${pendingId}:${idx}:n` },
+    ] }] : [],
     allowed_mentions: { parse: [] },
   };
 }
@@ -317,13 +321,14 @@ async function cmdBalance(i, gid) {
   return NextResponse.json({ type: 4, data: balanceView(r.candidates, 0, pendingId) });
 }
 
-// /밸런스 리롤: 저장된 명단으로 재계산 → 다음 후보 순환
-async function handleBalanceReroll(pendingId, curIdxStr) {
+// /밸런스 조합 넘기기: 저장된 명단으로 재계산 → 이전/다음 후보 순환
+async function handleBalanceReroll(pendingId, curIdxStr, dir) {
   const pend = await getPending(pendingId);
   if (!pend || pend.data?.type !== 'balance') return ephem('⌛ 만료된 밸런스예요. 다시 `/밸런스` 해주세요.');
   const r = balance(pend.data.players, {});
   if (!r.feasible || !r.candidates?.length) return ephem('팀을 다시 짤 수 없어요.');
-  const nextIdx = (Number(curIdxStr || 0) + 1) % r.candidates.length;
+  const step = dir === 'p' ? -1 : 1; // ◀ 이전 / ▶ 다음
+  const nextIdx = (Number(curIdxStr || 0) + step + r.candidates.length) % r.candidates.length;
   return updateMsg(balanceView(r.candidates, nextIdx, pendingId));
 }
 
@@ -388,8 +393,8 @@ async function pingTeams(i, signups, teams, metaMap) {
 async function handleComponent(i) {
   const parts = (i.data?.custom_id || '').split(':');
   const [action, qid, lane] = parts;
-  if (action === 'tr') return handleTeamReroll(qid, lane); // 마감 자동팀 리롤 (lane=현재idx)
-  if (action === 'br') return handleBalanceReroll(qid, lane); // /밸런스 리롤 (lane=현재idx)
+  if (action === 'tr') return handleTeamReroll(qid, lane, parts[3]); // 마감 자동팀 조합 넘기기 (lane=현재idx, parts[3]=방향 p/n)
+  if (action === 'br') return handleBalanceReroll(qid, lane, parts[3]); // /밸런스 조합 넘기기
   if (action === 'rec' || action === 'rex') return handleRecordConfirm(i, action, qid); // 스샷 판독 확인/취소
   if (action === 'rswap') return handleRecordSwap(qid); // 승패 뒤집기
   if (action === 'rdur') return handleRecordDurOpen(i, qid); // 시간 수정 모달
@@ -431,9 +436,10 @@ async function handleComponent(i) {
       waitUntil(pingTeams(i, signups, null, metaMap)); // 전원 태그(4팀은 메시지에 표시)
       return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, null, 0, teams20, metaMap));
     }
-    const teams = buildTeams({ ...queue, status: 'closed' }, signups, metaMap);
+    const ranked = buildTeamsRanked({ ...queue, status: 'closed' }, signups, metaMap);
+    const teams = ranked[0];
     waitUntil(pingTeams(i, signups, teams, metaMap)); // 태그해서 부르기(새 메시지 = 알림 뜸)
-    return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, teams, 0, null, metaMap));
+    return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, teams, 0, null, metaMap, ranked.length));
   } else {
     return ephem('알 수 없는 버튼이에요.');
   }
@@ -475,7 +481,7 @@ async function processMatchShot(i, photoId, gid) {
 const LANE_TAG = ['TOP', 'JG', 'MID', 'BOT', 'SUP']; // 스샷 슬롯 순서
 
 // 마감 자동팀 리롤: 같은 로스터로 다음 균형 조합(랭킹 순환)
-async function handleTeamReroll(qid, curIdxStr) {
+async function handleTeamReroll(qid, curIdxStr, dir) {
   const queue = await getQueue(qid);
   if (!queue) return ephem('⌛ 만료된 모집이에요.');
   const signups = await listSignups(qid);
@@ -483,8 +489,9 @@ async function handleTeamReroll(qid, curIdxStr) {
   const metaMap = buildMetaMap(persons);
   const ranked = buildTeamsRanked({ ...queue, status: 'closed' }, signups, metaMap);
   if (!ranked.length) return ephem('팀을 다시 짤 수 없어요 (10인 아님).');
-  const nextIdx = (Number(curIdxStr || 0) + 1) % ranked.length;
-  return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, ranked[nextIdx], nextIdx, null, metaMap));
+  const step = dir === 'p' ? -1 : 1; // ◀ 이전 / ▶ 다음
+  const nextIdx = (Number(curIdxStr || 0) + step + ranked.length) % ranked.length;
+  return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, ranked[nextIdx], nextIdx, null, metaMap, ranked.length));
 }
 
 // 판독 리뷰 메시지(embed + 셀렉트/버튼) — 초기 표시·수정 후 재렌더 공용.

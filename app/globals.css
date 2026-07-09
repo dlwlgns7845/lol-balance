@@ -644,6 +644,12 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .lanes .name-cell.sel { background: rgba(79,182,214,.28); outline: 1px solid var(--gold); font-weight: 700; }
 .cand-head .reroll { margin-left: auto; font-size: 12px; padding: 6px 12px; }
 .cand-head .reroll:hover { border-color: var(--gold); color: var(--gold); }
+/* 조합 이전/다음 화살표 네비게이션 */
+.cand-nav { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; }
+.cand-nav .nav-arrow { font-size: 13px; padding: 4px 12px; line-height: 1; }
+.cand-nav .nav-arrow:disabled { opacity: .35; cursor: default; }
+.cand-nav .nav-arrow:disabled:hover { border-color: var(--line2); color: var(--muted); }
+.cand-count { font-size: 12px; font-weight: 600; white-space: nowrap; min-width: 92px; text-align: center; }
 
 /* ── 인증 / 권한 UI ── */
 .gate-auth { margin: 6px 0 18px; display: flex; flex-direction: column; gap: 8px; align-items: center; }
