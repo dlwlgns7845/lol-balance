@@ -680,18 +680,18 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .award-card.aw-fx1 { border-color: rgba(240,140,176,.28); background: linear-gradient(135deg, rgba(240,140,176,.07), var(--panel2) 58%); }
 .award-card.aw-fx1::before { background: linear-gradient(90deg, transparent, rgba(240,140,176,.7), transparent); }
 .award-card.aw-fx1 .aw-title { color: #f0a0be; }
-.award-card.aw-fx1 .aw-ic { animation: awGlowRose 3.6s ease-in-out infinite; }
+.award-card.aw-fx1 .aw-ic { animation: awGlowRose 5s ease-in-out infinite; }
 .award-card.aw-fx2 { border-color: rgba(79,182,214,.28); background: linear-gradient(135deg, rgba(79,182,214,.07), var(--panel2) 58%); }
 .award-card.aw-fx2::before { background: linear-gradient(90deg, transparent, rgba(79,182,214,.7), transparent); }
 .award-card.aw-fx2 .aw-title { color: #4fb6d6; }
-.award-card.aw-fx2 .aw-ic { animation: awGlowTeal 3.6s ease-in-out infinite; animation-delay: .6s; }
+.award-card.aw-fx2 .aw-ic { animation: awGlowTeal 5s ease-in-out infinite; animation-delay: .6s; }
 .award-card.aw-fx3 { border-color: rgba(155,125,232,.28); background: linear-gradient(135deg, rgba(155,125,232,.08), var(--panel2) 58%); }
 .award-card.aw-fx3::before { background: linear-gradient(90deg, transparent, rgba(155,125,232,.72), transparent); }
 .award-card.aw-fx3 .aw-title { color: #9b7de8; }
-.award-card.aw-fx3 .aw-ic { animation: awGlowViolet 3.6s ease-in-out infinite; animation-delay: 1.2s; }
-@keyframes awGlowRose { 0%,100% { filter: drop-shadow(0 0 2px rgba(240,140,176,.35)); } 50% { filter: drop-shadow(0 0 7px rgba(240,140,176,.7)); } }
-@keyframes awGlowTeal { 0%,100% { filter: drop-shadow(0 0 2px rgba(79,182,214,.35)); } 50% { filter: drop-shadow(0 0 7px rgba(79,182,214,.7)); } }
-@keyframes awGlowViolet { 0%,100% { filter: drop-shadow(0 0 2px rgba(155,125,232,.35)); } 50% { filter: drop-shadow(0 0 7px rgba(155,125,232,.7)); } }
+.award-card.aw-fx3 .aw-ic { animation: awGlowViolet 5s ease-in-out infinite; animation-delay: 1.2s; }
+@keyframes awGlowRose { 0%,100% { filter: drop-shadow(0 0 1.5px rgba(240,140,176,.3)); } 50% { filter: drop-shadow(0 0 3px rgba(240,140,176,.42)); } }
+@keyframes awGlowTeal { 0%,100% { filter: drop-shadow(0 0 1.5px rgba(79,182,214,.3)); } 50% { filter: drop-shadow(0 0 3px rgba(79,182,214,.42)); } }
+@keyframes awGlowViolet { 0%,100% { filter: drop-shadow(0 0 1.5px rgba(155,125,232,.3)); } 50% { filter: drop-shadow(0 0 3px rgba(155,125,232,.42)); } }
 @media (prefers-reduced-motion: reduce) { .award-card .aw-ic { animation: none !important; } }
 .aw-ic { font-size: 22px; line-height: 1; flex-shrink: 0; }
 .aw-body { min-width: 0; }
