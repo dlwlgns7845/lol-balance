@@ -9,7 +9,7 @@ import { getStats, getAwards, getMatchHistory, listPersons, updatePerson, create
   getGuildRoom, getGuildLink, requestGuildLink, getGroupByCode } from '../../../src/repo.js';
 import { balance, balance20Split } from '../../../src/engine.js';
 import { LANES } from '../../../src/queue.js';
-import { queueMessage, buildTeams, buildTeamsRanked, allocateSignups, LANE_KR } from '../../../src/discord-queue.js';
+import { queueMessage, buildTeams, buildTeamsRanked, buildMetaMap, allocateSignups, LANE_KR } from '../../../src/discord-queue.js';
 import { extractScoreboard } from '../../../src/vision.js';
 import { fetchTierEstimate } from '../../../src/opgg.js';
 import { fetchTierEstimateHybrid, fetchRiotProfile, hasRiotKey } from '../../../src/riot.js';
@@ -436,8 +436,8 @@ async function handleComponent(i) {
     return ephem('알 수 없는 버튼이에요.');
   }
   const freshSignups = await listSignups(qid);
-  const tierMap = new Map((await listPersons(queue.gid)).filter((p) => p.discord_id).map((p) => [p.discord_id, p.base_tier]));
-  return updateMsg(queueMessage(queue, freshSignups, false, null, 0, null, tierMap));
+  const metaMap = buildMetaMap(await listPersons(queue.gid));
+  return updateMsg(queueMessage(queue, freshSignups, false, null, 0, null, metaMap));
 }
 
 // ── 스샷 자동 전적기록 ── 로비 종료 스코어보드 → gpt-4o OCR → saveMatch(자동 사람등록+중복검사)

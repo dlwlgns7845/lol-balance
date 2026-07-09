@@ -35,6 +35,18 @@ export function buildTeams(queue, signups, personMap) { return buildTeamsRanked(
 export const LANE_KR = { top: '탑', jungle: '정글', mid: '미드', adc: '원딜', sup: '서폿' };
 const GOLD = 0xe8c07d;
 
+// 디코 큐 표시용 메타: discord_id·site:personId → { tier, game(인게임닉), tag }. persons(계정 포함) 필요.
+export function buildMetaMap(persons) {
+  const m = new Map();
+  (persons || []).forEach((p) => {
+    const acc = (p.accounts || []).find((a) => a.is_main) || (p.accounts || [])[0];
+    const meta = { tier: p.base_tier, game: acc?.game_name || null, tag: acc?.tag_line || null };
+    if (p.discord_id) m.set(p.discord_id, meta);
+    m.set(`site:${p.id}`, meta);
+  });
+  return m;
+}
+
 // signups(created_at 순) → 배정 결과 { lanes, waitlist } (id = discord_id)
 export function allocateSignups(queue, signups) {
   const input = signups.map((s, idx) => ({ id: s.discord_id, main: s.main, sub: s.sub || null, order: idx }));
@@ -72,33 +84,39 @@ export function queueComponents(qid) {
 
 // 디코 메시지 본문 { embeds, components } — 슬래시 응답(type4)·버튼 갱신(type7)·사이트 되쓰기 공용.
 // closed + teams 있으면 확정 2팀을 필드로 표시.
-export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20 = null, tierMap = null) {
+export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20 = null, metaMap = null) {
   const N = Math.max(1, Math.floor(queue.size / 5));
   const alloc = allocateSignups(queue, signups);
   const info = new Map(signups.map((s) => [s.discord_id, s]));
-  // 선수별: 이름 · 티어 · (부라인/올라운더/부배치) 표시 — 누가 뭘 골랐는지 한눈에
-  const playerLine = (id, lane) => {
+  // 슬롯 한 줄: "1. 인게임닉 #태그 (@디코) `티어` · 부라인" / 비면 "1. 비어있음"
+  const slotLine = (id, lane, n) => {
+    if (!id) return `${n}. \`비어있음\``;
     const s = info.get(id);
-    const tier = tierMap?.get(id);
+    const m = metaMap?.get(id) || {};
+    const riot = m.game ? `${m.game}${m.tag ? ` #${m.tag}` : ''}` : (s?.name || '?');
+    const mention = (id && !String(id).startsWith('site:')) ? ` (<@${id}>)` : '';
+    const tier = m.tier ? ` \`${m.tier}\`` : '';
     let role = '';
     if (s?.main === 'all') role = ' · 올라운더';
     else if (s && s.main !== lane) role = ` · 부(원래 ${LANE_KR[s.main]})`;
     else if (s?.sub) role = ` · 부:${s.sub === 'all' ? 'ALL' : LANE_KR[s.sub]}`;
-    return `${s?.name || '?'}${tier ? ` \`${tier}\`` : ''}${role}`;
+    return `${n}. **${riot}**${mention}${tier}${role}`;
   };
   const lines = LANES.map((l) => {
     const ids = alloc.lanes[l];
     const dot = ids.length >= N ? '🔵' : (ids.length ? '🟢' : '⬜');
-    const body = ids.length ? ids.map((id) => `\n　${playerLine(id, l)}`).join('') : ' —';
-    return `${dot} **${LANE_KR[l]}** (${ids.length}/${N})${body}`;
+    const slots = [];
+    for (let n = 0; n < N; n++) slots.push('　' + slotLine(ids[n], l, n + 1));
+    return `${dot} **${LANE_KR[l]}**\n${slots.join('\n')}`;
   });
-  const wait = alloc.waitlist.map((id) => playerLine(id, null));
-  let desc = lines.join('\n');
-  if (wait.length) desc += `\n\n⏳ **대기** (${wait.length})\n　${wait.join('\n　')}`;
+  const wait = alloc.waitlist.map((id, k) => '　' + slotLine(id, null, k + 1));
+  const intro = closed ? '' : '참가할 **포지션 버튼**을 누르세요. (등록 안 됐으면 먼저 `/가입` 또는 `/연동`)\n\n';
+  let desc = intro + lines.join('\n');
+  if (wait.length) desc += `\n\n⏳ **대기** (${wait.length})\n${wait.join('\n')}`;
   const embed = {
-    title: `🎮 내전 모집 · ${queue.size}인${closed ? ' · 마감됨' : ` (${signups.length}/${queue.size})`}`,
+    title: `🎮 롤 내전 대기열 · ${queue.size}인${closed ? ' · 마감됨' : ` (${signups.length}/${queue.size})`}`,
     description: desc, color: GOLD,
-    footer: closed ? undefined : { text: '메인 라인 버튼으로 참가 · 부라인은 드롭다운(선택) · 라인 다시 눌러 변경 · ❌ 나가기' },
+    footer: closed ? undefined : { text: '포지션 버튼=참가 · 부라인 드롭다운(선택) · 라인 다시 눌러 변경 · ❌ 나가기' },
   };
   if (closed && teams) {
     const side = (arr) => arr.map((p) => `${LANE_KR[p.lane]} · ${p.name}`).join('\n');
@@ -125,10 +143,10 @@ export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20
 }
 
 // 사이트→디코: 저장된 채널/메시지를 봇토큰으로 PATCH (양방향 동기화). 토큰/ID 없으면 조용히 스킵.
-export async function syncDiscordMessage(queue, signups, tierMap = null) {
+export async function syncDiscordMessage(queue, signups, metaMap = null) {
   const token = process.env.DISCORD_BOT_TOKEN;
   if (!token || !queue?.channel_id || !queue?.message_id) return { synced: false };
-  const body = queueMessage(queue, signups, queue.status !== 'open', null, 0, null, tierMap);
+  const body = queueMessage(queue, signups, queue.status !== 'open', null, 0, null, metaMap);
   const r = await fetch(`https://discord.com/api/v10/channels/${queue.channel_id}/messages/${queue.message_id}`, {
     method: 'PATCH', headers: { Authorization: `Bot ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

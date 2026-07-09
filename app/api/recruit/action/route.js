@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin, errStatus } from '../../../../src/auth.js';
 import { getQueue, listSignups, closeQueue, removeSignupById, listPersons, upsertSignup, setSignupMain } from '../../../../src/repo.js';
-import { syncDiscordMessage } from '../../../../src/discord-queue.js';
+import { syncDiscordMessage, buildMetaMap } from '../../../../src/discord-queue.js';
 
 export async function POST(request) {
   try {
@@ -24,8 +24,8 @@ export async function POST(request) {
     } else throw new Error('알 수 없는 액션');
     const fresh = await getQueue(queueId);
     const signups = await listSignups(queueId);
-    const tierMap = new Map((await listPersons(fresh.gid)).filter((p) => p.discord_id).map((p) => [p.discord_id, p.base_tier]));
-    const { synced } = await syncDiscordMessage(fresh, signups, tierMap); // 디코 메시지도 갱신(티어 포함)
+    const metaMap = buildMetaMap(await listPersons(fresh.gid));
+    const { synced } = await syncDiscordMessage(fresh, signups, metaMap); // 디코 메시지도 갱신(닉·티어 포함)
     return NextResponse.json({ ok: true, synced });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e.message }, { status: errStatus(e) });
