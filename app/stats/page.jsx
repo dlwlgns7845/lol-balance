@@ -8,6 +8,7 @@ import ChampImg from '../../components/ChampImg.jsx';
 import PlayerCard from '../../components/PlayerCard.jsx';
 import MatchHistory from '../../components/MatchHistory.jsx';
 import Awards from '../../components/Awards.jsx';
+import Avatar from '../../components/Avatar.jsx';
 
 function wrClass(w) { return w >= 0.6 ? 'green' : w >= 0.5 ? 'yellow' : 'red'; }
 const medal = (i) => ['🥇', '🥈', '🥉'][i] || null;
@@ -36,6 +37,7 @@ export default function StatsPage() {
   const [sort, setSort] = useState({ key: 'score', dir: 'desc' }); // 리더보드 정렬
   const [sel, setSel] = useState(null);
   const [query, setQuery] = useState('');
+  const [searchFocus, setSearchFocus] = useState(false);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
 
@@ -68,17 +70,14 @@ export default function StatsPage() {
   });
   const rawRows = SORT_ENABLED ? sortedLb : lbList;
   const q = query.trim().toLowerCase();
-  const rowsToShow = q
-    ? rawRows.filter((p) => {
-        const hay = [
-          p.name,
-          p.nickname,
-          TIER_LABEL[p.base_tier],
-          ...(p.topChamps || []).map((c) => c.champion),
-        ].filter(Boolean).join(' ').toLowerCase();
-        return hay.includes(q);
-      })
-    : rawRows;
+  const rowsToShow = rawRows;
+  const searchPool = played.slice().sort((a, b) => b.games - a.games);
+  const searchHits = q ? searchPool.filter((p) => (p.nickname || p.name || '').toLowerCase().includes(q)) : searchPool;
+  const pickSearch = (p) => {
+    setQuery('');
+    setSearchFocus(false);
+    setSel(players.find((x) => x.id === p.id) || p);
+  };
   const maxDmg = Math.max(1, ...lbList.map((p) => p.avgDamage || 0)); // 딜량 막대 기준 (표시 목록 중 최대)
   const setSortDir = (key, dir) => setSort({ key, dir });
   // 통계 카드(최고승률·딜량·CS·챔프폭)도 3판 이상만 (1~2판 반짝 1등 방지)
@@ -100,13 +99,29 @@ export default function StatsPage() {
     <div className="stats-pink">
       <div className="page-head stats-hero">
         <div className="title"><h1>통계</h1><p className="sub" style={{ margin: 0 }}>스크린샷 기록 기반 · 사람(본캐+부캐 합산) 단위. 선수를 클릭하면 상세 프로필이 열려요.</p></div>
-        <input
-          className="stats-search"
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="선수, 챔피언, 태그 검색"
-        />
+        <div className="psearch">
+          <input
+            placeholder="선수 이름 검색"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => setSearchFocus(true)}
+            onBlur={() => setTimeout(() => setSearchFocus(false), 150)}
+          />
+          {searchFocus && (
+            <div className="psearch-list">
+              {searchHits.slice(0, 10).map((p) => (
+                <button key={p.id} className="psearch-item" onMouseDown={() => pickSearch(p)} type="button">
+                  <span className="pi-av" style={{ background: 'none', padding: 0 }}>
+                    <Avatar name={p.nickname || p.name} profile={p.profile} size={22} />
+                  </span>
+                  <span className="pi-nm">{p.nickname || p.name}</span>
+                  <span className="muted pi-meta">{TIER_LABEL[p.base_tier]}</span>
+                </button>
+              ))}
+              {searchHits.length === 0 && <div className="muted psearch-none">검색 결과 없음</div>}
+            </div>
+          )}
+        </div>
       </div>
 
       {loading && <div className="panel center muted">불러오는 중…</div>}
