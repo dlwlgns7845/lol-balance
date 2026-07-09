@@ -350,6 +350,11 @@ export default function BalancerPage() {
       return copy;
     });
   }
+  function clearRosterRow(i) {
+    setResult(null); setResult20(null); setSplit20(null); setView(null); setViews20([null, null]); setSel(null); setSel20(null); setErr(null);
+    setSeedStatus((s) => { const c = { ...s }; delete c[i]; return c; });
+    setRowSave((s) => { const c = { ...s }; delete c[i]; return c; });
+  }
 
   // 20명: arrangement 적용 (평균균등 리롤/최초 공용)
   function applyArrangement(res, idx) {
@@ -526,7 +531,7 @@ export default function BalancerPage() {
           </span>
         </div>
         <RosterEditor roster={roster} onChange={setRoster} onSeed={onSeed} seedStatus={seedStatus}
-          rowMeta={rowMeta} rowSave={rowSave} onRowSave={canEdit ? saveRow : undefined} />
+          rowMeta={rowMeta} rowSave={rowSave} onRowSave={canEdit ? saveRow : undefined} onRowClear={clearRosterRow} />
       </div>
 
       <div className="panel">

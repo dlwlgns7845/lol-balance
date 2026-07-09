@@ -224,6 +224,12 @@ input[type=range] { padding: 0; accent-color: var(--gold); }
 .x-btn:hover { border-color: var(--red); color: var(--red); }
 .name-cell { display: flex; gap: 6px; }
 .name-cell input { flex: 1; }
+.row-clear {
+  width: 34px; height: 34px; border-radius: 7px; border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .035); color: var(--muted);
+  cursor: pointer; font-family: inherit; font-size: 18px; line-height: 1;
+}
+.row-clear:hover { border-color: var(--red); color: #ffc0ca; background: rgba(255, 107, 127, .12); }
 .seed-btn { background: var(--panel2); border: 1px solid var(--line); color: var(--text); border-radius: 7px; padding: 0 10px; cursor: pointer; font-size: 13px; font-family: inherit; }
 .seed-btn:hover { border-color: var(--gold); }
 .seed-btn:disabled { opacity: .5; cursor: wait; }
