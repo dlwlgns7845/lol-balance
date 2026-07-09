@@ -590,6 +590,10 @@ export async function getPending(id) {
   if (error) throw error;
   return data;
 }
+export async function updatePending(id, data) {
+  const { error } = await db().from('pending_matches').update({ data }).eq('id', id);
+  if (error) throw error;
+}
 export async function deletePending(id) {
   await db().from('pending_matches').delete().eq('id', id);
 }

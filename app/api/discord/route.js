@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server';
 import { waitUntil } from '@vercel/functions';
 import { getStats, getAwards, listPersons, updatePerson, createPerson, addAccount, uploadAvatarFromUrl, saveMatch,
   createQueue, getQueue, closeQueue, listSignups, getSignup, upsertSignup, removeSignup, setQueueMessage,
-  createPending, getPending, deletePending } from '../../../src/repo.js';
+  createPending, getPending, updatePending, deletePending } from '../../../src/repo.js';
 import { balance } from '../../../src/engine.js';
 import { queueMessage, buildTeams, LANE_KR } from '../../../src/discord-queue.js';
 import { extractScoreboard } from '../../../src/vision.js';
@@ -349,6 +349,9 @@ async function handleComponent(i) {
   const parts = (i.data?.custom_id || '').split(':');
   const [action, qid, lane] = parts;
   if (action === 'rec' || action === 'rex') return handleRecordConfirm(action, qid); // 스샷 판독 확인/취소
+  if (action === 'rswap') return handleRecordSwap(qid); // 승패 뒤집기
+  if (action === 'rdur') return handleRecordDurOpen(i, qid); // 시간 수정 모달
+  if (action === 'redit') return handleRecordEditOpen(i, qid); // 선수 수정 모달
   const queue = await getQueue(qid);
   if (!queue) return ephem('모집을 찾을 수 없어요 (오래된 메시지일 수 있어요).');
   if (queue.status !== 'open') return ephem('이미 마감된 모집이에요.');
@@ -410,26 +413,39 @@ async function processMatchShot(i, photoId) {
     const participants = [...t1.players.map((p) => mk(p, 'A')), ...t2.players.map((p) => mk(p, 'B'))];
     if (participants.some((p) => !p.name)) return followup(i, '❌ 소환사명을 다 못 읽었어요. 이름이 가려지지 않게 다시 찍어주세요.');
 
-    // 바로 저장 X — 판독 결과를 보여주고 확인받음 (OCR 오독 방지). 임시 보관 후 버튼.
-    const persons = await listPersons(GID);
-    const known = new Set(persons.flatMap((p) => [p.display_name, p.nickname].filter(Boolean).map(normNm)));
+    // 바로 저장 X — 판독 결과를 보여주고 확인/수정받음 (OCR 오독 방지). 임시 보관.
     const pendingId = await createPending(GID, { winner, participants, durationMin: parsed.durationMin });
-    const line = (p) => `${known.has(normNm(p.name)) ? '•' : '🆕'} ${p.name} · ${p.champion || '?'} ${p.k ?? 0}/${p.d ?? 0}/${p.a ?? 0}`;
-    const field = (team, label, win) => ({ name: `${win ? '🏆 ' : ''}${label}`, value: participants.filter((x) => x.team === team).map(line).join('\n') || '—', inline: true });
-    const embed = {
-      title: '📋 판독 결과 — 확인 후 저장', color: GOLD,
-      fields: [field('A', '팀1(위)', winner === 'A'), field('B', '팀2(아래)', winner === 'B')],
-      footer: { text: `${parsed.durationMin ? Math.round(parsed.durationMin) + '분 · ' : ''}🆕=미등록(저장 시 자동생성) · 숫자 틀리면 취소하고 사이트에서 수정` },
-    };
-    const components = [{ type: 1, components: [
-      { type: 2, style: 3, label: '✅ 저장', custom_id: `rec:${pendingId}` },
-      { type: 2, style: 4, label: '❌ 취소', custom_id: `rex:${pendingId}` },
-    ] }];
-    return followupData(i, { content: '', embeds: [embed], components });
+    return followupData(i, await reviewData({ id: pendingId, gid: GID, data: { winner, participants, durationMin: parsed.durationMin } }));
   } catch (e) { return followup(i, '기록 처리 오류: ' + e.message); }
 }
 
-// 판독 확인/취소 버튼
+// 판독 리뷰 메시지(embed + 선수수정 셀렉트 + 저장/승패/취소) — 초기 표시·수정 후 재렌더 공용
+async function reviewData(pend) {
+  const persons = await listPersons(pend.gid);
+  const known = new Set(persons.flatMap((p) => [p.display_name, p.nickname].filter(Boolean).map(normNm)));
+  const { winner, participants, durationMin } = pend.data;
+  const econ = (p) => (p.cs ? `${p.cs}cs` : (p.gold ? `${p.gold}g` : ''));
+  const line = (p) => `${known.has(normNm(p.name)) ? '•' : '🆕'} ${p.name} · ${p.champion || '?'} ${p.k ?? 0}/${p.d ?? 0}/${p.a ?? 0}${econ(p) ? ` · ${econ(p)}` : ''}${p.damage ? ` · ${Math.round(p.damage / 1000)}k딜` : ''}`;
+  const field = (team, label, win) => ({ name: `${win ? '🏆 ' : ''}${label}`, value: participants.filter((x) => x.team === team).map(line).join('\n') || '—', inline: true });
+  const embed = {
+    title: '📋 판독 결과 — 확인·수정 후 저장', color: GOLD,
+    fields: [field('A', '팀1(위)', winner === 'A'), field('B', '팀2(아래)', winner === 'B')],
+    footer: { text: `${durationMin ? Math.round(durationMin) + '분 · ' : ''}🆕=미등록(저장 시 자동생성) · 아래에서 선수 골라 바로 수정 가능` },
+  };
+  const options = participants.map((p, idx) => ({ label: `${p.team === 'A' ? '1팀' : '2팀'} ${p.name}`.slice(0, 90), value: String(idx), description: `${p.champion || ''} ${p.k ?? 0}/${p.d ?? 0}/${p.a ?? 0}`.slice(0, 90) }));
+  const components = [
+    { type: 1, components: [{ type: 3, custom_id: `redit:${pend.id}`, placeholder: '✏️ 수정할 선수 선택', options }] },
+    { type: 1, components: [
+      { type: 2, style: 3, label: '✅ 저장', custom_id: `rec:${pend.id}` },
+      { type: 2, style: 1, label: '🔄 승패 바꾸기', custom_id: `rswap:${pend.id}` },
+      { type: 2, style: 2, label: '⏱ 시간', custom_id: `rdur:${pend.id}` },
+      { type: 2, style: 4, label: '❌ 취소', custom_id: `rex:${pend.id}` },
+    ] },
+  ];
+  return { content: '', embeds: [embed], components };
+}
+
+// 판독 확인/취소
 async function handleRecordConfirm(action, pendingId) {
   const pend = await getPending(pendingId);
   if (!pend) return updateMsg({ content: '⌛ 만료됐거나 이미 처리된 판독이에요.', embeds: [], components: [] });
@@ -441,6 +457,75 @@ async function handleRecordConfirm(action, pendingId) {
     const winName = pend.data.winner === 'A' ? '팀1(위)' : '팀2(아래)';
     return updateMsg({ content: `✅ **저장 완료!** ${winName} 승리 · 통계·리더보드·칭호에 반영됐어요.`, embeds: [], components: [] });
   } catch (e) { return updateMsg({ content: '저장 오류: ' + e.message, embeds: [], components: [] }); }
+}
+
+// 승패 뒤집기
+async function handleRecordSwap(pendingId) {
+  const pend = await getPending(pendingId);
+  if (!pend) return updateMsg({ content: '⌛ 만료된 판독이에요.', embeds: [], components: [] });
+  pend.data.winner = pend.data.winner === 'A' ? 'B' : 'A';
+  await updatePending(pendingId, pend.data);
+  return updateMsg(await reviewData(pend));
+}
+
+// 선수 선택 → 수정 모달 열기
+async function handleRecordEditOpen(i, pendingId) {
+  const pend = await getPending(pendingId);
+  if (!pend) return ephem('⌛ 만료된 판독이에요. 다시 `/기록` 해주세요.');
+  const idx = Number(i.data?.values?.[0]);
+  const p = pend.data.participants[idx];
+  if (!p) return ephem('선수를 못 찾았어요.');
+  const input = (id, label, value) => ({ type: 1, components: [{ type: 4, custom_id: id, label, style: 1, value: String(value ?? ''), required: false }] });
+  return NextResponse.json({ type: 9, data: {
+    custom_id: `rmod:${pendingId}:${idx}`, title: `${(p.name || '선수').slice(0, 40)} 수정`,
+    components: [
+      input('name', '소환사명', p.name || ''),
+      input('champ', '챔피언', p.champion || ''),
+      input('kda', 'K/D/A (예: 12/3/8)', `${p.k ?? 0}/${p.d ?? 0}/${p.a ?? 0}`),
+      input('dmg', '딜량', p.damage ?? 0),
+      input('cs', 'CS', p.cs ?? 0),
+    ],
+  } });
+}
+
+// 게임 시간(분) 수정 모달 열기
+async function handleRecordDurOpen(i, pendingId) {
+  const pend = await getPending(pendingId);
+  if (!pend) return ephem('⌛ 만료된 판독이에요.');
+  return NextResponse.json({ type: 9, data: {
+    custom_id: `rdmod:${pendingId}`, title: '게임 시간 수정',
+    components: [{ type: 1, components: [{ type: 4, custom_id: 'dur', label: '게임 시간 (분, 예: 27.5)', style: 1, value: String(pend.data.durationMin || 0), required: false }] }],
+  } });
+}
+
+// 모달 제출 → 시간(rdmod) 또는 선수(rmod) 값 갱신 후 리뷰 재렌더
+async function handleModalSubmit(i) {
+  const cid = i.data?.custom_id || '';
+  const vals = {};
+  (i.data?.components || []).forEach((row) => { const c = row.components?.[0]; if (c) vals[c.custom_id] = c.value; });
+  if (cid.startsWith('rdmod:')) { // 시간 수정
+    const pendingId = cid.split(':')[1];
+    const pend = await getPending(pendingId);
+    if (!pend) return updateMsg({ content: '⌛ 만료된 판독이에요.', embeds: [], components: [] });
+    const d = parseFloat(vals.dur);
+    pend.data.durationMin = Number.isFinite(d) ? d : pend.data.durationMin;
+    await updatePending(pendingId, pend.data);
+    return updateMsg(await reviewData(pend));
+  }
+  const [, pendingId, idxStr] = cid.split(':');
+  const pend = await getPending(pendingId);
+  if (!pend) return updateMsg({ content: '⌛ 만료된 판독이에요.', embeds: [], components: [] });
+  const idx = Number(idxStr);
+  const p = pend.data.participants[idx];
+  if (!p) return updateMsg(await reviewData(pend));
+  const [k, d, a] = (vals.kda || '').split('/').map((x) => parseInt(x, 10));
+  pend.data.participants[idx] = {
+    ...p, name: (vals.name || p.name).trim(), champion: (vals.champ || '').trim() || null,
+    k: Number.isFinite(k) ? k : p.k, d: Number.isFinite(d) ? d : p.d, a: Number.isFinite(a) ? a : p.a,
+    damage: parseInt(vals.dmg, 10) || 0, cs: parseInt(vals.cs, 10) || 0,
+  };
+  await updatePending(pendingId, pend.data);
+  return updateMsg(await reviewData(pend));
 }
 
 async function cmdMatchShot(i) {
@@ -465,8 +550,11 @@ export async function POST(request) {
     if (!h) return reply('알 수 없는 명령어예요.');
     try { return await h(i); } catch (e) { return reply('오류: ' + e.message); }
   }
-  if (i.type === 3) { // 버튼·드롭다운 (모집 큐)
+  if (i.type === 3) { // 버튼·드롭다운 (모집 큐 / 스샷 판독)
     try { return await handleComponent(i); } catch (e) { return ephem('오류: ' + e.message); }
+  }
+  if (i.type === 5) { // 모달 제출 (스샷 판독 선수 수정)
+    try { return await handleModalSubmit(i); } catch (e) { return ephem('오류: ' + e.message); }
   }
   return NextResponse.json({ type: 4, data: { content: '지원하지 않는 인터랙션' } });
 }
