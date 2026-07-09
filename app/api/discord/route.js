@@ -435,7 +435,9 @@ async function handleComponent(i) {
   } else {
     return ephem('알 수 없는 버튼이에요.');
   }
-  return updateMsg(queueMessage(queue, await listSignups(qid), false));
+  const freshSignups = await listSignups(qid);
+  const tierMap = new Map((await listPersons(queue.gid)).filter((p) => p.discord_id).map((p) => [p.discord_id, p.base_tier]));
+  return updateMsg(queueMessage(queue, freshSignups, false, null, 0, null, tierMap));
 }
 
 // ── 스샷 자동 전적기록 ── 로비 종료 스코어보드 → gpt-4o OCR → saveMatch(자동 사람등록+중복검사)

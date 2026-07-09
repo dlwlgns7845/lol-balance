@@ -100,6 +100,13 @@ export default function RecruitPage() {
                         <Avatar name={p.name} profile={p.profile} size={22} />
                         <span className="rc-nm">{p.name}{p.off && <span className="rc-off">부</span>}{p.all && <span className="rc-off">올</span>}</span>
                         <span className="rc-ti">{TIER_LABEL[p.tier] || p.tier || '?'}</span>
+                        {isAdmin && (
+                          <select className="rc-move" value={p.main} disabled={busy} title="라인 이동"
+                            onChange={(e) => act({ queueId: queue.id, action: 'move', signupId: p.id, main: e.target.value })}>
+                            {LANES.map((L) => <option key={L} value={L}>{LANE_KR[L]}</option>)}
+                            <option value="all">ALL</option>
+                          </select>
+                        )}
                         {isAdmin && <button className="rc-kick" disabled={busy} onClick={() => act({ queueId: queue.id, action: 'kick', signupId: p.id })} title="강퇴">✕</button>}
                       </div>
                     ))}
@@ -173,6 +180,7 @@ export default function RecruitPage() {
         .rc-nm{font-weight:600;display:flex;align-items:center;gap:4px}
         .rc-off{font-size:9px;background:#7a5a1f;color:#fff;border-radius:4px;padding:1px 4px}
         .rc-ti{margin-left:auto;font-size:11px;color:#9a9}
+        .rc-move{background:#2a2a33;color:#bbb;border:1px solid #33333c;border-radius:5px;font-size:11px;padding:2px 3px;max-width:52px}
         .rc-kick{background:none;border:none;color:#c66;cursor:pointer;font-size:12px;padding:0 2px}
         .rc-wait{margin-top:14px;background:#1c1c22;border-radius:10px;padding:12px}
         .rc-wait .rc-slots{flex-direction:row;flex-wrap:wrap;margin-top:8px}

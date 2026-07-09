@@ -72,19 +72,29 @@ export function queueComponents(qid) {
 
 // 디코 메시지 본문 { embeds, components } — 슬래시 응답(type4)·버튼 갱신(type7)·사이트 되쓰기 공용.
 // closed + teams 있으면 확정 2팀을 필드로 표시.
-export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20 = null) {
+export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20 = null, tierMap = null) {
   const N = Math.max(1, Math.floor(queue.size / 5));
   const alloc = allocateSignups(queue, signups);
   const info = new Map(signups.map((s) => [s.discord_id, s]));
+  // 선수별: 이름 · 티어 · (부라인/올라운더/부배치) 표시 — 누가 뭘 골랐는지 한눈에
+  const playerLine = (id, lane) => {
+    const s = info.get(id);
+    const tier = tierMap?.get(id);
+    let role = '';
+    if (s?.main === 'all') role = ' · 올라운더';
+    else if (s && s.main !== lane) role = ` · 부(원래 ${LANE_KR[s.main]})`;
+    else if (s?.sub) role = ` · 부:${s.sub === 'all' ? 'ALL' : LANE_KR[s.sub]}`;
+    return `${s?.name || '?'}${tier ? ` \`${tier}\`` : ''}${role}`;
+  };
   const lines = LANES.map((l) => {
     const ids = alloc.lanes[l];
-    const names = ids.map((id) => { const s = info.get(id); const t = !s ? '' : (s.main === 'all' ? '(올)' : (s.main !== l ? '(부)' : '')); return `${s?.name || '?'}${t}`; });
     const dot = ids.length >= N ? '🔵' : (ids.length ? '🟢' : '⬜');
-    return `${dot} **${LANE_KR[l]}** (${ids.length}/${N}) ${names.join(', ') || '—'}`;
+    const body = ids.length ? ids.map((id) => `\n　${playerLine(id, l)}`).join('') : ' —';
+    return `${dot} **${LANE_KR[l]}** (${ids.length}/${N})${body}`;
   });
-  const wait = alloc.waitlist.map((id) => info.get(id)?.name || '?');
+  const wait = alloc.waitlist.map((id) => playerLine(id, null));
   let desc = lines.join('\n');
-  if (wait.length) desc += `\n\n⏳ **대기** (${wait.length}) ${wait.join(', ')}`;
+  if (wait.length) desc += `\n\n⏳ **대기** (${wait.length})\n　${wait.join('\n　')}`;
   const embed = {
     title: `🎮 내전 모집 · ${queue.size}인${closed ? ' · 마감됨' : ` (${signups.length}/${queue.size})`}`,
     description: desc, color: GOLD,
@@ -115,10 +125,10 @@ export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20
 }
 
 // 사이트→디코: 저장된 채널/메시지를 봇토큰으로 PATCH (양방향 동기화). 토큰/ID 없으면 조용히 스킵.
-export async function syncDiscordMessage(queue, signups) {
+export async function syncDiscordMessage(queue, signups, tierMap = null) {
   const token = process.env.DISCORD_BOT_TOKEN;
   if (!token || !queue?.channel_id || !queue?.message_id) return { synced: false };
-  const body = queueMessage(queue, signups, queue.status !== 'open');
+  const body = queueMessage(queue, signups, queue.status !== 'open', null, 0, null, tierMap);
   const r = await fetch(`https://discord.com/api/v10/channels/${queue.channel_id}/messages/${queue.message_id}`, {
     method: 'PATCH', headers: { Authorization: `Bot ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
