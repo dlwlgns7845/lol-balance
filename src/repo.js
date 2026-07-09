@@ -578,6 +578,22 @@ export async function removeSignupById(id) {
   if (error) throw error;
 }
 
+// ── 스샷 판독 대기(확인 전) ── 디코에서 판독→확인 버튼까지 잠깐 보관. 확인 시 saveMatch, 취소 시 삭제.
+export async function createPending(gid, data) {
+  const { data: row, error } = await db().from('pending_matches').insert({ gid, data }).select('id').single();
+  if (error) throw error;
+  return row.id;
+}
+export async function getPending(id) {
+  if (!id) return null;
+  const { data, error } = await db().from('pending_matches').select('*').eq('id', id).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+export async function deletePending(id) {
+  await db().from('pending_matches').delete().eq('id', id);
+}
+
 // ── 통계 (승패 + 스샷 추출 상세: KDA/CS/골드/챔프) ──
 export async function getStats(groupId) {
   const persons = await listPersons(groupId);

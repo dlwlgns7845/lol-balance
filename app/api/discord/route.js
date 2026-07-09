@@ -4,7 +4,8 @@ import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { waitUntil } from '@vercel/functions';
 import { getStats, getAwards, listPersons, updatePerson, createPerson, addAccount, uploadAvatarFromUrl, saveMatch,
-  createQueue, getQueue, closeQueue, listSignups, getSignup, upsertSignup, removeSignup, setQueueMessage } from '../../../src/repo.js';
+  createQueue, getQueue, closeQueue, listSignups, getSignup, upsertSignup, removeSignup, setQueueMessage,
+  createPending, getPending, deletePending } from '../../../src/repo.js';
 import { balance } from '../../../src/engine.js';
 import { queueMessage, buildTeams, LANE_KR } from '../../../src/discord-queue.js';
 import { extractScoreboard } from '../../../src/vision.js';
@@ -132,6 +133,13 @@ async function followup(i, content) {
   await fetch(`https://discord.com/api/v10/webhooks/${i.application_id}/${i.token}/messages/@original`, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
+  });
+}
+// followup 인데 embed/버튼까지 (스샷 판독 확인용)
+async function followupData(i, data) {
+  await fetch(`https://discord.com/api/v10/webhooks/${i.application_id}/${i.token}/messages/@original`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ allowed_mentions: { parse: [] }, ...data }),
   });
 }
 
@@ -340,6 +348,7 @@ async function handleComponent(i) {
   if (!GID) return ephem('⚠️ 방 설정(DISCORD_DEFAULT_GID)이 없어요.');
   const parts = (i.data?.custom_id || '').split(':');
   const [action, qid, lane] = parts;
+  if (action === 'rec' || action === 'rex') return handleRecordConfirm(action, qid); // 스샷 판독 확인/취소
   const queue = await getQueue(qid);
   if (!queue) return ephem('모집을 찾을 수 없어요 (오래된 메시지일 수 있어요).');
   if (queue.status !== 'open') return ephem('이미 마감된 모집이에요.');
@@ -401,12 +410,37 @@ async function processMatchShot(i, photoId) {
     const participants = [...t1.players.map((p) => mk(p, 'A')), ...t2.players.map((p) => mk(p, 'B'))];
     if (participants.some((p) => !p.name)) return followup(i, '❌ 소환사명을 다 못 읽었어요. 이름이 가려지지 않게 다시 찍어주세요.');
 
-    const r = await saveMatch(GID, { winner, participants, durationMin: parsed.durationMin });
-    if (r?.duplicate) return followup(i, '⚠️ 이미 기록된 경기예요 (중복). 저장 안 함.');
-    const winName = winner === 'A' ? '팀1(위)' : '팀2(아래)';
-    const dur = parsed.durationMin ? ` · ${Math.round(parsed.durationMin)}분` : '';
-    return followup(i, `✅ **경기 기록 완료!** ${winName} 승리 · 10명 저장${dur}\n통계·리더보드·칭호에 반영됐어요. (\`/리더보드\`·\`/칭호\` 확인)`);
+    // 바로 저장 X — 판독 결과를 보여주고 확인받음 (OCR 오독 방지). 임시 보관 후 버튼.
+    const persons = await listPersons(GID);
+    const known = new Set(persons.flatMap((p) => [p.display_name, p.nickname].filter(Boolean).map(normNm)));
+    const pendingId = await createPending(GID, { winner, participants, durationMin: parsed.durationMin });
+    const line = (p) => `${known.has(normNm(p.name)) ? '•' : '🆕'} ${p.name} · ${p.champion || '?'} ${p.k ?? 0}/${p.d ?? 0}/${p.a ?? 0}`;
+    const field = (team, label, win) => ({ name: `${win ? '🏆 ' : ''}${label}`, value: participants.filter((x) => x.team === team).map(line).join('\n') || '—', inline: true });
+    const embed = {
+      title: '📋 판독 결과 — 확인 후 저장', color: GOLD,
+      fields: [field('A', '팀1(위)', winner === 'A'), field('B', '팀2(아래)', winner === 'B')],
+      footer: { text: `${parsed.durationMin ? Math.round(parsed.durationMin) + '분 · ' : ''}🆕=미등록(저장 시 자동생성) · 숫자 틀리면 취소하고 사이트에서 수정` },
+    };
+    const components = [{ type: 1, components: [
+      { type: 2, style: 3, label: '✅ 저장', custom_id: `rec:${pendingId}` },
+      { type: 2, style: 4, label: '❌ 취소', custom_id: `rex:${pendingId}` },
+    ] }];
+    return followupData(i, { content: '', embeds: [embed], components });
   } catch (e) { return followup(i, '기록 처리 오류: ' + e.message); }
+}
+
+// 판독 확인/취소 버튼
+async function handleRecordConfirm(action, pendingId) {
+  const pend = await getPending(pendingId);
+  if (!pend) return updateMsg({ content: '⌛ 만료됐거나 이미 처리된 판독이에요.', embeds: [], components: [] });
+  if (action === 'rex') { await deletePending(pendingId); return updateMsg({ content: '❌ 취소했어요 (저장 안 함).', embeds: [], components: [] }); }
+  try {
+    const r = await saveMatch(pend.gid, pend.data);
+    await deletePending(pendingId);
+    if (r?.duplicate) return updateMsg({ content: '⚠️ 이미 기록된 경기예요 (중복). 저장 안 함.', embeds: [], components: [] });
+    const winName = pend.data.winner === 'A' ? '팀1(위)' : '팀2(아래)';
+    return updateMsg({ content: `✅ **저장 완료!** ${winName} 승리 · 통계·리더보드·칭호에 반영됐어요.`, embeds: [], components: [] });
+  } catch (e) { return updateMsg({ content: '저장 오류: ' + e.message, embeds: [], components: [] }); }
 }
 
 async function cmdMatchShot(i) {
