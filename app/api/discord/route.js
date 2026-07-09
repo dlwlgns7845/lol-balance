@@ -368,8 +368,7 @@ async function pingTeams(i, signups, teams, metaMap) {
   const ids = signups.map((s) => s.discord_id).filter((id) => id && !id.startsWith('site:'));
   const cell = (p) => {
     const who = (p.discordId && !p.discordId.startsWith('site:')) ? `<@${p.discordId}>` : `**${p.name}**`;
-    const tier = metaMap?.get(p.discordId)?.tier;
-    return `　${LANE_KR[p.lane]} ${who}${tier ? ` \`${tier}\`` : ''}`;
+    return `　${LANE_KR[p.lane]} ${who}${p.tier ? ` \`${p.tier}\`` : ''}`; // p.tier=배정라인 반영(부라인티어)
   };
   let content;
   if (teams) {
@@ -432,8 +431,7 @@ async function handleComponent(i) {
       waitUntil(pingTeams(i, signups, null, metaMap)); // 전원 태그(4팀은 메시지에 표시)
       return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, null, 0, teams20, metaMap));
     }
-    const pmap = new Map(persons.filter((p) => p.discord_id).map((p) => [p.discord_id, { tier: p.base_tier, secondaryTier: p.secondary_tier || null }]));
-    const teams = buildTeams({ ...queue, status: 'closed' }, signups, pmap);
+    const teams = buildTeams({ ...queue, status: 'closed' }, signups, metaMap);
     waitUntil(pingTeams(i, signups, teams, metaMap)); // 태그해서 부르기(새 메시지 = 알림 뜸)
     return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, teams, 0, null, metaMap));
   } else {
@@ -483,8 +481,7 @@ async function handleTeamReroll(qid, curIdxStr) {
   const signups = await listSignups(qid);
   const persons = await listPersons(queue.gid);
   const metaMap = buildMetaMap(persons);
-  const pmap = new Map(persons.filter((p) => p.discord_id).map((p) => [p.discord_id, { tier: p.base_tier, secondaryTier: p.secondary_tier || null }]));
-  const ranked = buildTeamsRanked({ ...queue, status: 'closed' }, signups, pmap);
+  const ranked = buildTeamsRanked({ ...queue, status: 'closed' }, signups, metaMap);
   if (!ranked.length) return ephem('팀을 다시 짤 수 없어요 (10인 아님).');
   const nextIdx = (Number(curIdxStr || 0) + 1) % ranked.length;
   return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, ranked[nextIdx], nextIdx, null, metaMap));

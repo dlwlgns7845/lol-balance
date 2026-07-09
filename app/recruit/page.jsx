@@ -15,9 +15,8 @@ const ROSTER_KEY = 'lol-balance-roster';
 // 부라인 라벨: 큐에서 고른 부라인 우선, 없으면 사람관리 등록 부라인. 올라운더/부배치는 태그로 이미 표시.
 const subLabel = (p) => {
   if (p.all) return null;
-  if (p.sub) return `부:${p.sub === 'all' ? 'ALL' : LANE_KR[p.sub]}`;
-  const subs = (p.regSubs || []).filter((x) => x !== p.lane).map((x) => LANE_KR[x]);
-  return subs.length ? `부:${subs.join('/')}` : null;
+  if (p.sub) return `부:${p.sub === 'all' ? 'ALL' : LANE_KR[p.sub]}`; // 큐에서 고른 부라인만
+  return null;
 };
 
 export default function RecruitPage() {

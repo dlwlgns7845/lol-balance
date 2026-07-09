@@ -13,7 +13,7 @@ export async function GET(request) {
     const persons = await listPersons(gid);
     const pmap = new Map(); // discord_id 와 site:<personId> 둘 다로 조회 가능하게
     persons.forEach((p) => {
-      const meta = { tier: p.base_tier, profile: p.profile || null, regSubs: p.secondary_positions || [] };
+      const meta = { profile: p.profile || null, baseTier: p.base_tier, secTier: p.secondary_tier || null, primary: p.primary_positions || [], secondary: p.secondary_positions || [] };
       if (p.discord_id) pmap.set(p.discord_id, meta);
       pmap.set(`site:${p.id}`, meta);
     });
