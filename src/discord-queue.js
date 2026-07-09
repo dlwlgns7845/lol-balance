@@ -110,27 +110,37 @@ export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20
     return `${dot} **${LANE_KR[l]}**\n${slots.join('\n')}`;
   });
   const wait = alloc.waitlist.map((id, k) => '　' + slotLine(id, null, k + 1));
+  // 팀 셀 한 줄: "탑 · 인게임닉 #태그 (@디코) `티어`" — 모집과 같은 큰 포맷
+  const teamCell = (p) => {
+    const m = metaMap?.get(p.discordId) || {};
+    const riot = m.game ? `${m.game}${m.tag ? ` #${m.tag}` : ''}` : p.name;
+    const mention = (p.discordId && !String(p.discordId).startsWith('site:')) ? ` (<@${p.discordId}>)` : '';
+    return `${LANE_KR[p.lane]} · **${riot}**${mention} \`${p.tier || '?'}\``;
+  };
   const intro = closed ? '' : '참가할 **포지션 버튼**을 누르세요. (등록 안 됐으면 먼저 `/가입` 또는 `/연동`)\n\n';
-  let desc = intro + lines.join('\n');
-  if (wait.length) desc += `\n\n⏳ **대기** (${wait.length})\n${wait.join('\n')}`;
+  let desc;
+  if (closed && teams) desc = `**팀 확정** · 조합 #${teamIdx + 1} · 점수차 ${teams.diff.toFixed(1)}`;
+  else if (closed && teams20) desc = '**팀 확정** · 고저분리 4팀';
+  else {
+    desc = intro + lines.join('\n');
+    if (wait.length) desc += `\n\n⏳ **대기** (${wait.length})\n${wait.join('\n')}`;
+  }
   const embed = {
     title: `🎮 롤 내전 대기열 · ${queue.size}인${closed ? ' · 마감됨' : ` (${signups.length}/${queue.size})`}`,
     description: desc, color: GOLD,
     footer: closed ? undefined : { text: '포지션 버튼=참가 · 부라인 드롭다운(선택) · 라인 다시 눌러 변경 · ❌ 나가기' },
   };
   if (closed && teams) {
-    const side = (arr) => arr.map((p) => `${LANE_KR[p.lane]} · ${p.name}`).join('\n');
     embed.fields = [
-      { name: `🟦 블루 (${Math.round(teams.sumA)})`, value: side(teams.A), inline: true },
-      { name: `🟥 레드 (${Math.round(teams.sumB)})`, value: side(teams.B), inline: true },
+      { name: `🟦 블루 (${Math.round(teams.sumA)})`, value: teams.A.map(teamCell).join('\n'), inline: false },
+      { name: `🟥 레드 (${Math.round(teams.sumB)})`, value: teams.B.map(teamCell).join('\n'), inline: false },
     ];
     embed.title += ' · 팀 확정';
-    embed.footer = { text: `조합 #${teamIdx + 1} · 점수차 ${teams.diff.toFixed(1)} · 🎲로 다른 조합` };
   }
   if (closed && teams20) { // 20인 고저분리 4팀
     const gameField = (game, label) => {
       const c = game.candidates[0];
-      const side = (T) => c.lanes.map((l) => `${LANE_KR[l.pos]} ${l[T].name}`).join('\n');
+      const side = (T) => c.lanes.map((l) => `${LANE_KR[l.pos]} · **${l[T].name}** \`${l[T].tier || '?'}\``).join('\n');
       return { name: label, value: `🟦 **블루** (${c.sumA.toFixed(0)})\n${side('a')}\n\n🟥 **레드** (${c.sumB.toFixed(0)})\n${side('b')}`, inline: true };
     };
     embed.fields = [gameField(teams20.games[0], '🔺 고티어 게임'), gameField(teams20.games[1], '🔻 저티어 게임')];

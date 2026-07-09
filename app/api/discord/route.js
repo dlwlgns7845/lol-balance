@@ -364,16 +364,19 @@ function autoTeams20(queue, signups, persons) {
 }
 
 // 마감 시 신청자 전원을 태그해 호출 (새 followup 메시지 = 실제 알림 발생). site: 키는 태그 못하니 이름만.
-async function pingTeams(i, signups, teams) {
+async function pingTeams(i, signups, teams, metaMap) {
   const ids = signups.map((s) => s.discord_id).filter((id) => id && !id.startsWith('site:'));
-  const tag = (p) => (p.discordId && !p.discordId.startsWith('site:') ? `<@${p.discordId}>` : p.name);
+  const cell = (p) => {
+    const who = (p.discordId && !p.discordId.startsWith('site:')) ? `<@${p.discordId}>` : `**${p.name}**`;
+    const tier = metaMap?.get(p.discordId)?.tier;
+    return `　${LANE_KR[p.lane]} ${who}${tier ? ` \`${tier}\`` : ''}`;
+  };
   let content;
   if (teams) {
-    const side = (arr) => arr.map((p) => `${LANE_KR[p.lane]} ${tag(p)}`).join(' · ');
-    content = `🎮 **내전 시작!** 팀 확정 — 모두 모여요!\n🟦 **블루** ${side(teams.A)}\n🟥 **레드** ${side(teams.B)}`;
+    content = `🎮 **내전 시작! 팀 확정 — 모두 모여요!**\n🟦 **블루**\n${teams.A.map(cell).join('\n')}\n🟥 **레드**\n${teams.B.map(cell).join('\n')}`;
   } else {
     if (!ids.length) return;
-    content = `🎮 **내전 마감!** 모두 모여요 — ${ids.map((id) => `<@${id}>`).join(' ')}`;
+    content = `🎮 **내전 마감! 모두 모여요**\n${ids.map((id) => `<@${id}>`).join(' ')}`;
   }
   try {
     await fetch(`https://discord.com/api/v10/webhooks/${i.application_id}/${i.token}`, {
@@ -423,15 +426,16 @@ async function handleComponent(i) {
     await closeQueue(qid);
     const signups = await listSignups(qid);
     const persons = await listPersons(queue.gid);
+    const metaMap = buildMetaMap(persons);
     if (queue.size === 20) { // 고저분리 4팀
       const teams20 = autoTeams20({ ...queue, status: 'closed' }, signups, persons);
-      waitUntil(pingTeams(i, signups, null)); // 전원 태그(4팀은 메시지에 표시)
-      return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, null, 0, teams20));
+      waitUntil(pingTeams(i, signups, null, metaMap)); // 전원 태그(4팀은 메시지에 표시)
+      return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, null, 0, teams20, metaMap));
     }
     const pmap = new Map(persons.filter((p) => p.discord_id).map((p) => [p.discord_id, { tier: p.base_tier, secondaryTier: p.secondary_tier || null }]));
     const teams = buildTeams({ ...queue, status: 'closed' }, signups, pmap);
-    waitUntil(pingTeams(i, signups, teams)); // 태그해서 부르기(새 메시지 = 알림 뜸)
-    return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, teams));
+    waitUntil(pingTeams(i, signups, teams, metaMap)); // 태그해서 부르기(새 메시지 = 알림 뜸)
+    return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, teams, 0, null, metaMap));
   } else {
     return ephem('알 수 없는 버튼이에요.');
   }
@@ -478,11 +482,12 @@ async function handleTeamReroll(qid, curIdxStr) {
   if (!queue) return ephem('⌛ 만료된 모집이에요.');
   const signups = await listSignups(qid);
   const persons = await listPersons(queue.gid);
+  const metaMap = buildMetaMap(persons);
   const pmap = new Map(persons.filter((p) => p.discord_id).map((p) => [p.discord_id, { tier: p.base_tier, secondaryTier: p.secondary_tier || null }]));
   const ranked = buildTeamsRanked({ ...queue, status: 'closed' }, signups, pmap);
   if (!ranked.length) return ephem('팀을 다시 짤 수 없어요 (10인 아님).');
   const nextIdx = (Number(curIdxStr || 0) + 1) % ranked.length;
-  return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, ranked[nextIdx], nextIdx));
+  return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, ranked[nextIdx], nextIdx, null, metaMap));
 }
 
 // 판독 리뷰 메시지(embed + 셀렉트/버튼) — 초기 표시·수정 후 재렌더 공용.
