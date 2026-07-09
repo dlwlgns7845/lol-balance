@@ -6,8 +6,9 @@ import { waitUntil } from '@vercel/functions';
 import { getStats, getAwards, listPersons, updatePerson, createPerson, addAccount, uploadAvatarFromUrl, saveMatch,
   createQueue, getQueue, closeQueue, listSignups, getSignup, upsertSignup, removeSignup, setQueueMessage,
   createPending, getPending, updatePending, deletePending } from '../../../src/repo.js';
-import { balance } from '../../../src/engine.js';
-import { queueMessage, buildTeams, buildTeamsRanked, LANE_KR } from '../../../src/discord-queue.js';
+import { balance, balance20Split } from '../../../src/engine.js';
+import { LANES } from '../../../src/queue.js';
+import { queueMessage, buildTeams, buildTeamsRanked, allocateSignups, LANE_KR } from '../../../src/discord-queue.js';
 import { extractScoreboard } from '../../../src/vision.js';
 import { fetchTierEstimate } from '../../../src/opgg.js';
 import { fetchTierEstimateHybrid, fetchRiotProfile, hasRiotKey } from '../../../src/riot.js';
@@ -343,6 +344,24 @@ async function cmdRecruit(i) {
   return NextResponse.json({ type: 4, data: queueMessage(q, [], false) });
 }
 
+// 20인 마감 → 고저분리 4팀 (파워순 상위10/하위10 → 각 로비 균형). 20명 배정·포지션 있어야, 아니면 null.
+function autoTeams20(queue, signups, persons) {
+  const alloc = allocateSignups(queue, signups);
+  const placedIds = LANES.flatMap((l) => alloc.lanes[l]);
+  if (placedIds.length !== 20) return null;
+  const byD = new Map(persons.filter((p) => p.discord_id).map((p) => [p.discord_id, p]));
+  const byId = new Map(persons.map((p) => [p.id, p]));
+  const players = [];
+  for (const did of placedIds) {
+    const person = did.startsWith('site:') ? byId.get(did.slice(5)) : byD.get(did);
+    if (!person) return null;
+    const positions = [...(person.primary_positions || []), ...(person.secondary_positions || [])];
+    if (!positions.length) return null; // 포지션 미지정 = 자동팀 불가
+    players.push({ name: person.nickname || person.display_name, tier: person.base_tier, secondaryTier: person.secondary_tier || null, positions, primary: person.primary_positions || [] });
+  }
+  try { return balance20Split(players); } catch { return null; }
+}
+
 // 마감 시 신청자 전원을 태그해 호출 (새 followup 메시지 = 실제 알림 발생). site: 키는 태그 못하니 이름만.
 async function pingTeams(i, signups, teams) {
   const ids = signups.map((s) => s.discord_id).filter((id) => id && !id.startsWith('site:'));
@@ -403,6 +422,11 @@ async function handleComponent(i) {
     await closeQueue(qid);
     const signups = await listSignups(qid);
     const persons = await listPersons(GID);
+    if (queue.size === 20) { // 고저분리 4팀
+      const teams20 = autoTeams20({ ...queue, status: 'closed' }, signups, persons);
+      waitUntil(pingTeams(i, signups, null)); // 전원 태그(4팀은 메시지에 표시)
+      return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, null, 0, teams20));
+    }
     const pmap = new Map(persons.filter((p) => p.discord_id).map((p) => [p.discord_id, { tier: p.base_tier, secondaryTier: p.secondary_tier || null }]));
     const teams = buildTeams({ ...queue, status: 'closed' }, signups, pmap);
     waitUntil(pingTeams(i, signups, teams)); // 태그해서 부르기(새 메시지 = 알림 뜸)

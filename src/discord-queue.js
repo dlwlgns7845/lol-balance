@@ -71,7 +71,7 @@ export function queueComponents(qid) {
 
 // 디코 메시지 본문 { embeds, components } — 슬래시 응답(type4)·버튼 갱신(type7)·사이트 되쓰기 공용.
 // closed + teams 있으면 확정 2팀을 필드로 표시.
-export function queueMessage(queue, signups, closed, teams, teamIdx = 0) {
+export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20 = null) {
   const N = Math.max(1, Math.floor(queue.size / 5));
   const alloc = allocateSignups(queue, signups);
   const info = new Map(signups.map((s) => [s.discord_id, s]));
@@ -97,6 +97,15 @@ export function queueMessage(queue, signups, closed, teams, teamIdx = 0) {
     ];
     embed.title += ' · 팀 확정';
     embed.footer = { text: `조합 #${teamIdx + 1} · 점수차 ${teams.diff.toFixed(1)} · 🎲로 다른 조합` };
+  }
+  if (closed && teams20) { // 20인 고저분리 4팀
+    const gameField = (game, label) => {
+      const c = game.candidates[0];
+      const side = (T) => c.lanes.map((l) => `${LANE_KR[l.pos]} ${l[T].name}`).join('\n');
+      return { name: label, value: `🟦 **블루** (${c.sumA.toFixed(0)})\n${side('a')}\n\n🟥 **레드** (${c.sumB.toFixed(0)})\n${side('b')}`, inline: true };
+    };
+    embed.fields = [gameField(teams20.games[0], '🔺 고티어 게임'), gameField(teams20.games[1], '🔻 저티어 게임')];
+    embed.title += ' · 고저분리 4팀';
   }
   const closedComponents = (closed && teams)
     ? [{ type: 1, components: [{ type: 2, style: 1, label: '🎲 팀 다시 짜기', custom_id: `tr:${queue.id}:${teamIdx}` }] }]
