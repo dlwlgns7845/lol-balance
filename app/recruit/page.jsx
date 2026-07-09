@@ -13,9 +13,10 @@ const LANES = ['top', 'jungle', 'mid', 'adc', 'sup'];
 const LANE_KR = { top: '탑', jungle: '정글', mid: '미드', adc: '원딜', sup: '서폿' };
 const ROSTER_KEY = 'lol-balance-roster';
 // 부라인 라벨: 큐에서 고른 부라인 우선, 없으면 사람관리 등록 부라인. 올라운더/부배치는 태그로 이미 표시.
+const subText = (sub) => (sub === 'all' ? 'ALL' : String(sub).split(',').map((l) => LANE_KR[l] || l).join('/'));
 const subLabel = (p) => {
   if (p.all) return null;
-  if (p.sub) return `부:${p.sub === 'all' ? 'ALL' : LANE_KR[p.sub]}`; // 큐에서 고른 부라인만
+  if (p.sub) return `부:${subText(p.sub)}`; // 큐에서 고른 부라인(여러 개)
   return null;
 };
 
@@ -138,7 +139,7 @@ export default function RecruitPage() {
                   <div key={p.id} className="rc-player">
                     <Avatar name={p.name} profile={p.profile} size={20} />
                     <span className="rc-nm">{p.name}</span>
-                    <span className="muted" style={{ fontSize: 11 }}>주:{LANE_KR[p.main]}{p.sub ? ` 부:${LANE_KR[p.sub]}` : ''}</span>
+                    <span className="muted" style={{ fontSize: 11 }}>받는 라인: {p.main === 'all' ? 'ALL' : [LANE_KR[p.main], ...(p.sub ? subText(p.sub).split('/') : [])].join('/')}</span>
                     {isAdmin && <button className="rc-kick" disabled={busy} onClick={() => act({ queueId: queue.id, action: 'kick', signupId: p.id })} title="강퇴">✕</button>}
                   </div>
                 ))}

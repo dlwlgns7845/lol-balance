@@ -371,6 +371,24 @@ function autoTeams20(queue, signups, persons) {
   try { return balance20Split(players); } catch { return null; }
 }
 
+// 나가기로 자리 나서 대기자가 배정되면 → 그 사람 태그해서 "자리 났어요" 알림. site: 키는 태그 못하니 스킵.
+async function pingPromoted(i, queue, before, after) {
+  try {
+    const b = allocateSignups(queue, before);
+    const a = allocateSignups(queue, after);
+    const wasWaiting = new Set(b.waitlist);
+    const placedLane = {};
+    LANES.forEach((l) => a.lanes[l].forEach((id) => { placedLane[id] = l; }));
+    const promoted = Object.keys(placedLane).filter((id) => wasWaiting.has(id) && !String(id).startsWith('site:'));
+    if (!promoted.length) return;
+    const content = promoted.map((id) => `🎉 <@${id}> 자리가 나서 **${LANE_KR[placedLane[id]]}**로 들어왔어요! (대기 → 참가)`).join('\n');
+    await fetch(`https://discord.com/api/v10/webhooks/${i.application_id}/${i.token}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, allowed_mentions: { users: promoted.slice(0, 50) } }),
+    });
+  } catch { /* 승격 핑 실패는 무시 (배정·메시지는 정상) */ }
+}
+
 // 마감 시 신청자 전원을 태그해 호출 (새 followup 메시지 = 실제 알림 발생). site: 키는 태그 못하니 이름만.
 async function pingTeams(i, signups, teams, metaMap) {
   const ids = signups.map((s) => s.discord_id).filter((id) => id && !id.startsWith('site:'));
@@ -421,14 +439,16 @@ async function handleComponent(i) {
     else if (ex?.sub === lane) patch.sub = null; // 부라인이 새 메인과 겹치면 해제
     if (!ex) patch.name = meP.nickname || meP.display_name; // 등록 이름으로 표시
     await upsertSignup(qid, me, patch);
-  } else if (action === 'qs') { // 부라인 드롭다운
+  } else if (action === 'qs') { // 부/대기 라인 드롭다운 (여러 개 가능)
     const ex = await getSignup(qid, me);
     if (!ex) return ephem('먼저 메인 라인을 선택하세요.');
-    const val = i.data?.values?.[0] || 'none';
-    if (val !== 'none' && val !== 'all' && val === ex.main) return ephem('메인이랑 같은 라인은 부라인이 안 돼요.');
-    await upsertSignup(qid, me, { sub: val === 'none' ? null : val });
-  } else if (action === 'ql') { // 나가기
+    const vals = (i.data?.values || []).filter((v) => v !== ex.main); // 메인과 겹치는 라인 제외
+    await upsertSignup(qid, me, { sub: vals.length ? vals.join(',') : null });
+  } else if (action === 'ql') { // 나가기 → 자리 나면 대기자 자동 승격 + 알림
+    const before = await listSignups(qid);
     await removeSignup(qid, me);
+    const after = before.filter((s) => s.discord_id !== me);
+    waitUntil(pingPromoted(i, queue, before, after));
   } else if (action === 'qc') { // 마감 (만든 사람만) → 자동팀 + 신청자 태그 호출
     if (queue.host_id && me !== queue.host_id) return ephem('모집 만든 사람만 마감할 수 있어요.');
     await closeQueue(qid);

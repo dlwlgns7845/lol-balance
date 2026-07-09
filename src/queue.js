@@ -4,6 +4,13 @@
 
 export const LANES = ['top', 'jungle', 'mid', 'adc', 'sup'];
 
+// 부/대기 라인 배열(주라인 제외). sub = 'all' | 콤마목록('jungle,mid') | 단일 | null. 하위호환.
+export function subLanesOf(s) {
+  if (!s.sub) return [];
+  if (s.sub === 'all') return LANES.filter((l) => l !== s.main);
+  return String(s.sub).split(',').map((x) => x.trim()).filter((l) => l && l !== s.main && LANES.includes(l));
+}
+
 /**
  * allocateQueue(signups, size)
  * @param signups [{ id, main:lane, sub:lane|null, order:number }]  (order = 신청 순번, 작을수록 먼저)
@@ -16,8 +23,7 @@ export function allocateQueue(signups, size = 10) {
   // 특정 주라인(부라인 ALL 포함)은 안정매칭, 주라인 ALL(올라운더)은 2단계에서 빈 라인 채움.
   const fixed = signups.filter((s) => s.main !== 'all');
   const rovers = signups.filter((s) => s.main === 'all').slice().sort((a, b) => a.order - b.order);
-  const subsOf = (s) => (s.sub === 'all' ? LANES.filter((l) => l !== s.main) : (s.sub && s.sub !== s.main ? [s.sub] : []));
-  const prefs = new Map(fixed.map((s) => [s.id, [s.main, ...subsOf(s)]]));
+  const prefs = new Map(fixed.map((s) => [s.id, [s.main, ...subLanesOf(s)]]));
   const nextIdx = new Map(fixed.map((s) => [s.id, 0]));
   const held = {}; LANES.forEach((l) => { held[l] = []; });
   // 라인 내 우선순위(낮을수록 우선): 메인전용(0) < 메인+부(1) < 부라인(2), 동급이면 선착순(order)

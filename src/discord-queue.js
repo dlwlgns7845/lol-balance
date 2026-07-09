@@ -1,5 +1,5 @@
 // 내전 모집 큐 — 디코 메시지 렌더 + 배정 + 사이트↔디코 동기화 (route.js·사이트 API 공유)
-import { allocateQueue, LANES } from './queue.js';
+import { allocateQueue, LANES, subLanesOf } from './queue.js';
 import { TABLE, POS } from './table.js';
 
 // 마감 시 라인배정 로스터 → 균형 2팀 후보 랭킹 (10인만). personMap: discord_id → { tier, secondaryTier }.
@@ -92,8 +92,9 @@ export function queueComponents(qid) {
   return [
     { type: 1, components: laneBtns },  // 탑 정글 미드 원딜 서폿 (한 줄 · 서폿 안 밀림)
     { type: 1, components: [allBtn] },  // ALL (아랫줄 · 넓게)
-    { type: 1, components: [{ type: 3, custom_id: `qs:${qid}`, placeholder: '부라인 선택 (선택 · 없어도 됨)',
-      options: [{ label: '부라인 없음', value: 'none' }, { label: '🌐 ALL (아무 라인 가능)', value: 'all' }, ...LANES.map((l) => ({ label: LANE_KR[l], value: l }))] }] },
+    { type: 1, components: [{ type: 3, custom_id: `qs:${qid}`, placeholder: '부/대기 라인 (여러 개 선택 가능 · 없어도 됨)',
+      min_values: 0, max_values: LANES.length,
+      options: LANES.map((l) => ({ label: LANE_KR[l], value: l })) }] },
     { type: 1, components: [btn(`ql:${qid}`, '❌ 나가기', 4), btn(`qc:${qid}`, '🔒 마감', 2)] },
   ];
 }
@@ -116,9 +117,13 @@ export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20
     let role = '';
     if (s?.main === 'all') role = ' · 올라운더';
     else if (s && s.main !== lane) role = ` · 부(원래 ${LANE_KR[s.main]})`;
-    else if (s?.sub) role = ` · 부:${s.sub === 'all' ? 'ALL' : LANE_KR[s.sub]}`; // 큐에서 고른 부라인만
+    else if (s?.sub) role = ` · 부:${s.sub === 'all' ? 'ALL' : subLanesOf(s).map((l) => LANE_KR[l]).join('/')}`; // 큐에서 고른 부라인(여러 개)
     return `${n}. **${riot}**${mention}${tier}${role}`;
   };
+  // 대기자가 '받을 라인' 목록 (주라인 + 선택한 여러 라인, 올라운더면 전체)
+  const acceptText = (s) => (s.main === 'all'
+    ? LANES.map((l) => LANE_KR[l]).join('/')
+    : [s.main, ...subLanesOf(s)].map((l) => LANE_KR[l]).join('/'));
   const lines = LANES.map((l) => {
     const ids = alloc.lanes[l];
     const dot = ids.length >= N ? '🔵' : (ids.length ? '🟢' : '⬜');
@@ -126,7 +131,14 @@ export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20
     for (let n = 0; n < N; n++) slots.push('　' + slotLine(ids[n], l, n + 1));
     return `${dot} **${LANE_KR[l]}**\n${slots.join('\n')}`;
   });
-  const wait = alloc.waitlist.map((id, k) => '　' + slotLine(id, null, k + 1));
+  const wait = alloc.waitlist.map((id, k) => {
+    const s = info.get(id);
+    const m = metaMap?.get(id) || {};
+    const riot = m.game ? `${m.game}${m.tag ? ` #${m.tag}` : ''}` : (s?.name || '?');
+    const mention = (id && !String(id).startsWith('site:')) ? ` (<@${id}>)` : '';
+    const et = m.baseTier ? ` \`${m.baseTier}\`` : '';
+    return `　${k + 1}. **${riot}**${mention}${et} · 받는 라인: ${s ? acceptText(s) : '?'}`;
+  });
   // 팀 셀 한 줄: "탑 · 인게임닉 #태그 (@디코) `티어`" — 모집과 같은 큰 포맷
   const teamCell = (p) => {
     const m = metaMap?.get(p.discordId) || {};
@@ -142,7 +154,7 @@ export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20
   else if (closed && teams20) desc = '**팀 확정** · 고저분리 4팀';
   else {
     desc = intro + lines.join('\n');
-    if (wait.length) desc += `\n\n⏳ **대기** (${wait.length})\n${wait.join('\n')}`;
+    if (wait.length) desc += `\n\n⏳ **대기표** (${wait.length}명) · _자리 나면 받는 라인 중 빈 곳으로 자동 승격_\n${wait.join('\n')}`;
   }
   const embed = {
     title: `🎮 롤 내전 대기열 · ${queue.size}인${closed ? ' · 마감됨' : ` (${signups.length}/${queue.size})`}`,
