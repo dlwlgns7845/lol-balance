@@ -9,13 +9,9 @@ function nextRole(cur) {
   return undefined;
 }
 
-export default function RosterEditor({ roster, onChange, onSeed, seedStatus = {}, rowMeta = [], rowSave = {}, onRowSave, onRowClear }) {
+export default function RosterEditor({ roster, onChange, onSeed, seedStatus = {}, rowMeta = [], rowSave = {}, onRowSave }) {
   function update(i, patch) {
     onChange(roster.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
-  }
-  function clearRow(i) {
-    onChange(roster.map((p, idx) => (idx === i ? { name: '', tier: 'G2', roles: {} } : p)));
-    onRowClear?.(i);
   }
   function cyclePos(i, pos) {
     const roles = { ...roster[i].roles };
@@ -38,7 +34,6 @@ export default function RosterEditor({ roster, onChange, onSeed, seedStatus = {}
                 placeholder={`플레이어 ${i + 1} (또는 이름#태그)`}
                 onChange={(e) => update(i, { name: e.target.value })}
               />
-              <button className="row-clear" type="button" title="이 행 초기화" onClick={() => clearRow(i)}>×</button>
               {onSeed && (
                 <button className="seed-btn" type="button" title="op.gg 티어 불러오기"
                   disabled={st.loading} onClick={() => onSeed(i)}>

@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { balance, balance20, balance20Split, scoreTeams } from '../src/engine.js';
-import { POS, POS_KR, TIER_LABEL } from '../src/table.js';
+import { TIER_LABEL } from '../src/table.js';
 import RosterEditor from '../components/RosterEditor.jsx';
 import { arraysToRoles, rolesToArrays } from '../components/PositionToggles.jsx';
 import Results from '../components/Results.jsx';
@@ -13,8 +13,6 @@ const KEY = 'lol-balance-roster';
 const EMPTY = (n = 10) => Array.from({ length: n }, () => ({ name: '', tier: 'G2', roles: {} }));
 const REGIONS = ['NA', 'KR', 'EUW', 'EUNE', 'BR', 'JP', 'OCE', 'LAN', 'LAS', 'TR', 'RU'];
 const DEFAULT_TAG = { NA: 'NA1', KR: 'KR1', EUW: 'EUW', EUNE: 'EUNE', BR: 'BR1', JP: 'JP1' };
-const LOAD_GROUPS = [...POS, 'all'];
-const LOAD_GROUP_LABEL = { ...POS_KR, all: '올라인' };
 
 const stripInv = (s) => (s || '').replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, '');
 const normNm = (s) => stripInv(s).split('#')[0].toLowerCase().replace(/\s+/g, '');
@@ -159,7 +157,7 @@ export default function BalancerPage() {
       const prof = await fetch(`/api/seed?name=${encodeURIComponent(gameName)}&tag=${encodeURIComponent(tag)}&region=${region}`).then((x) => x.json());
       if (!prof.found) { setSeedStatus((s) => ({ ...s, [i]: { error: prof.error || '못 찾음' } })); return; }
       if (prof.suggestedTier) {
-        // 이름은 #태그까지 보존. tag/region은 행에 보존 → 등록 시 계정으로 저장(op.gg 재측정용)
+        // name=순수 닉, tag/region은 행에 보존 → 등록 시 계정으로 저장(op.gg 재측정용)
         setRoster((r) => r.map((p, idx) => (idx === i ? { ...p, name: `${prof.gameName || gameName}#${tag}`, tier: prof.suggestedTier, tag, region } : p)));
       } else {
         setSeedStatus((s) => ({ ...s, [i]: { error: prof.basis || '랭크 기록 없음 — 직접 선택' } })); return;
@@ -190,19 +188,6 @@ export default function BalancerPage() {
       || (a.display_name || '').localeCompare(b.display_name || '')),
     [people],
   );
-  const groupedChipsPeople = useMemo(() => {
-    const empty = Object.fromEntries(LOAD_GROUPS.map((pos) => [pos, []]));
-    chipsPeople.forEach((p) => {
-      const primary = p.primary_positions || [];
-      const secondary = p.secondary_positions || [];
-      const selected = [...new Set([...primary, ...secondary])].filter((pos) => POS.includes(pos));
-      const groups = selected.length === POS.length ? ['all'] : (primary.length ? primary : selected);
-      (groups.length ? groups : ['all']).forEach((pos) => {
-        if (empty[pos]) empty[pos].push(p);
-      });
-    });
-    return empty;
-  }, [chipsPeople]);
 
   // 밸런서 팀구성 기반 관계형 뱃지: 최고듀오=같은팀, 견우직녀·인간상성=상대팀일 때만. view 바뀌면 재계산.
   const relCtx = useMemo(() => {
@@ -350,11 +335,6 @@ export default function BalancerPage() {
       return copy;
     });
   }
-  function clearRosterRow(i) {
-    setResult(null); setResult20(null); setSplit20(null); setView(null); setViews20([null, null]); setSel(null); setSel20(null); setErr(null);
-    setSeedStatus((s) => { const c = { ...s }; delete c[i]; return c; });
-    setRowSave((s) => { const c = { ...s }; delete c[i]; return c; });
-  }
 
   // 20명: arrangement 적용 (평균균등 리롤/최초 공용)
   function applyArrangement(res, idx) {
@@ -494,29 +474,14 @@ export default function BalancerPage() {
       {people.length > 0 && (
         <div className="panel">
           <h2>등록된 사람 불러오기 <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>(클릭하면 빈 칸에 들어가요)</span></h2>
-          <div className="reg-lane-groups">
-            {LOAD_GROUPS.map((pos) => {
-              const list = groupedChipsPeople[pos] || [];
+          <div className="reg-chips">
+            {chipsPeople.map((p) => {
+              const used = usedNames.has(p.display_name);
               return (
-                <section className="reg-lane-group" key={pos}>
-                  <div className="reg-lane-head">
-                    <b>{LOAD_GROUP_LABEL[pos]}</b>
-                    <span>{list.length}</span>
-                  </div>
-                  <div className="reg-chips">
-                    {list.length === 0 ? (
-                      <span className="reg-empty">없음</span>
-                    ) : list.map((p) => {
-                      const used = usedNames.has(p.display_name);
-                      return (
-                        <button key={`${pos}-${p.id}`} className={`reg-chip ${used ? 'used' : ''}`} disabled={used}
-                          onClick={() => fillFromPerson(p)} type="button">
-                          {p.display_name} <span className="muted">{TIER_LABEL[p.base_tier]}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </section>
+                <button key={p.id} className={`reg-chip ${used ? 'used' : ''}`} disabled={used}
+                  onClick={() => fillFromPerson(p)} type="button">
+                  {p.display_name} <span className="muted">{TIER_LABEL[p.base_tier]}</span>
+                </button>
               );
             })}
           </div>
@@ -531,7 +496,7 @@ export default function BalancerPage() {
           </span>
         </div>
         <RosterEditor roster={roster} onChange={setRoster} onSeed={onSeed} seedStatus={seedStatus}
-          rowMeta={rowMeta} rowSave={rowSave} onRowSave={canEdit ? saveRow : undefined} onRowClear={clearRosterRow} />
+          rowMeta={rowMeta} rowSave={rowSave} onRowSave={canEdit ? saveRow : undefined} />
       </div>
 
       <div className="panel">

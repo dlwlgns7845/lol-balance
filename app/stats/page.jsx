@@ -1,15 +1,13 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { TIER_LABEL, tierClass } from '../../src/table.js';
 import { useGroup } from '../../components/GroupProvider.jsx';
 import { useDdragon } from '../../components/ddragon.js';
 import ChampImg from '../../components/ChampImg.jsx';
+import PlayerCard from '../../components/PlayerCard.jsx';
 import MatchHistory from '../../components/MatchHistory.jsx';
 import Awards from '../../components/Awards.jsx';
-import Avatar from '../../components/Avatar.jsx';
-import PlayerCard from '../../components/PlayerCard.jsx';
 
 function wrClass(w) { return w >= 0.6 ? 'green' : w >= 0.5 ? 'yellow' : 'red'; }
 const medal = (i) => ['🥇', '🥈', '🥉'][i] || null;
@@ -31,17 +29,14 @@ export default function StatsPage() {
   const { group } = useGroup();
   const gid = group?.id;
   const dd = useDdragon();
-  const router = useRouter();
   const [data, setData] = useState(null);
   const [champs, setChamps] = useState(null);
   const [tab, setTab] = useState('lb');
   const [lane, setLane] = useState('all'); // 리더보드 라인 필터
   const [sort, setSort] = useState({ key: 'score', dir: 'desc' }); // 리더보드 정렬
-  const [query, setQuery] = useState('');
-  const [searchFocus, setSearchFocus] = useState(false);
+  const [sel, setSel] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
-  const [sel, setSel] = useState(null); // 클릭한 선수 → 카드뷰 모달
 
   useEffect(() => {
     if (!gid) return;
@@ -70,23 +65,8 @@ export default function StatsPage() {
     const va = a[sort.key] ?? -Infinity, vb = b[sort.key] ?? -Infinity;
     return sort.dir === 'desc' ? vb - va : va - vb;
   });
-  const rawRows = SORT_ENABLED ? sortedLb : lbList;
-  const q = query.trim().toLowerCase();
-  const rowsToShow = rawRows;
-  const searchPool = played.slice().sort((a, b) => b.games - a.games);
-  const searchHits = q ? searchPool.filter((p) => (p.nickname || p.name || '').toLowerCase().includes(q)) : searchPool;
-  const pickSearch = (p) => {
-    setQuery('');
-    setSearchFocus(false);
-    router.push('/player?id=' + p.id);
-  };
+  const rowsToShow = SORT_ENABLED ? sortedLb : lbList;
   const maxDmg = Math.max(1, ...lbList.map((p) => p.avgDamage || 0)); // 딜량 막대 기준 (표시 목록 중 최대)
-  const max = useMemo(() => ({ // PlayerCard 막대 기준
-    kda: Math.max(1, ...played.map((p) => p.kda || 0)),
-    dmg: Math.max(1, ...played.map((p) => p.avgDamage || 0)),
-    cs: Math.max(1, ...played.map((p) => p.avgCs || 0)),
-    pool: Math.max(1, ...played.map((p) => p.champPool || 0)),
-  }), [played]);
   const setSortDir = (key, dir) => setSort({ key, dir });
   // 통계 카드(최고승률·딜량·CS·챔프폭)도 3판 이상만 (1~2판 반짝 1등 방지)
   const best = (arr, key) => arr.reduce((b, p) => (!b || (p[key] || 0) > (b[key] || 0) ? p : b), null);
@@ -96,33 +76,17 @@ export default function StatsPage() {
   const topPool = best(ranked, 'champPool');
   const topCsMin = best(ranked.filter((p) => p.csPerMin != null), 'csPerMin');
   const topDmg = best(ranked.filter((p) => p.statGames), 'avgDamage');
+  const max = useMemo(() => ({
+    kda: Math.max(1, ...played.map((p) => p.kda || 0)),
+    dmg: Math.max(1, ...played.map((p) => p.avgDamage || 0)),
+    cs: Math.max(1, ...played.map((p) => p.avgCs || 0)),
+    pool: Math.max(1, ...played.map((p) => p.champPool || 0)),
+  }), [played]);
+
   return (
-    <div className="stats-pink">
-      <div className="page-head stats-hero">
+    <div>
+      <div className="page-head">
         <div className="title"><h1>통계</h1><p className="sub" style={{ margin: 0 }}>스크린샷 기록 기반 · 사람(본캐+부캐 합산) 단위. 선수를 클릭하면 상세 프로필이 열려요.</p></div>
-        <div className="psearch">
-          <input
-            placeholder="선수 이름 검색"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onFocus={() => setSearchFocus(true)}
-            onBlur={() => setTimeout(() => setSearchFocus(false), 150)}
-          />
-          {searchFocus && (
-            <div className="psearch-list">
-              {searchHits.slice(0, 10).map((p) => (
-                <button key={p.id} className="psearch-item" onMouseDown={() => pickSearch(p)} type="button">
-                  <span className="pi-av" style={{ background: 'none', padding: 0 }}>
-                    <Avatar name={p.nickname || p.name} profile={p.profile} size={22} />
-                  </span>
-                  <span className="pi-nm">{p.nickname || p.name}</span>
-                  <span className="muted pi-meta">{TIER_LABEL[p.base_tier]}</span>
-                </button>
-              ))}
-              {searchHits.length === 0 && <div className="muted psearch-none">검색 결과 없음</div>}
-            </div>
-          )}
-        </div>
       </div>
 
       {loading && <div className="panel center muted">불러오는 중…</div>}
@@ -159,7 +123,7 @@ export default function StatsPage() {
                   ))}
                 </div>
               )}
-              {rowsToShow.length === 0 ? (
+              {lbList.length === 0 ? (
                 <div className="center muted" style={{ padding: '28px 0' }}>
                   {lane === 'all'
                     ? <>아직 {MIN_RANK_GAMES}판 이상 뛴 선수가 없어요. {played.length > 0 ? '조금 더 기록되면 순위가 떠요.' : <><Link href="/record" className="accent">경기 기록</Link>에서 스샷을 올리세요.</>}</>
