@@ -188,8 +188,11 @@ export default function StatsPage() {
                         {splash && <div className="lbx-splash" style={{ backgroundImage: `url(${splash})` }} />}
                         <div className="lbx-rank">{medal(i) || <span className="num">{i + 1}</span>}</div>
                         <div className="lbx-name">
-                          <b>{p.nickname || p.name}</b>
-                          <span className="muted"><span className={tierClass(p.base_tier)}>{TIER_LABEL[p.base_tier]}</span>{p.nickname ? ` · ${p.name}` : ''}</span>
+                          <Avatar name={p.nickname || p.name} profile={p.profile} size={30} />
+                          <div className="lbx-nm-txt">
+                            <b>{p.nickname || p.name}</b>
+                            <span className="muted"><span className={tierClass(p.base_tier)}>{TIER_LABEL[p.base_tier]}</span>{p.nickname ? ` · ${p.name}` : ''}</span>
+                          </div>
                         </div>
                         <div className="lbx-kda">
                           <div className="kda-line">{p.kAvg}/<span className="red">{p.dAvg}</span>/{p.aAvg}</div>

@@ -466,9 +466,10 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .lbx-row.top1 .lbx-rank, .lbx-row.top1 .lbx-rank .num, .lbx-row.top1 .lbx-score b { color: #e8c07d; }  /* 금 */
 .lbx-row.top2 .lbx-rank, .lbx-row.top2 .lbx-rank .num, .lbx-row.top2 .lbx-score b { color: #c4c9d4; }  /* 은 */
 .lbx-row.top3 .lbx-rank, .lbx-row.top3 .lbx-rank .num, .lbx-row.top3 .lbx-score b { color: #cd8a5b; }  /* 동 */
-.lbx-name { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.lbx-name { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.lbx-nm-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .lbx-name b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lbx-name span { font-size: 11px; color: var(--muted); }
+.lbx-nm-txt > span { font-size: 11px; color: var(--muted); }
 .kda-line { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .kda-val { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .kda-val.green { color: var(--green); }
