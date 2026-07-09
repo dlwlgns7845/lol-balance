@@ -7,27 +7,27 @@
    ══════════════════════════════════════════════════════════════ */
 
 :root {
-  --bg: #0f0b12;
-  --bg2: #120d16;
-  --panel: #17111c;
-  --panel2: #211727;
-  --line: rgba(255, 184, 218, .16);
-  --line2: rgba(255, 111, 173, .24);
-  --line-strong: rgba(255, 111, 173, .44);
-  --text: #f7eef5;
-  --muted: #b8a8b7;
-  --soft: #8d7d8d;
-  /* accent = 스틸-시안. var명은 호환 위해 유지 (--gold 이 곧 accent) */
-  --gold: #ff6fad;
-  --gold-dim: #ff9fcb;
-  --rose: #ff4d8d;
+  --bg: #0d0c0e;
+  --bg2: #110f13;
+  --panel: #16141a;
+  --panel2: #1d1a22;
+  --line: rgba(214, 200, 216, .12);
+  --line2: rgba(206, 158, 190, .18);
+  --line-strong: rgba(206, 150, 185, .32);
+  --text: #f2ecf1;
+  --muted: #a89fa8;
+  --soft: #837e85;
+  /* accent = 로즈(핑크 톤다운 — 네온 → 부드럽게) */
+  --gold: #e07ea6;
+  --gold-dim: #e6accb;
+  --rose: #d76592;
   --indigo: #a98cff;
   --green: #5ff0b0;
   --yellow: #ffd36a;
   --red: #ff6b7f;
   --blue: #73e4ff;
-  --grad: linear-gradient(135deg, #ff4d8d, #ff9fcb);
-  --grad2: linear-gradient(135deg, #ff6fad, #73e4ff);
+  --grad: linear-gradient(135deg, #d76592, #e6accb);
+  --grad2: linear-gradient(135deg, #e07ea6, #73e4ff);
   --glow: 0 18px 48px rgba(9, 4, 12, .46);
 }
 
