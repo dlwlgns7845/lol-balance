@@ -108,18 +108,22 @@ export async function syncGuildNicks(gid) {
   if (now - (_nickSyncedAt.get(gid) || 0) < 45000) return; // 45초 내 재조회 스킵
   _nickSyncedAt.set(gid, now);
   try {
-    const guild = await getApprovedGuilds(gid);
-    const guildId = guild[0]?.guild_id;
-    if (!guildId) return;
+    const guilds = await getApprovedGuilds(gid);
+    const guildIds = (guilds || []).map((g) => g.guild_id).filter(Boolean);
+    if (!guildIds.length) return;
     const persons = (await listPersons(gid)).filter((p) => p.discord_id && !String(p.discord_id).startsWith('site:'));
     await Promise.all(persons.map(async (p) => {
-      try {
-        const r = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/${p.discord_id}`, { headers: { Authorization: `Bot ${token}` } });
-        if (!r.ok) return;
-        const mem = await r.json();
-        const nick = mem.nick || mem.user?.global_name || mem.user?.username;
-        if (nick && nick !== p.nickname) await db().from('persons').update({ nickname: nick }).eq('id', p.id);
-      } catch { /* 멤버 조회 실패는 스킵 */ }
+      // 방에 승인된 길드가 여러 개일 수 있음 → 멤버가 있는 길드를 찾을 때까지 순회 (첫 길드에 없으면 404)
+      for (const guildId of guildIds) {
+        try {
+          const r = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/${p.discord_id}`, { headers: { Authorization: `Bot ${token}` } });
+          if (!r.ok) continue; // 이 길드엔 없음 → 다음 길드
+          const mem = await r.json();
+          const nick = mem.nick || mem.user?.global_name || mem.user?.username;
+          if (nick && nick !== p.nickname) await db().from('persons').update({ nickname: nick }).eq('id', p.id);
+          return; // 찾았으면 종료
+        } catch { /* 이 길드 조회 실패 → 다음 길드 */ }
+      }
     }));
   } catch { /* 길드/토큰 문제면 스킵 → 저장된 이름 사용 */ }
 }
