@@ -10,12 +10,17 @@ export function allocateSignups(queue, signups) {
   return allocateQueue(input, queue.size);
 }
 
-// 사이트용 구조화 뷰: 라인별 배정 인원 + 대기 (discord_id 는 노출 안 함 — least-data)
-export function queueView(queue, signups) {
+// 사이트용 구조화 뷰: 라인별 배정 인원 + 대기 (discord_id 는 노출 안 함 — least-data).
+// personMap: discord_id → { tier } (팀짜기용). 없으면 tier 생략.
+export function queueView(queue, signups, personMap) {
   const N = Math.max(1, Math.floor(queue.size / 5));
   const alloc = allocateSignups(queue, signups);
   const byId = new Map(signups.map((s) => [s.discord_id, s]));
-  const map = (id, lane) => { const s = byId.get(id); return { id: s?.id, name: s?.name || '?', main: s?.main, sub: s?.sub || null, off: !!(s && lane && s.main !== lane) }; };
+  const map = (id, lane) => {
+    const s = byId.get(id);
+    const p = personMap && personMap.get(id);
+    return { id: s?.id, name: s?.name || '?', main: s?.main, sub: s?.sub || null, off: !!(s && lane && s.main !== lane), tier: p?.tier || null, lane };
+  };
   const lanes = {};
   LANES.forEach((l) => { lanes[l] = alloc.lanes[l].map((id) => map(id, l)); });
   const waitlist = alloc.waitlist.map((id) => map(id, null));
