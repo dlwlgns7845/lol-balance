@@ -64,7 +64,7 @@ export function queueComponents(qid) {
   return [
     { type: 1, components: LANES.map((l) => btn(`qm:${qid}:${l}`, LANE_KR[l], 1)) },
     { type: 1, components: [{ type: 3, custom_id: `qs:${qid}`, placeholder: '부라인 선택 (선택 · 없어도 됨)',
-      options: [{ label: '부라인 없음', value: 'none' }, ...LANES.map((l) => ({ label: LANE_KR[l], value: l }))] }] },
+      options: [{ label: '부라인 없음', value: 'none' }, { label: '🌐 ALL (아무 라인 가능)', value: 'all' }, ...LANES.map((l) => ({ label: LANE_KR[l], value: l }))] }] },
     { type: 1, components: [btn(`ql:${qid}`, '❌ 나가기', 4), btn(`qc:${qid}`, '🔒 마감', 2)] },
   ];
 }

@@ -418,7 +418,7 @@ async function handleComponent(i) {
     const ex = await getSignup(qid, me);
     if (!ex) return ephem('먼저 메인 라인을 선택하세요.');
     const val = i.data?.values?.[0] || 'none';
-    if (val !== 'none' && val === ex.main) return ephem('메인이랑 같은 라인은 부라인이 안 돼요.');
+    if (val !== 'none' && val !== 'all' && val === ex.main) return ephem('메인이랑 같은 라인은 부라인이 안 돼요.');
     await upsertSignup(qid, me, { sub: val === 'none' ? null : val });
   } else if (action === 'ql') { // 나가기
     await removeSignup(qid, me);

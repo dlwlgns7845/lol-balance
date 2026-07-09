@@ -138,6 +138,7 @@ export default function RecruitPage() {
               </select>
               <select value={addSub} onChange={(e) => setAddSub(e.target.value)}>
                 <option value="">부라인 없음</option>
+                <option value="all">부:ALL (아무 라인)</option>
                 {LANES.map((l) => <option key={l} value={l}>부:{LANE_KR[l]}</option>)}
               </select>
               <button className="btn ghost" disabled={busy || !addP} onClick={() => act({ queueId: queue.id, action: 'add', personId: addP, main: addMain, sub: addSub || null }).then(() => setAddP(''))}>추가</button>

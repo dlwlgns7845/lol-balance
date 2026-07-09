@@ -13,8 +13,9 @@ export const LANES = ['top', 'jungle', 'mid', 'adc', 'sup'];
 export function allocateQueue(signups, size = 10) {
   const N = Math.max(1, Math.floor(size / 5));
   const byId = new Map(signups.map((s) => [s.id, s]));
-  // 선호 라인 목록: [메인, (부라인)]
-  const prefs = new Map(signups.map((s) => [s.id, [s.main, ...(s.sub && s.sub !== s.main ? [s.sub] : [])]]));
+  // 선호 라인 목록: [메인, (부라인)]. sub='all' 이면 메인 밀렸을 때 나머지 전 라인 후보(올라운더).
+  const subsOf = (s) => (s.sub === 'all' ? LANES.filter((l) => l !== s.main) : (s.sub && s.sub !== s.main ? [s.sub] : []));
+  const prefs = new Map(signups.map((s) => [s.id, [s.main, ...subsOf(s)]]));
   const nextIdx = new Map(signups.map((s) => [s.id, 0]));
   const held = {}; LANES.forEach((l) => { held[l] = []; });
   // 라인 내 우선순위(낮을수록 우선): 메인전용(0) < 메인+부(1) < 부라인(2), 동급이면 선착순(order)
