@@ -489,9 +489,10 @@ export async function dedupeByNick(groupId) {
 }
 
 // ── 내전 모집 큐 (디스코드 봇) ── 상태는 recruit_queues / recruit_signups 에 저장(서버리스라 무상태)
-export async function createQueue(gid, size, hostId) {
+// 디코↔사이트 양방향 동기화: 큐 테이블이 단일 진실. channel_id/message_id 로 사이트→디코 메시지 갱신.
+export async function createQueue(gid, size, hostId, channelId) {
   const { data, error } = await db().from('recruit_queues')
-    .insert({ gid, size, status: 'open', host_id: hostId || null }).select().single();
+    .insert({ gid, size, status: 'open', host_id: hostId || null, channel_id: channelId || null }).select().single();
   if (error) throw error;
   return data;
 }
@@ -501,6 +502,22 @@ export async function getQueue(id) {
   const { data, error } = await db().from('recruit_queues').select('*').eq('id', id).maybeSingle();
   if (error) throw error;
   return data;
+}
+
+// gid의 가장 최근 열린 큐 (사이트가 "오늘 내전" 으로 미러링)
+export async function getOpenQueue(gid) {
+  if (!gid) return null;
+  const { data, error } = await db().from('recruit_queues')
+    .select('*').eq('gid', gid).eq('status', 'open').order('created_at', { ascending: false }).limit(1).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+// 디코 메시지 ID 저장 (생성 직후 @original 조회 결과) → 나중에 사이트에서 그 메시지를 PATCH
+export async function setQueueMessage(id, channelId, messageId) {
+  const { error } = await db().from('recruit_queues')
+    .update({ channel_id: channelId, message_id: messageId }).eq('id', id);
+  if (error) throw error;
 }
 
 export async function closeQueue(id) {
@@ -536,6 +553,12 @@ export async function upsertSignup(queueId, discordId, patch) {
 
 export async function removeSignup(queueId, discordId) {
   const { error } = await db().from('recruit_signups').delete().eq('queue_id', queueId).eq('discord_id', discordId);
+  if (error) throw error;
+}
+
+// 사이트에서 강퇴: 시그넙 행 id 로 삭제 (discord_id 미노출이라 행 id 사용)
+export async function removeSignupById(id) {
+  const { error } = await db().from('recruit_signups').delete().eq('id', id);
   if (error) throw error;
 }
 

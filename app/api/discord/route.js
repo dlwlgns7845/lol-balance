@@ -4,9 +4,9 @@ import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { waitUntil } from '@vercel/functions';
 import { getStats, getAwards, listPersons, updatePerson, createPerson, addAccount,
-  createQueue, getQueue, closeQueue, listSignups, getSignup, upsertSignup, removeSignup } from '../../../src/repo.js';
+  createQueue, getQueue, closeQueue, listSignups, getSignup, upsertSignup, removeSignup, setQueueMessage } from '../../../src/repo.js';
 import { balance } from '../../../src/engine.js';
-import { allocateQueue, LANES } from '../../../src/queue.js';
+import { queueMessage, LANE_KR } from '../../../src/discord-queue.js';
 import { fetchTierEstimate } from '../../../src/opgg.js';
 import { fetchTierEstimateHybrid, fetchRiotProfile, hasRiotKey } from '../../../src/riot.js';
 import { TIER_LABEL, POS_KR } from '../../../src/table.js';
@@ -31,7 +31,6 @@ const reply = (content) => NextResponse.json({ type: 4, data: { content, allowed
 const embed = (e) => NextResponse.json({ type: 4, data: { embeds: [e], allowed_mentions: { parse: [] } } });
 const ephem = (content) => NextResponse.json({ type: 4, data: { content, flags: 64 } }); // 나만 보이는 답
 const updateMsg = (data) => NextResponse.json({ type: 7, data }); // 버튼 눌린 메시지 갱신
-const LANE_KR = { top: '탑', jungle: '정글', mid: '미드', adc: '원딜', sup: '서폿' };
 const callerId = (i) => i.member?.user?.id || i.user?.id;
 const opt = (i, name) => (i.data?.options || []).find((o) => o.name === name)?.value;
 const wr = (w) => `${Math.round((w || 0) * 100)}%`;
@@ -229,44 +228,22 @@ async function cmdBalance(i) {
   });
 }
 
-// ── 내전 모집 큐 ── 라인 선착순 + 부라인 밀림/연쇄/대기 (src/queue.js 알고리즘)
-// 메시지 = 슬래시 응답으로 생성 → 이후 버튼 클릭은 그 메시지 위 → type 7 로 in-place 갱신(봇토큰 불필요)
-function queueComponents(qid) {
-  const btn = (custom_id, label, style) => ({ type: 2, style, label, custom_id });
-  return [
-    { type: 1, components: LANES.map((l) => btn(`qm:${qid}:${l}`, LANE_KR[l], 1)) }, // 메인 라인
-    { type: 1, components: [{ type: 3, custom_id: `qs:${qid}`, placeholder: '부라인 선택 (선택 · 없어도 됨)',
-      options: [{ label: '부라인 없음', value: 'none' }, ...LANES.map((l) => ({ label: LANE_KR[l], value: l }))] }] },
-    { type: 1, components: [btn(`ql:${qid}`, '❌ 나가기', 4), btn(`qc:${qid}`, '🔒 마감', 2)] },
-  ];
-}
-
-function queueData(queue, signups, closed) {
-  const N = Math.max(1, Math.floor(queue.size / 5)); // 라인당 슬롯 (10인=2, 20인=4)
-  const input = signups.map((s, idx) => ({ id: s.discord_id, main: s.main, sub: s.sub || null, order: idx }));
-  const alloc = allocateQueue(input, queue.size);
-  const info = new Map(signups.map((s) => [s.discord_id, s]));
-  const lines = LANES.map((l) => {
-    const ids = alloc.lanes[l];
-    const names = ids.map((id) => { const s = info.get(id); return `${s?.name || '?'}${s && s.main !== l ? '(부)' : ''}`; });
-    const dot = ids.length >= N ? '🔵' : (ids.length ? '🟢' : '⬜');
-    return `${dot} **${LANE_KR[l]}** (${ids.length}/${N}) ${names.join(', ') || '—'}`;
-  });
-  const wait = alloc.waitlist.map((id) => info.get(id)?.name || '?');
-  let desc = lines.join('\n');
-  if (wait.length) desc += `\n\n⏳ **대기** (${wait.length}) ${wait.join(', ')}`;
-  const embed = {
-    title: `🎮 내전 모집 · ${queue.size}인${closed ? ' · 마감됨' : ` (${signups.length}/${queue.size})`}`,
-    description: desc, color: GOLD,
-    footer: closed ? undefined : { text: '메인 라인 버튼으로 참가 · 부라인은 드롭다운(선택) · 라인 다시 눌러 변경 · ❌ 나가기' },
-  };
-  return { embeds: [embed], components: closed ? [] : queueComponents(queue.id), allowed_mentions: { parse: [] } };
+// ── 내전 모집 큐 ── 라인 선착순 + 부라인 밀림/연쇄/대기. 렌더는 src/discord-queue.js 공유(사이트와 동일).
+// 메시지 = 슬래시 응답으로 생성 → 버튼 클릭은 그 메시지 위 type7 갱신. 사이트→디코는 저장된 message_id 로 PATCH.
+async function captureMessageId(i, queueId) {
+  try { // 슬래시 응답이 만든 메시지 ID를 @original 로 조회해 저장 (사이트에서 그 메시지를 갱신하려면 필요)
+    const r = await fetch(`https://discord.com/api/v10/webhooks/${i.application_id}/${i.token}/messages/@original`);
+    if (!r.ok) return;
+    const msg = await r.json();
+    if (msg?.id) await setQueueMessage(queueId, i.channel_id, msg.id);
+  } catch { /* 실패해도 디코 버튼은 동작(type7). 사이트→디코만 안 됨 */ }
 }
 
 async function cmdRecruit(i) {
   const size = opt(i, '인원') === 20 ? 20 : 10;
-  const q = await createQueue(GID, size, callerId(i));
-  return NextResponse.json({ type: 4, data: queueData(q, [], false) });
+  const q = await createQueue(GID, size, callerId(i), i.channel_id);
+  waitUntil(captureMessageId(i, q.id));
+  return NextResponse.json({ type: 4, data: queueMessage(q, [], false) });
 }
 
 async function handleComponent(i) {
@@ -298,11 +275,11 @@ async function handleComponent(i) {
   } else if (action === 'qc') { // 마감 (만든 사람만)
     if (queue.host_id && me !== queue.host_id) return ephem('모집 만든 사람만 마감할 수 있어요.');
     await closeQueue(qid);
-    return updateMsg(queueData({ ...queue, status: 'closed' }, await listSignups(qid), true));
+    return updateMsg(queueMessage({ ...queue, status: 'closed' }, await listSignups(qid), true));
   } else {
     return ephem('알 수 없는 버튼이에요.');
   }
-  return updateMsg(queueData(queue, await listSignups(qid), false));
+  return updateMsg(queueMessage(queue, await listSignups(qid), false));
 }
 
 const HANDLERS = { 리더보드: cmdLeaderboard, 전적: cmdRecord, 내전적: cmdMyRecord, 연동: cmdLink, 가입: cmdRegister, 칭호: cmdAwards, 방: cmdRoom, 밸런스: cmdBalance, 모집: cmdRecruit };
