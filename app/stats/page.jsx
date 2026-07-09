@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { TIER_LABEL, tierClass } from '../../src/table.js';
@@ -9,6 +9,7 @@ import ChampImg from '../../components/ChampImg.jsx';
 import MatchHistory from '../../components/MatchHistory.jsx';
 import Awards from '../../components/Awards.jsx';
 import Avatar from '../../components/Avatar.jsx';
+import PlayerCard from '../../components/PlayerCard.jsx';
 
 function wrClass(w) { return w >= 0.6 ? 'green' : w >= 0.5 ? 'yellow' : 'red'; }
 const medal = (i) => ['🥇', '🥈', '🥉'][i] || null;
@@ -40,6 +41,7 @@ export default function StatsPage() {
   const [searchFocus, setSearchFocus] = useState(false);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
+  const [sel, setSel] = useState(null); // 클릭한 선수 → 카드뷰 모달
 
   useEffect(() => {
     if (!gid) return;
@@ -79,6 +81,12 @@ export default function StatsPage() {
     router.push('/player?id=' + p.id);
   };
   const maxDmg = Math.max(1, ...lbList.map((p) => p.avgDamage || 0)); // 딜량 막대 기준 (표시 목록 중 최대)
+  const max = useMemo(() => ({ // PlayerCard 막대 기준
+    kda: Math.max(1, ...played.map((p) => p.kda || 0)),
+    dmg: Math.max(1, ...played.map((p) => p.avgDamage || 0)),
+    cs: Math.max(1, ...played.map((p) => p.avgCs || 0)),
+    pool: Math.max(1, ...played.map((p) => p.champPool || 0)),
+  }), [played]);
   const setSortDir = (key, dir) => setSort({ key, dir });
   // 통계 카드(최고승률·딜량·CS·챔프폭)도 3판 이상만 (1~2판 반짝 1등 방지)
   const best = (arr, key) => arr.reduce((b, p) => (!b || (p[key] || 0) > (b[key] || 0) ? p : b), null);
@@ -186,7 +194,7 @@ export default function StatsPage() {
                   {rowsToShow.map((p, i) => {
                     const splash = dd.splash(p.topChamps?.[0]?.champion);
                     return (
-                      <div key={p.id} className={`lbx-row ${i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : ''}`} onClick={() => router.push('/player?id=' + p.id)}>
+                      <div key={p.id} className={`lbx-row ${i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : ''}`} onClick={() => setSel(players.find((x) => x.id === p.id) || p)}>
                         {splash && <div className="lbx-splash" style={{ backgroundImage: `url(${splash})` }} />}
                         <div className="lbx-rank">{medal(i) || <span className="num">{i + 1}</span>}</div>
                         <div className="lbx-name">
@@ -226,6 +234,7 @@ export default function StatsPage() {
         </>
       )}
 
+      {sel && <PlayerCard player={sel} gid={gid} max={max} dd={dd} onClose={() => setSel(null)} />}
     </div>
   );
 }
