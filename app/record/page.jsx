@@ -222,7 +222,7 @@ export default function RecordPage() {
       {editing ? (
         <div className="panel" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <span>✏️ <b>경기 수정 중</b> — 아래 표에서 값을 고치고 저장하세요.</span>
-          <Link href="/stats" className="btn ghost" style={{ marginLeft: 'auto' }}>취소</Link>
+          <Link href="/" className="btn ghost" style={{ marginLeft: 'auto' }}>취소</Link>
         </div>
       ) : (
         <div className="panel">
@@ -233,11 +233,11 @@ export default function RecordPage() {
             <button className="btn ghost" style={{ marginLeft: 'auto' }} onClick={manualEntry} title="스샷 없이 직접 10명 입력">✏️ 수동 입력</button>
           </div>
           {err && <div className="err">{err}</div>}
-          {msg && <div className="seed-status" style={{ fontSize: 13 }}>✓ {msg} — <Link href="/stats" className="accent">통계 보기</Link></div>}
+          {msg && <div className="seed-status" style={{ fontSize: 13 }}>✓ {msg} — <Link href="/" className="accent">통계 보기</Link></div>}
         </div>
       )}
       {editing && err && <div className="panel err" style={{ padding: '10px 16px' }}>{err}</div>}
-      {editing && msg && <div className="panel" style={{ padding: '10px 16px' }}>✓ {msg} — <Link href="/stats" className="accent">통계 보기</Link></div>}
+      {editing && msg && <div className="panel" style={{ padding: '10px 16px' }}>✓ {msg} — <Link href="/" className="accent">통계 보기</Link></div>}
 
       {rows.length === 10 && (
         <div className="panel">

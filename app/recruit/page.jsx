@@ -72,7 +72,7 @@ export default function RecruitPage() {
     }));
     if (!roster.length) return;
     try { localStorage.setItem(ROSTER_KEY, JSON.stringify(roster)); } catch { /* noop */ }
-    router.push('/'); // 밸런서가 mount 시 로컬스토리지 로스터를 읽음
+    router.push('/balancer'); // 밸런서가 mount 시 로컬스토리지 로스터를 읽음
   };
 
   return (
