@@ -763,7 +763,7 @@ export async function getStats(groupId) {
     const topChamps = Object.entries(champ).sort((a, b) => b[1] - a[1]).slice(0, 3)
       .map(([c, n]) => ({ champion: c, games: n }));
     return {
-      id: p.id, name: p.display_name, nickname: p.nickname || null, base_tier: p.base_tier,
+      id: p.id, name: p.display_name, nickname: p.nickname || null, base_tier: p.base_tier, profile: p.profile || null,
       games, wins, losses: games - wins, winrate: games ? wins / games : 0,
       mvp: mvpCount[p.id] || 0, ace: aceCount[p.id] || 0,
       champPool: Object.keys(champ).length, // 챔프폭: 플레이한 고유 챔피언 수

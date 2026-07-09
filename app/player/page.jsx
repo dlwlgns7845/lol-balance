@@ -8,6 +8,7 @@ import MatchHistory from '../../components/MatchHistory.jsx';
 import ChampImg from '../../components/ChampImg.jsx';
 import PositionBar from '../../components/PositionBar.jsx';
 import WinLossBar from '../../components/WinLossBar.jsx';
+import Avatar from '../../components/Avatar.jsx';
 import { TIER_LABEL, tierClass } from '../../src/table.js';
 
 const wrCls = (w) => (w >= 0.6 ? 'green' : w >= 0.5 ? 'yellow' : 'red');
@@ -66,7 +67,7 @@ export default function PlayerRecordPage() {
             <div className="psearch-list">
               {hits.slice(0, 10).map((x) => (
                 <button key={x.id} className={`psearch-item ${x.id === sel ? 'on' : ''}`} onMouseDown={() => pick(x.id)}>
-                  <span className="pi-av">{(x.nickname || x.name || '?')[0]}</span>
+                  <span className="pi-av" style={{ background: 'none', padding: 0 }}><Avatar name={x.nickname || x.name} profile={x.profile} size={22} /></span>
                   <span className="pi-nm">{x.nickname || x.name}</span>
                   <span className="muted pi-meta">{TIER_LABEL[x.base_tier]}</span>
                 </button>
@@ -81,7 +82,7 @@ export default function PlayerRecordPage() {
         <>
           <div className="panel prof-top">
             <div className="prof-name">
-              <span className="prof-av">{(p.nickname || p.name || '?')[0]}</span>
+              <span className="prof-av" style={{ background: 'none', padding: 0 }}><Avatar name={p.nickname || p.name} profile={p.profile} size={48} /></span>
               <div>
                 <div className="prof-nm">{p.nickname || p.name}</div>
                 <div className="prof-sub"><span className={tierClass(p.base_tier)}>{TIER_LABEL[p.base_tier]}</span> · {p.games}게임 · <b className={wrCls(p.winrate)}>{Math.round(p.winrate * 100)}%</b> ({p.wins}승 {p.losses}패)</div>

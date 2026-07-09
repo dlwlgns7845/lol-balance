@@ -6,6 +6,7 @@ import Radar from './Radar.jsx';
 import ChampImg from './ChampImg.jsx';
 import PositionBar from './PositionBar.jsx';
 import WinLossBar from './WinLossBar.jsx';
+import Avatar from './Avatar.jsx';
 
 function wrClass(w) { return w >= 0.6 ? 'green' : w >= 0.5 ? 'yellow' : 'red'; }
 function kdaClass(r) { return r >= 5 ? 'kv-5' : r >= 4 ? 'kv-4' : r >= 3 ? 'kv-3' : ''; }
@@ -35,7 +36,7 @@ export default function PlayerCard({ player: p, gid, max, dd, onClose }) {
         <button className="pcard-x" onClick={onClose}>✕</button>
         <div className="pcard-hero" style={hero ? { backgroundImage: `linear-gradient(90deg, var(--panel) 20%, rgba(16,16,25,.55) 50%, transparent 74%), radial-gradient(ellipse 78% 135% at 80% 42%, transparent 38%, var(--panel) 86%), url(${hero})` } : {}}>
           <div className="ph-id">
-            <div className="pc-avatar">{(p.nickname || p.name)[0]}</div>
+            <div className="pc-avatar" style={{ background: 'none', padding: 0 }}><Avatar name={p.nickname || p.name} profile={p.profile} size={50} /></div>
             <div>
               <div className="pc-name">{p.nickname || p.name}</div>
               <div className="muted" style={{ fontSize: 12 }}>{p.nickname ? p.name + ' · ' : ''}{TIER_LABEL[p.base_tier]} · {p.games}게임</div>

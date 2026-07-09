@@ -6,6 +6,7 @@ import { useGroup } from '../../components/GroupProvider.jsx';
 import { useDdragon } from '../../components/ddragon.js';
 import ChampImg from '../../components/ChampImg.jsx';
 import WinLossBar from '../../components/WinLossBar.jsx';
+import Avatar from '../../components/Avatar.jsx';
 import { TIER_LABEL, tierClass } from '../../src/table.js';
 
 const wrCls = (w) => (w >= 0.6 ? 'green' : w >= 0.5 ? 'yellow' : 'red');
@@ -52,7 +53,7 @@ export default function ChampionsPage() {
         <>
           <div className="panel prof-top">
             <div className="prof-name">
-              <span className="prof-av">{(p.nickname || p.name || '?')[0]}</span>
+              <span className="prof-av" style={{ background: 'none', padding: 0 }}><Avatar name={p.nickname || p.name} profile={p.profile} size={48} /></span>
               <div>
                 <div className="prof-nm">{p.nickname || p.name}</div>
                 <div className="prof-sub"><span className={tierClass(p.base_tier)}>{TIER_LABEL[p.base_tier]}</span> · {champs.length}챔피언 · {p.games}게임</div>
