@@ -422,7 +422,7 @@ async function processMatchShot(i, photoId) {
   } catch (e) { return followup(i, '기록 처리 오류: ' + e.message); }
 }
 
-const LANE_EMOJI = ['🔝', '🌲', '⚡', '🏹', '🛡️']; // 탑·정글·미드·원딜·서폿 (스샷 슬롯 순서)
+const LANE_TAG = ['TOP', 'JG', 'MID', 'BOT', 'SUP']; // 스샷 슬롯 순서
 
 // 판독 리뷰 메시지(embed + 셀렉트/버튼) — 초기 표시·수정 후 재렌더 공용.
 // mapSlot 지정 시: 그 자리를 "기존 선수로 지정"하는 person 셀렉트를 보여줌.
@@ -437,7 +437,7 @@ async function reviewData(pend, mapSlot) {
       const kda = `\`${p.k ?? 0}/${p.d ?? 0}/${p.a ?? 0}\``;
       const econ = p.cs ? `${p.cs}cs` : (p.gold ? `${p.gold}g` : '-');
       const dmg = p.damage ? ` · ${Math.round(p.damage / 1000)}k` : '';
-      return `${LANE_EMOJI[li] || '•'} ${isMapped(p) ? '' : '🆕'}**${p.name}**\n　${p.champion || '?'} · ${kda} · ${econ}${dmg}`;
+      return `\`${LANE_TAG[li] || '·'}\` ${isMapped(p) ? '' : '🆕'}**${p.name}**\n　${p.champion || '?'} · ${kda} · ${econ}${dmg}`;
     }).join('\n');
     return { name: `${blue ? '🟦' : '🟥'} 팀 ${blue ? '1 · 블루' : '2 · 레드'}${(blue ? winner === 'A' : winner === 'B') ? '　🏆 승리' : ''}`, value: val || '—', inline: true };
   };
@@ -458,7 +458,7 @@ async function reviewData(pend, mapSlot) {
   }
 
   const newSlots = participants.map((p, idx) => ({ p, idx })).filter((x) => !isMapped(x.p));
-  const editOpts = participants.map((p, idx) => ({ label: `${p.team === 'A' ? '1팀' : '2팀'} ${LANE_EMOJI[idx % 5]} ${p.name}`.slice(0, 90), value: String(idx), description: `${p.champion || ''} ${p.k ?? 0}/${p.d ?? 0}/${p.a ?? 0}`.slice(0, 90) }));
+  const editOpts = participants.map((p, idx) => ({ label: `${p.team === 'A' ? '1팀' : '2팀'} ${LANE_TAG[idx % 5]} ${p.name}`.slice(0, 90), value: String(idx), description: `${p.champion || ''} ${p.k ?? 0}/${p.d ?? 0}/${p.a ?? 0}`.slice(0, 90) }));
   const components = [
     { type: 1, components: [{ type: 3, custom_id: `redit:${pend.id}`, placeholder: '✏️ 값 수정할 선수 선택', options: editOpts }] },
   ];
