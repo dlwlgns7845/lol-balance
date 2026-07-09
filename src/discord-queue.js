@@ -84,9 +84,11 @@ export function queueView(queue, signups, personMap) {
 // 디코 버튼/드롭다운 (라인당 선착순)
 export function queueComponents(qid) {
   const btn = (custom_id, label, style) => ({ type: 2, style, label, custom_id });
+  const laneBtns = LANES.map((l) => btn(`qm:${qid}:${l}`, LANE_KR[l], 1));
+  const allBtn = btn(`qm:${qid}:all`, '🌐 ALL (아무 라인)', 1); // 탑 왼쪽·파란버튼
   return [
-    { type: 1, components: LANES.map((l) => btn(`qm:${qid}:${l}`, LANE_KR[l], 1)) },
-    { type: 1, components: [btn(`qm:${qid}:all`, '🌐 주라인 ALL (아무 라인)', 2)] },
+    { type: 1, components: [allBtn, ...laneBtns.slice(0, 4)] }, // ALL·탑·정글·미드·원딜
+    { type: 1, components: laneBtns.slice(4) },                 // 서폿 (5버튼/줄 제한으로 줄바꿈)
     { type: 1, components: [{ type: 3, custom_id: `qs:${qid}`, placeholder: '부라인 선택 (선택 · 없어도 됨)',
       options: [{ label: '부라인 없음', value: 'none' }, { label: '🌐 ALL (아무 라인 가능)', value: 'all' }, ...LANES.map((l) => ({ label: LANE_KR[l], value: l }))] }] },
     { type: 1, components: [btn(`ql:${qid}`, '❌ 나가기', 4), btn(`qc:${qid}`, '🔒 마감', 2)] },
