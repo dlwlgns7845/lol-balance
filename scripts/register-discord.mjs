@@ -43,9 +43,11 @@ const commands = [
   { name: '모집', description: '내전 모집 시작 (버튼으로 라인 선착순)', type: 1,
     options: [{ name: '인원', description: '10 또는 20 (기본 10)', type: 4, required: false,
       choices: [{ name: '10인', value: 10 }, { name: '20인', value: 20 }] }] },
-  { name: '기록', description: '스코어보드 스샷으로 경기 자동 기록', type: 1,
+  { name: '기록', description: '스코어보드 스샷으로 경기 자동 기록 (관리자)', type: 1,
+    default_member_permissions: '32', // Manage Guild — 관리자만
     options: [{ name: '스샷', description: '로비 종료 스코어보드 이미지', type: 11, required: true }] },
-  { name: '방연결', description: '이 서버를 내전 방에 연결 (서버 관리자만)', type: 1,
+  { name: '방연결', description: '이 서버를 내전 방에 연결 요청 (서버 관리자만, 방장 승인 필요)', type: 1,
+    default_member_permissions: '32', // Manage Guild — 관리자만
     options: [{ name: '코드', description: '사이트 방 코드', type: 3, required: true }] },
 ];
 

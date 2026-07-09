@@ -30,18 +30,57 @@ export async function getGroupById(id) {
   return data;
 }
 
-// ── 디스코드 서버(guild) ↔ 방 매핑 (봇 멀티테넌트) ── 테이블 없으면 null 폴백(→ DEFAULT_GID)
+// ── 디스코드 서버(guild) ↔ 방 매핑 (봇 멀티테넌트) ── 승인 방식: 요청(pending) → 방장이 사이트에서 승인(approved).
+// getGuildRoom 은 승인된 것만 반환 → 코드 알아도 승인 전엔 권한 없음(테러 방지).
 export async function getGuildRoom(guildId) {
   if (!guildId) return null;
   try {
-    const { data, error } = await db().from('discord_guilds').select('group_id').eq('guild_id', guildId).maybeSingle();
+    const { data, error } = await db().from('discord_guilds')
+      .select('group_id, status').eq('guild_id', guildId).maybeSingle();
     if (error) return null;
-    return data?.group_id || null;
+    return (data && data.status === 'approved') ? data.group_id : null;
   } catch { return null; }
 }
-export async function linkGuildRoom(guildId, groupId, byUser) {
-  const { error } = await db().from('discord_guilds')
-    .upsert({ guild_id: guildId, group_id: groupId, linked_by: byUser || null }, { onConflict: 'guild_id' });
+// 이 서버의 연결 상태 (봇이 요청자에게 안내용) — { status, group_id } | null
+export async function getGuildLink(guildId) {
+  if (!guildId) return null;
+  const { data, error } = await db().from('discord_guilds').select('*').eq('guild_id', guildId).maybeSingle();
+  if (error) return null;
+  return data || null;
+}
+// 연결 요청 (pending). 같은 서버가 다시 요청하면 갱신.
+export async function requestGuildLink(guildId, groupId, requester, guildName) {
+  const { error } = await db().from('discord_guilds').upsert({
+    guild_id: guildId, group_id: groupId, status: 'pending',
+    linked_by: requester || null, guild_name: guildName || null,
+  }, { onConflict: 'guild_id' });
+  if (error) throw error;
+}
+// 방의 대기중 요청 목록 (사이트 방장/관리자용)
+export async function listPendingLinks(groupId) {
+  const { data, error } = await db().from('discord_guilds')
+    .select('guild_id, guild_name, linked_by, created_at').eq('group_id', groupId).eq('status', 'pending')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+// 현재 이 방에 승인 연결된 서버들 (여러 서버가 같은 방 공유 가능)
+export async function getApprovedGuilds(groupId) {
+  const { data, error } = await db().from('discord_guilds')
+    .select('guild_id, guild_name, linked_by').eq('group_id', groupId).eq('status', 'approved')
+    .order('created_at', { ascending: true });
+  if (error) return [];
+  return data || [];
+}
+// 승인: 이 서버를 approved 로 (다른 서버는 그대로 — 한 방을 여러 서버가 공유 가능)
+export async function approveGuildLink(groupId, guildId) {
+  const { error } = await db().from('discord_guilds').update({ status: 'approved' })
+    .eq('guild_id', guildId).eq('group_id', groupId);
+  if (error) throw error;
+}
+// 거절/해제: 요청 또는 연결 삭제
+export async function removeGuildLink(guildId) {
+  const { error } = await db().from('discord_guilds').delete().eq('guild_id', guildId);
   if (error) throw error;
 }
 

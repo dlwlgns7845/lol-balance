@@ -7,13 +7,25 @@ import { apiFetch } from '../../components/api.js';
 const deepCopy = (t) => JSON.parse(JSON.stringify(t));
 
 export default function SettingsPage() {
-  const { group, canEdit } = useGroup();
+  const { group, canEdit, isAdmin } = useGroup();
   const gid = group?.id;
   const [table, setTable] = useState(null);
   const [custom, setCustom] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [links, setLinks] = useState(null); // 디스코드 연결: { pending, approved }
+
+  const loadLinks = () => {
+    if (!gid || !isAdmin) return;
+    apiFetch('/api/discord-link?gid=' + gid).then((x) => x.json()).then((r) => { if (r.ok) setLinks(r); }).catch(() => {});
+  };
+  useEffect(loadLinks, [gid, isAdmin]);
+
+  const linkAction = async (action, guildId) => {
+    await apiFetch('/api/discord-link', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gid, action, guildId }) });
+    loadLinks();
+  };
 
   useEffect(() => {
     if (!gid) return;
@@ -75,6 +87,31 @@ export default function SettingsPage() {
         ) : <span className="tb-view">👀 구경 모드 · 보기 전용</span>}
       </div>
       {msg && <div className="panel" style={{ padding: '10px 16px' }}>{msg}</div>}
+
+      {isAdmin && links && (
+        <div className="panel" style={{ padding: 16, marginBottom: 12 }}>
+          <h3 style={{ margin: '0 0 4px' }}>🤖 디스코드 서버 연결 {links.pending?.length ? <span style={{ color: '#e8a24d' }}>· 대기 {links.pending.length}</span> : null}</h3>
+          <p className="sub" style={{ margin: '0 0 10px', fontSize: 13 }}>디코에서 <code>/방연결 코드:{group?.code}</code> 하면 여기 요청이 떠요. 승인해야 그 서버가 이 방을 씁니다.</p>
+          {links.pending?.length ? links.pending.map((p) => (
+            <div key={p.guild_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: '1px solid var(--line)' }}>
+              <span>⏳ <b>{p.linked_by || '요청자'}</b> <span className="muted" style={{ fontSize: 12 }}>서버 {p.guild_id}</span></span>
+              <button className="btn" style={{ marginLeft: 'auto' }} onClick={() => linkAction('approve', p.guild_id)}>승인</button>
+              <button className="btn ghost" onClick={() => linkAction('reject', p.guild_id)}>거절</button>
+            </div>
+          )) : <p className="muted" style={{ fontSize: 13, margin: 0 }}>대기중인 요청 없음.</p>}
+          {links.approved?.length ? (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--line)' }}>
+              <b style={{ fontSize: 13 }}>연결된 서버</b>
+              {links.approved.map((a) => (
+                <div key={a.guild_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', fontSize: 13 }}>
+                  <span>✅ <span className="muted">{a.linked_by || ''} · 서버 {a.guild_id}</span></span>
+                  <button className="btn ghost" style={{ marginLeft: 'auto' }} onClick={() => linkAction('reject', a.guild_id)}>연결 해제</button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      )}
 
       {loading && <div className="panel center muted">불러오는 중…</div>}
       {table && (

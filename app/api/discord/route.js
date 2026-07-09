@@ -6,7 +6,7 @@ import { waitUntil } from '@vercel/functions';
 import { getStats, getAwards, listPersons, updatePerson, createPerson, addAccount, uploadAvatarFromUrl, saveMatch,
   createQueue, getQueue, closeQueue, listSignups, getSignup, upsertSignup, removeSignup, setQueueMessage,
   createPending, getPending, updatePending, deletePending,
-  getGuildRoom, linkGuildRoom, getGroupByCode } from '../../../src/repo.js';
+  getGuildRoom, getGuildLink, requestGuildLink, getGroupByCode } from '../../../src/repo.js';
 import { balance, balance20Split } from '../../../src/engine.js';
 import { LANES } from '../../../src/queue.js';
 import { queueMessage, buildTeams, buildTeamsRanked, allocateSignups, LANE_KR } from '../../../src/discord-queue.js';
@@ -648,18 +648,21 @@ async function cmdMatchShot(i, gid) {
   return NextResponse.json({ type: 5, data: { content: '📸 스코어보드 판독 중… (10초쯤 걸려요)' } });
 }
 
-// 서버 ↔ 방 연결 (서버 관리 권한자만). 이 서버의 모든 커맨드가 이 방을 쓰게 됨.
+// 서버 ↔ 방 연결 요청 (승인 방식). 요청만 생성 → 방장/관리자가 사이트에서 승인해야 활성화(테러 방지).
 async function cmdLinkGuild(i, gid) {
   if (!i.guild_id) return reply('서버(길드) 안에서만 쓸 수 있어요.');
   const perms = BigInt(i.member?.permissions || '0');
   const canManage = (perms & 0x20n) !== 0n || (perms & 0x8n) !== 0n; // Manage Guild | Administrator
-  if (!canManage) return reply('⚠️ 서버 관리 권한이 있는 사람만 방을 연결할 수 있어요.');
+  if (!canManage) return reply('⚠️ 서버 관리 권한이 있는 사람만 방 연결을 요청할 수 있어요.');
   const code = (opt(i, '코드') || '').trim();
   if (!code) return reply('방 코드를 입력하세요. 예: `/방연결 코드:빙수`');
   const group = await getGroupByCode(code);
   if (!group) return reply(`"${code}" 코드의 방을 못 찾았어요. 사이트에서 방 코드를 확인하세요.`);
-  await linkGuildRoom(i.guild_id, group.id, callerId(i));
-  return reply(`✅ 이 서버를 방 **${group.name || group.code}** (#${group.code})에 연결했어요. 이제 이 서버의 \`/모집\`·\`/기록\`·\`/리더보드\` 등이 이 방을 사용합니다.`);
+  const existing = await getGuildLink(i.guild_id);
+  if (existing?.status === 'approved' && existing.group_id === group.id) return reply(`이미 **${group.name || group.code}** 에 연결돼 있어요.`);
+  const requester = i.member?.user?.global_name || i.member?.user?.username || callerId(i);
+  await requestGuildLink(i.guild_id, group.id, requester, null);
+  return reply(`📨 **${group.name || group.code}** (#${group.code}) 연결 **요청**을 보냈어요.\n방장/관리자가 **사이트 → 점수표(설정) 페이지**에서 승인하면 이 서버에서 커맨드를 쓸 수 있어요. (승인 전까지는 대기)`);
 }
 
 const HANDLERS = { 리더보드: cmdLeaderboard, 전적: cmdRecord, 내전적: cmdMyRecord, 연동: cmdLink, 가입: cmdRegister, 프로필: cmdProfile, 칭호: cmdAwards, 방: cmdRoom, 밸런스: cmdBalance, 모집: cmdRecruit, 기록: cmdMatchShot, 방연결: cmdLinkGuild };
@@ -674,8 +677,12 @@ export async function POST(request) {
   if (i.type === 2) { // 슬래시 커맨드
     const h = HANDLERS[i.data?.name];
     if (!h) return reply('알 수 없는 명령어예요.');
-    const gid = await resolveGid(i); // 이 서버가 연결한 방 (연결 안 됐으면 null)
-    if (!gid && i.data?.name !== '방연결') return reply('⚠️ 이 서버에 연결된 방이 없어요. `/방연결 코드:<방코드>` 로 먼저 연결하세요.');
+    const gid = await resolveGid(i); // 이 서버가 승인 연결한 방 (아니면 null)
+    if (!gid && i.data?.name !== '방연결') {
+      const link = i.guild_id ? await getGuildLink(i.guild_id) : null;
+      if (link?.status === 'pending') return reply('⏳ 방 연결 **승인 대기중**이에요. 방장이 사이트에서 승인하면 사용할 수 있어요.');
+      return reply('⚠️ 이 서버에 연결된 방이 없어요. `/방연결 코드:<방코드>` 로 요청하세요.');
+    }
     try { return await h(i, gid); } catch (e) { return reply('오류: ' + e.message); }
   }
   if (i.type === 3) { // 버튼·드롭다운 (모집 큐 / 스샷 판독)
