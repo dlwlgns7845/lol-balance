@@ -7,7 +7,7 @@ import { getStats, getAwards, listPersons, updatePerson, createPerson, addAccoun
   createQueue, getQueue, closeQueue, listSignups, getSignup, upsertSignup, removeSignup, setQueueMessage,
   createPending, getPending, updatePending, deletePending } from '../../../src/repo.js';
 import { balance } from '../../../src/engine.js';
-import { queueMessage, buildTeams, LANE_KR } from '../../../src/discord-queue.js';
+import { queueMessage, buildTeams, buildTeamsRanked, LANE_KR } from '../../../src/discord-queue.js';
 import { extractScoreboard } from '../../../src/vision.js';
 import { fetchTierEstimate } from '../../../src/opgg.js';
 import { fetchTierEstimateHybrid, fetchRiotProfile, hasRiotKey } from '../../../src/riot.js';
@@ -277,6 +277,23 @@ async function cmdRoom() {
   });
 }
 
+function balanceView(candidates, idx, pendingId) {
+  const c = candidates[idx];
+  const side = (T) => c.lanes.map((l) => { const x = l[T]; return `${POS_KR[l.pos]} · ${x.name} (${TIER_LABEL[x.tier] || x.tier})`; }).join('\n');
+  const light = { green: '🟢 균형', yellow: '🟡 약간 기움', red: '🔴 불균형' }[c.light];
+  return {
+    embeds: [{
+      title: '⚔️ 팀 밸런스', description: `${light} · 총점차 ${c.totalDiff.toFixed(1)} · 조합 #${idx + 1}/${candidates.length}`, color: GOLD,
+      fields: [
+        { name: `🔵 블루 (${c.sumA.toFixed(0)})`, value: side('a'), inline: true },
+        { name: `🔴 레드 (${c.sumB.toFixed(0)})`, value: side('b'), inline: true },
+      ],
+    }],
+    components: candidates.length > 1 ? [{ type: 1, components: [{ type: 2, style: 1, label: '🎲 다시 짜기', custom_id: `br:${pendingId}:${idx}` }] }] : [],
+    allowed_mentions: { parse: [] },
+  };
+}
+
 async function cmdBalance(i) {
   const raw = opt(i, '명단') || '';
   const ids = [...raw.matchAll(/<@!?(\d+)>/g)].map((m) => m[1]);
@@ -294,16 +311,18 @@ async function cmdBalance(i) {
   if (players.some((p) => !p.positions.length)) return reply('포지션 미지정 선수가 있어요. 사람관리에서 포지션 지정 후 다시.');
   const r = balance(players, {});
   if (!r.feasible) return reply('이 구성으론 팀이 안 짜여요 (포지션 다양성 부족).');
-  const c = r.candidates[0];
-  const side = (T) => c.lanes.map((l) => { const x = l[T]; return `${POS_KR[l.pos]} · ${x.name} (${TIER_LABEL[x.tier] || x.tier})`; }).join('\n');
-  const light = { green: '🟢 균형', yellow: '🟡 약간 기움', red: '🔴 불균형' }[c.light];
-  return embed({
-    title: '⚔️ 팀 밸런스', description: `${light} · 총점차 ${c.totalDiff.toFixed(1)}`, color: GOLD,
-    fields: [
-      { name: `🔵 블루 (${c.sumA.toFixed(0)})`, value: side('a'), inline: true },
-      { name: `🔴 레드 (${c.sumB.toFixed(0)})`, value: side('b'), inline: true },
-    ],
-  });
+  const pendingId = await createPending(GID, { type: 'balance', players });
+  return NextResponse.json({ type: 4, data: balanceView(r.candidates, 0, pendingId) });
+}
+
+// /밸런스 리롤: 저장된 명단으로 재계산 → 다음 후보 순환
+async function handleBalanceReroll(pendingId, curIdxStr) {
+  const pend = await getPending(pendingId);
+  if (!pend || pend.data?.type !== 'balance') return ephem('⌛ 만료된 밸런스예요. 다시 `/밸런스` 해주세요.');
+  const r = balance(pend.data.players, {});
+  if (!r.feasible || !r.candidates?.length) return ephem('팀을 다시 짤 수 없어요.');
+  const nextIdx = (Number(curIdxStr || 0) + 1) % r.candidates.length;
+  return updateMsg(balanceView(r.candidates, nextIdx, pendingId));
 }
 
 // ── 내전 모집 큐 ── 라인 선착순 + 부라인 밀림/연쇄/대기. 렌더는 src/discord-queue.js 공유(사이트와 동일).
@@ -348,6 +367,8 @@ async function handleComponent(i) {
   if (!GID) return ephem('⚠️ 방 설정(DISCORD_DEFAULT_GID)이 없어요.');
   const parts = (i.data?.custom_id || '').split(':');
   const [action, qid, lane] = parts;
+  if (action === 'tr') return handleTeamReroll(qid, lane); // 마감 자동팀 리롤 (lane=현재idx)
+  if (action === 'br') return handleBalanceReroll(qid, lane); // /밸런스 리롤 (lane=현재idx)
   if (action === 'rec' || action === 'rex') return handleRecordConfirm(action, qid); // 스샷 판독 확인/취소
   if (action === 'rswap') return handleRecordSwap(qid); // 승패 뒤집기
   if (action === 'rdur') return handleRecordDurOpen(i, qid); // 시간 수정 모달
@@ -423,6 +444,19 @@ async function processMatchShot(i, photoId) {
 }
 
 const LANE_TAG = ['TOP', 'JG', 'MID', 'BOT', 'SUP']; // 스샷 슬롯 순서
+
+// 마감 자동팀 리롤: 같은 로스터로 다음 균형 조합(랭킹 순환)
+async function handleTeamReroll(qid, curIdxStr) {
+  const queue = await getQueue(qid);
+  if (!queue) return ephem('⌛ 만료된 모집이에요.');
+  const signups = await listSignups(qid);
+  const persons = await listPersons(GID);
+  const pmap = new Map(persons.filter((p) => p.discord_id).map((p) => [p.discord_id, { tier: p.base_tier, secondaryTier: p.secondary_tier || null }]));
+  const ranked = buildTeamsRanked({ ...queue, status: 'closed' }, signups, pmap);
+  if (!ranked.length) return ephem('팀을 다시 짤 수 없어요 (10인 아님).');
+  const nextIdx = (Number(curIdxStr || 0) + 1) % ranked.length;
+  return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, ranked[nextIdx], nextIdx));
+}
 
 // 판독 리뷰 메시지(embed + 셀렉트/버튼) — 초기 표시·수정 후 재렌더 공용.
 // mapSlot 지정 시: 그 자리를 "기존 선수로 지정"하는 person 셀렉트를 보여줌.

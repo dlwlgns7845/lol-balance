@@ -2,12 +2,12 @@
 import { allocateQueue, LANES } from './queue.js';
 import { TABLE, POS } from './table.js';
 
-// 마감 시 라인배정 로스터 → 균형 2팀 (10인만). personMap: discord_id → { tier, secondaryTier }.
-// 각 라인 2명을 A/B로 나눠 티어점수 합 차이 최소화 (2^5 브루트포스). 라인당 2명 아니면 null(자동팀 스킵).
-export function buildTeams(queue, signups, personMap) {
-  if (queue.size !== 10) return null; // 20인 자동팀은 추후
+// 마감 시 라인배정 로스터 → 균형 2팀 후보 랭킹 (10인만). personMap: discord_id → { tier, secondaryTier }.
+// 라인0을 A로 고정(미러 중복 제거) + 라인1~4 조합(2^4=16) → 점수차 오름차순. 라인당 2명 아니면 [].
+export function buildTeamsRanked(queue, signups, personMap) {
+  if (queue.size !== 10) return [];
   const alloc = allocateSignups(queue, signups);
-  for (const l of LANES) if (alloc.lanes[l].length !== 2) return null;
+  for (const l of LANES) if (alloc.lanes[l].length !== 2) return [];
   const info = new Map(signups.map((s) => [s.discord_id, s]));
   const cell = (id, lane) => {
     const s = info.get(id); const p = personMap?.get(id) || {};
@@ -16,19 +16,21 @@ export function buildTeams(queue, signups, personMap) {
     return { pts: (TABLE[tier]?.[idx] ?? 15), tier, name: s?.name || '?', discordId: id, lane };
   };
   const laneP = LANES.map((l) => alloc.lanes[l].map((id) => cell(id, l)));
-  let best = null;
-  for (let mask = 0; mask < 32; mask++) {
+  const out = [];
+  for (let mask = 0; mask < 16; mask++) {
     const A = [], B = []; let sa = 0, sb = 0;
     LANES.forEach((l, i) => {
-      const [x, y] = laneP[i]; const flip = (mask >> i) & 1;
+      const [x, y] = laneP[i];
+      const flip = i === 0 ? 0 : (mask >> (i - 1)) & 1; // 라인0 고정 → 미러 제거
       const a = flip ? y : x, b = flip ? x : y;
       A.push(a); sa += a.pts; B.push(b); sb += b.pts;
     });
-    const diff = Math.abs(sa - sb);
-    if (!best || diff < best.diff) best = { A, B, sumA: sa, sumB: sb, diff };
+    out.push({ A, B, sumA: sa, sumB: sb, diff: Math.abs(sa - sb) });
   }
-  return best;
+  out.sort((a, b) => a.diff - b.diff);
+  return out;
 }
+export function buildTeams(queue, signups, personMap) { return buildTeamsRanked(queue, signups, personMap)[0] || null; }
 
 export const LANE_KR = { top: '탑', jungle: '정글', mid: '미드', adc: '원딜', sup: '서폿' };
 const GOLD = 0xe8c07d;
@@ -69,7 +71,7 @@ export function queueComponents(qid) {
 
 // 디코 메시지 본문 { embeds, components } — 슬래시 응답(type4)·버튼 갱신(type7)·사이트 되쓰기 공용.
 // closed + teams 있으면 확정 2팀을 필드로 표시.
-export function queueMessage(queue, signups, closed, teams) {
+export function queueMessage(queue, signups, closed, teams, teamIdx = 0) {
   const N = Math.max(1, Math.floor(queue.size / 5));
   const alloc = allocateSignups(queue, signups);
   const info = new Map(signups.map((s) => [s.discord_id, s]));
@@ -94,8 +96,12 @@ export function queueMessage(queue, signups, closed, teams) {
       { name: `🟥 레드 (${Math.round(teams.sumB)})`, value: side(teams.B), inline: true },
     ];
     embed.title += ' · 팀 확정';
+    embed.footer = { text: `조합 #${teamIdx + 1} · 점수차 ${teams.diff.toFixed(1)} · 🎲로 다른 조합` };
   }
-  return { embeds: [embed], components: closed ? [] : queueComponents(queue.id), allowed_mentions: { parse: [] } };
+  const closedComponents = (closed && teams)
+    ? [{ type: 1, components: [{ type: 2, style: 1, label: '🎲 팀 다시 짜기', custom_id: `tr:${queue.id}:${teamIdx}` }] }]
+    : [];
+  return { embeds: [embed], components: closed ? closedComponents : queueComponents(queue.id), allowed_mentions: { parse: [] } };
 }
 
 // 사이트→디코: 저장된 채널/메시지를 봇토큰으로 PATCH (양방향 동기화). 토큰/ID 없으면 조용히 스킵.
