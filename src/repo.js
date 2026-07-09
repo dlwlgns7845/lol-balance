@@ -84,6 +84,32 @@ export async function removeGuildLink(guildId) {
   if (error) throw error;
 }
 
+// 연동된 사람들의 표시이름(nickname)을 디스코드 '서버 별명'으로 동기화. 사이트 로드시 호출(45초 캐시).
+// 봇토큰 필요. 개별 멤버 조회라 privileged intent 불필요. 별명 없으면 global_name/username 폴백.
+const _nickSyncedAt = new Map(); // gid → ms
+export async function syncGuildNicks(gid) {
+  const token = process.env.DISCORD_BOT_TOKEN;
+  if (!token || !gid) return;
+  const now = Date.now();
+  if (now - (_nickSyncedAt.get(gid) || 0) < 45000) return; // 45초 내 재조회 스킵
+  _nickSyncedAt.set(gid, now);
+  try {
+    const guild = await getApprovedGuilds(gid);
+    const guildId = guild[0]?.guild_id;
+    if (!guildId) return;
+    const persons = (await listPersons(gid)).filter((p) => p.discord_id && !String(p.discord_id).startsWith('site:'));
+    await Promise.all(persons.map(async (p) => {
+      try {
+        const r = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/${p.discord_id}`, { headers: { Authorization: `Bot ${token}` } });
+        if (!r.ok) return;
+        const mem = await r.json();
+        const nick = mem.nick || mem.user?.global_name || mem.user?.username;
+        if (nick && nick !== p.nickname) await db().from('persons').update({ nickname: nick }).eq('id', p.id);
+      } catch { /* 멤버 조회 실패는 스킵 */ }
+    }));
+  } catch { /* 길드/토큰 문제면 스킵 → 저장된 이름 사용 */ }
+}
+
 // 로그인 유저가 방에 들어오면 멤버로 등록(없을 때만 viewer). 기존 역할은 안 낮춤.
 export async function registerMembership(groupId, user) {
   if (!groupId || !user?.id) return;
