@@ -795,7 +795,8 @@ export async function getStats(groupId) {
   const scoreOf = (games, wins, kda, avgDamage) => {
     if (!games) return 0;
     const adjWr = (wins + 2) / (games + 4);
-    return Math.round((adjWr * 100 * 0.9 + Math.log(games) * 10 + (kda || 0) * 10 + (avgDamage || 0) / 1000 * 0.4) * 10) / 10;
+    // KDA는 √(제곱근) 곡선 — 낮을 땐 쑥 오르고 높을수록 완만(오목). 직선 kda×10 대비 고KDA 캐리 억제.
+    return Math.round((adjWr * 100 * 0.9 + Math.log(games) * 10 + Math.sqrt(kda || 0) * 12 + (avgDamage || 0) / 1000 * 0.4) * 10) / 10;
   };
 
   const rows = persons.map((p) => {
@@ -883,7 +884,7 @@ export async function getStats(groupId) {
     lanes[pos] = list;
   });
 
-  return { totalMatches: matchCount || 0, players: rows, lanes, laneMin: LANE_MIN, scoreFormula: '보정승률×0.9 + ln(판수)×10 + KDA×10 + 딜량(k)×0.4' };
+  return { totalMatches: matchCount || 0, players: rows, lanes, laneMin: LANE_MIN, scoreFormula: '보정승률×0.9 + ln(판수)×10 + √KDA×12 + 딜량(k)×0.4' };
 }
 
 // ── 칭호: 개인(승률·CS·MVP) + 관계형(듀오·상대전적·연승). 사람ID/이름별 뱃지 맵 포함 ──
