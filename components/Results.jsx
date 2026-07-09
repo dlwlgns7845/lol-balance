@@ -1,6 +1,7 @@
 'use client';
 import { POS_KR, TIER_LABEL, tierClass } from '../src/table.js';
 import TitleBadges from './TitleBadges.jsx';
+import Avatar from './Avatar.jsx';
 
 const LIGHT_KR = { green: '🟢 균형', yellow: '🟡 약간 기움', red: '🔴 불균형' };
 const wrCls = (w) => (w >= 0.6 ? 'green' : w >= 0.5 ? 'yellow' : 'red');
@@ -24,7 +25,7 @@ export default function Results({ feasible, outliers = [], view, onReroll, onSwa
     const pct = Math.round((m.winrate || 0) * 100);
     return (
       <div className={`tr-p t-${team.toLowerCase()} ${on ? 'sel' : ''}`} onClick={() => onSwap(team, l.pos)} title="클릭 후 다른 선수 클릭 = 자리 교환">
-        <span className="tr-av"><span className="tr-av-none" aria-hidden /></span>
+        <span className="tr-av"><Avatar name={p.name} profile={m.profile} size={36} /></span>
         <div className="tr-id">
           <div className="tr-name"><span className="tr-nm">{p.name}</span>{p.off && <sup className="offtag">부</sup>}<TitleBadges titles={m.titles} max={6} /></div>
           <div className={`tr-tier ${tierClass(p.tier)}`} title={p.secApplied ? `부라인 배치 — 부라인 티어 적용 (원래 ${TIER_LABEL[p.baseTier] || p.baseTier})` : undefined}>{TIER_LABEL[p.tier] || p.tier}{p.secApplied ? <span className="tr-sec">부라인</span> : null}</div>

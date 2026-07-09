@@ -7,6 +7,7 @@ import { useGroup } from '../../components/GroupProvider.jsx';
 import { apiFetch } from '../../components/api.js';
 import { arraysToRoles } from '../../components/PositionToggles.jsx';
 import { TIER_LABEL } from '../../src/table.js';
+import Avatar from '../../components/Avatar.jsx';
 
 const LANES = ['top', 'jungle', 'mid', 'adc', 'sup'];
 const LANE_KR = { top: '탑', jungle: '정글', mid: '미드', adc: '원딜', sup: '서폿' };
@@ -19,6 +20,10 @@ export default function RecruitPage() {
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [persons, setPersons] = useState([]);
+  const [addP, setAddP] = useState(''); // 추가할 사람 id
+  const [addMain, setAddMain] = useState('top');
+  const [addSub, setAddSub] = useState('');
   const timer = useRef(null);
 
   const load = useCallback(async () => {
@@ -34,6 +39,11 @@ export default function RecruitPage() {
     timer.current = setInterval(load, 2500); // 실시간 미러(2.5초 폴링)
     return () => clearInterval(timer.current);
   }, [load]);
+
+  useEffect(() => { // 어드민용: 큐에 추가할 등록 선수 목록
+    if (!gid || !isAdmin) return;
+    fetch(`/api/persons?gid=${gid}`).then((x) => x.json()).then((r) => { if (r.ok) setPersons(r.persons || []); }).catch(() => {});
+  }, [gid, isAdmin]);
 
   const act = async (body) => {
     setBusy(true);
@@ -87,6 +97,7 @@ export default function RecruitPage() {
                   <div className="rc-slots">
                     {list.map((p) => (
                       <div key={p.id} className="rc-player">
+                        <Avatar name={p.name} profile={p.profile} size={22} />
                         <span className="rc-nm">{p.name}{p.off && <span className="rc-off">부</span>}</span>
                         <span className="rc-ti">{TIER_LABEL[p.tier] || p.tier || '?'}</span>
                         {isAdmin && <button className="rc-kick" disabled={busy} onClick={() => act({ queueId: queue.id, action: 'kick', signupId: p.id })} title="강퇴">✕</button>}
@@ -105,12 +116,31 @@ export default function RecruitPage() {
               <div className="rc-slots">
                 {data.waitlist.map((p) => (
                   <div key={p.id} className="rc-player">
+                    <Avatar name={p.name} profile={p.profile} size={20} />
                     <span className="rc-nm">{p.name}</span>
                     <span className="muted" style={{ fontSize: 11 }}>주:{LANE_KR[p.main]}{p.sub ? ` 부:${LANE_KR[p.sub]}` : ''}</span>
                     {isAdmin && <button className="rc-kick" disabled={busy} onClick={() => act({ queueId: queue.id, action: 'kick', signupId: p.id })} title="강퇴">✕</button>}
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {isAdmin && (
+            <div className="rc-add">
+              <b>➕ 사람 추가</b>
+              <select value={addP} onChange={(e) => setAddP(e.target.value)}>
+                <option value="">— 선수 선택 —</option>
+                {persons.map((p) => <option key={p.id} value={p.id}>{p.nickname || p.display_name}{p.discord_id ? '' : ' (미연동)'}</option>)}
+              </select>
+              <select value={addMain} onChange={(e) => setAddMain(e.target.value)}>
+                {LANES.map((l) => <option key={l} value={l}>주:{LANE_KR[l]}</option>)}
+              </select>
+              <select value={addSub} onChange={(e) => setAddSub(e.target.value)}>
+                <option value="">부라인 없음</option>
+                {LANES.map((l) => <option key={l} value={l}>부:{LANE_KR[l]}</option>)}
+              </select>
+              <button className="btn ghost" disabled={busy || !addP} onClick={() => act({ queueId: queue.id, action: 'add', personId: addP, main: addMain, sub: addSub || null }).then(() => setAddP(''))}>추가</button>
             </div>
           )}
 
@@ -144,6 +174,9 @@ export default function RecruitPage() {
         .rc-kick{background:none;border:none;color:#c66;cursor:pointer;font-size:12px;padding:0 2px}
         .rc-wait{margin-top:14px;background:#1c1c22;border-radius:10px;padding:12px}
         .rc-wait .rc-slots{flex-direction:row;flex-wrap:wrap;margin-top:8px}
+        .rc-add{display:flex;align-items:center;gap:8px;margin-top:16px;flex-wrap:wrap;background:#1c1c22;border-radius:10px;padding:10px 12px}
+        .rc-add select{background:#26262e;color:#ddd;border:1px solid #33333c;border-radius:6px;padding:5px 8px;font-size:13px}
+        .rc-player .champ-ph,.rc-player>span:first-child{flex-shrink:0}
         .rc-actions{display:flex;align-items:center;gap:10px;margin-top:20px;flex-wrap:wrap}
       `}</style>
     </div>

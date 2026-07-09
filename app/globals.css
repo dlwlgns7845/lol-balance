@@ -196,7 +196,10 @@ input[type=range] { padding: 0; accent-color: var(--gold); }
 .panel.members { padding: 2px 18px; }
 .member { padding: 14px 0; border-bottom: 1px solid var(--line); }
 .member:last-child { border-bottom: 0; }
-.m-main { display: grid; grid-template-columns: minmax(120px, 160px) 110px auto 230px minmax(140px, 1fr) auto; gap: 10px; align-items: center; }
+.m-main { display: grid; grid-template-columns: auto minmax(120px, 160px) 110px auto 230px minmax(140px, 1fr) auto; gap: 10px; align-items: center; }
+.m-prof { display: flex; align-items: center; gap: 4px; }
+.m-color { width: 26px; height: 26px; padding: 0; border: 1px solid var(--line2); border-radius: 6px; background: none; cursor: pointer; }
+.m-emoji { width: 34px; text-align: center; padding: 3px; }
 .m-tiercell { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .m-tiercell .m-tier { width: 118px; }
 .m-sectier { width: 132px; font-size: 11.5px; padding: 4px 4px; border-radius: 6px; background: var(--panel2); border: 1px dashed var(--line2); color: var(--muted); }

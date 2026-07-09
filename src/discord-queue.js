@@ -19,7 +19,7 @@ export function queueView(queue, signups, personMap) {
   const map = (id, lane) => {
     const s = byId.get(id);
     const p = personMap && personMap.get(id);
-    return { id: s?.id, name: s?.name || '?', main: s?.main, sub: s?.sub || null, off: !!(s && lane && s.main !== lane), tier: p?.tier || null, lane };
+    return { id: s?.id, name: s?.name || '?', main: s?.main, sub: s?.sub || null, off: !!(s && lane && s.main !== lane), tier: p?.tier || null, profile: p?.profile || null, lane };
   };
   const lanes = {};
   LANES.forEach((l) => { lanes[l] = alloc.lanes[l].map((id) => map(id, l)); });

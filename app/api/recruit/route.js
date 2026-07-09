@@ -11,7 +11,7 @@ export async function GET(request) {
     if (!queue) return NextResponse.json({ ok: true, queue: null });
     const signups = await listSignups(queue.id);
     const persons = await listPersons(gid);
-    const pmap = new Map(persons.filter((p) => p.discord_id).map((p) => [p.discord_id, { tier: p.base_tier }]));
+    const pmap = new Map(persons.filter((p) => p.discord_id).map((p) => [p.discord_id, { tier: p.base_tier, profile: p.profile || null }]));
     return NextResponse.json({ ok: true, queue: { id: queue.id, size: queue.size, status: queue.status }, ...queueView(queue, signups, pmap) });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
