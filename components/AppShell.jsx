@@ -7,6 +7,7 @@ const NAV = [
   { href: '/', label: '밸런서', ic: '⚔️' },
   { href: '/recruit', label: '오늘 내전', ic: '🎮' },
   { href: '/stats', label: '통계', ic: '📊' },
+  { href: '/player', label: '전적', ic: '📖' },
   { href: '/people', label: '멤버 관리', ic: '👥' },
   { href: '/settings', label: '점수표', ic: '⚙️' },
 ];
