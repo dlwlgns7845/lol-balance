@@ -30,7 +30,7 @@ export default function RecruitPage() {
   const [persons, setPersons] = useState([]);
   const [addP, setAddP] = useState(''); // 추가할 사람 id
   const [addMain, setAddMain] = useState('top');
-  const [addSub, setAddSub] = useState('');
+  const [addSub, setAddSub] = useState([]); // 받을 라인 여러 개
   const timer = useRef(null);
 
   const load = useCallback(async () => {
@@ -158,12 +158,17 @@ export default function RecruitPage() {
                 {LANES.map((l) => <option key={l} value={l}>주:{LANE_KR[l]}</option>)}
                 <option value="all">주:ALL (아무 라인)</option>
               </select>
-              <select value={addSub} onChange={(e) => setAddSub(e.target.value)}>
-                <option value="">부라인 없음</option>
-                <option value="all">부:ALL (아무 라인)</option>
-                {LANES.map((l) => <option key={l} value={l}>부:{LANE_KR[l]}</option>)}
-              </select>
-              <button className="btn ghost" disabled={busy || !addP} onClick={() => act({ queueId: queue.id, action: 'add', personId: addP, main: addMain, sub: addSub || null }).then(() => setAddP(''))}>추가</button>
+              <span className="rc-sub-pick">
+                <span className="muted" style={{ fontSize: 11 }}>받는 라인(여러 개):</span>
+                {LANES.map((l) => (
+                  <button key={l} type="button" disabled={addMain !== 'all' && l === addMain}
+                    className={`rc-sub-chip${addSub.includes(l) ? ' on' : ''}`}
+                    onClick={() => setAddSub((s) => (s.includes(l) ? s.filter((x) => x !== l) : [...s, l]))}>
+                    {LANE_KR[l]}
+                  </button>
+                ))}
+              </span>
+              <button className="btn ghost" disabled={busy || !addP} onClick={() => { const subs = addSub.filter((l) => l !== addMain); act({ queueId: queue.id, action: 'add', personId: addP, main: addMain, sub: subs.length ? subs.join(',') : null }).then(() => { setAddP(''); setAddSub([]); }); }}>추가</button>
             </div>
           )}
 
@@ -204,6 +209,10 @@ export default function RecruitPage() {
         .rc-wait .rc-slots{flex-direction:row;flex-wrap:wrap;margin-top:8px}
         .rc-add{display:flex;align-items:center;gap:8px;margin-top:16px;flex-wrap:wrap;background:#1c1c22;border-radius:10px;padding:10px 12px}
         .rc-add select{background:#26262e;color:#ddd;border:1px solid #33333c;border-radius:6px;padding:5px 8px;font-size:13px}
+        .rc-sub-pick{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+        .rc-sub-chip{background:#26262e;color:#bbb;border:1px solid #33333c;border-radius:6px;padding:4px 9px;font-size:12px;cursor:pointer}
+        .rc-sub-chip.on{background:#2f6b8a;color:#fff;border-color:#4fb6d6}
+        .rc-sub-chip:disabled{opacity:.3;cursor:default}
         .rc-player .champ-ph,.rc-player>span:first-child{flex-shrink:0}
         .rc-actions{display:flex;align-items:center;gap:10px;margin-top:20px;flex-wrap:wrap}
       `}</style>
