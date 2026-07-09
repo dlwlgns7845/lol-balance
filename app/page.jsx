@@ -57,7 +57,9 @@ export default function StatsPage() {
     }
   }, [tab, gid, champs]);
 
-  const MIN_RANK_GAMES = 3; // 리더보드는 3판 이상만 (1~2판 반짝 1등 방지)
+  // 통계 카드(딜량·CS·챔프폭)는 라플라스 미보정 raw max라 1~2판 반짝 1등 방지 위해 3판 이상만.
+  // 리더보드는 score(라플라스 보정 승률 포함)로 정렬돼 소표본이 부당하게 1등 못 함 → 전체 노출.
+  const MIN_RANK_GAMES = 3;
   const players = data?.players || [];
   const played = players.filter((p) => p.games > 0);
   const ranked = played.filter((p) => p.games >= MIN_RANK_GAMES);
@@ -65,7 +67,7 @@ export default function StatsPage() {
   const LANE_LB_ENABLED = false; // 포지션별(라인) 리더보드 탭
   const SORT_ENABLED = false;    // 정렬 가능한 표 헤더
   const LANE_TABS = [['all', '전체'], ['top', '탑'], ['jungle', '정글'], ['mid', '미드'], ['adc', '원딜'], ['sup', '서폿']];
-  const lbList = (LANE_LB_ENABLED && lane !== 'all') ? (data?.lanes?.[lane] || []) : ranked;
+  const lbList = (LANE_LB_ENABLED && lane !== 'all') ? (data?.lanes?.[lane] || []) : played;
   const sortedLb = [...lbList].sort((a, b) => {
     const va = a[sort.key] ?? -Infinity, vb = b[sort.key] ?? -Infinity;
     return sort.dir === 'desc' ? vb - va : va - vb;
@@ -139,7 +141,7 @@ export default function StatsPage() {
           {tab === 'lb' && (
             <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
               <div className="lb-head">
-                <h2 style={{ margin: 0 }}>리더보드 <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>· {lane === 'all' ? `${MIN_RANK_GAMES}판 이상` : `해당 라인 ${data.laneMin || 2}판 이상`}</span></h2>
+                <h2 style={{ margin: 0 }}>리더보드 <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>· {lane === 'all' ? '전체 · 내전 점수순 (라플라스 보정)' : `해당 라인 ${data.laneMin || 2}판 이상`}</span></h2>
                 <span className="formula">{data.scoreFormula || '내전 점수'}</span>
               </div>
               {LANE_LB_ENABLED && (
@@ -152,7 +154,7 @@ export default function StatsPage() {
               {lbList.length === 0 ? (
                 <div className="center muted" style={{ padding: '28px 0' }}>
                   {lane === 'all'
-                    ? <>아직 {MIN_RANK_GAMES}판 이상 뛴 선수가 없어요. {played.length > 0 ? '조금 더 기록되면 순위가 떠요.' : <><Link href="/record" className="accent">경기 기록</Link>에서 스샷을 올리세요.</>}</>
+                    ? <>아직 경기 기록이 없어요. <Link href="/record" className="accent">경기 기록</Link>에서 스샷을 올리세요.</>
                     : `이 라인에서 ${data.laneMin || 2}판 이상 뛴 선수가 아직 없어요.`}
                 </div>
               ) : (
