@@ -117,7 +117,7 @@ export default function PeoplePage() {
 
       {persons.length > 0 && (
         <div className="panel members">
-          {persons.map((p) => {
+          {[...persons].sort((a, b) => (b.rating_games || 0) - (a.rating_games || 0) || (a.display_name || '').localeCompare(b.display_name || '')).map((p) => {
             const roles = arraysToRoles(p.primary_positions, p.secondary_positions);
             const st = acctStatus[p.id] || {};
             return (
