@@ -105,7 +105,8 @@ export default function SettingsPage() {
               {links.approved.map((a) => (
                 <div key={a.guild_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', fontSize: 13 }}>
                   <span>✅ <span className="muted">{a.linked_by || ''} · 서버 {a.guild_id}</span></span>
-                  <button className="btn ghost" style={{ marginLeft: 'auto' }} onClick={() => linkAction('reject', a.guild_id)}>연결 해제</button>
+                  <button className="btn ghost" style={{ marginLeft: 'auto' }}
+                    onClick={() => confirm('이 서버 연결을 해제할까요? 해제되면 그 서버에서 커맨드가 막히고, 다시 쓰려면 재요청+재승인이 필요해요.') && linkAction('reject', a.guild_id)}>연결 해제</button>
                 </div>
               ))}
             </div>
