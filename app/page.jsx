@@ -221,7 +221,8 @@ export default function BalancerPage() {
   const nameMeta = (name) => {
     const k = normNm(name);
     return { titles: [...(awards?.byName?.[k] || []), ...(relCtx[k] || [])], ...(wrByName[k] || {}),
-      adj: adjOf(name), autoAdj: adjustOn ? autoOf(name) : 0, manualAdj: adjustOn ? manualOf(name) : 0 };
+      adj: adjOf(name), autoAdj: adjustOn ? autoOf(name) : 0, manualAdj: adjustOn ? manualOf(name) : 0,
+      profile: personByNorm.get(k)?.profile || null };
   };
 
   // 각 로스터 행: 미등록('add') / 등록됨('save', 변경 시 dirty) / 빈칸('none')
