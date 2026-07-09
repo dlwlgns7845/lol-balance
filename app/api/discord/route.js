@@ -3,7 +3,7 @@
 import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { waitUntil } from '@vercel/functions';
-import { getStats, getAwards, listPersons, updatePerson, createPerson, addAccount, uploadAvatarFromUrl, saveMatch,
+import { getStats, getAwards, getMatchHistory, listPersons, updatePerson, createPerson, addAccount, uploadAvatarFromUrl, saveMatch,
   createQueue, getQueue, closeQueue, listSignups, getSignup, upsertSignup, removeSignup, setQueueMessage,
   createPending, getPending, updatePending, deletePending,
   getGuildRoom, getGuildLink, requestGuildLink, getGroupByCode } from '../../../src/repo.js';
@@ -393,7 +393,7 @@ async function handleComponent(i) {
   const [action, qid, lane] = parts;
   if (action === 'tr') return handleTeamReroll(qid, lane); // 마감 자동팀 리롤 (lane=현재idx)
   if (action === 'br') return handleBalanceReroll(qid, lane); // /밸런스 리롤 (lane=현재idx)
-  if (action === 'rec' || action === 'rex') return handleRecordConfirm(action, qid); // 스샷 판독 확인/취소
+  if (action === 'rec' || action === 'rex') return handleRecordConfirm(i, action, qid); // 스샷 판독 확인/취소
   if (action === 'rswap') return handleRecordSwap(qid); // 승패 뒤집기
   if (action === 'rdur') return handleRecordDurOpen(i, qid); // 시간 수정 모달
   if (action === 'redit') return handleRecordEditOpen(i, qid); // 선수 값수정 모달
@@ -535,15 +535,51 @@ async function reviewData(pend, mapSlot) {
   return { content: '', embeds: [embed], components };
 }
 
+// 리더보드 TOP5 사람ID (3판+ · 점수순) — 순위변동 비교용
+async function topIds(gid) {
+  try { return (await getStats(gid)).players.filter((p) => p.games >= 3).sort((a, b) => b.score - a.score).slice(0, 5).map((p) => p.id); } catch { return []; }
+}
+
+// 경기 저장 후 채널에 결과+MVP+순위변동 공지 (새 메시지). 백그라운드.
+async function announceResult(i, gid, beforeTop) {
+  try {
+    const lines = [];
+    const { matches } = await getMatchHistory(gid, 1);
+    const m = matches?.[0];
+    if (m) {
+      const winName = m.winner === 'A' ? '팀1(위)' : '팀2(아래)';
+      lines.push(`🏆 **${winName} 승리!**　⚔️ ${m.killsA} : ${m.killsB}`);
+      const all = [...m.A, ...m.B];
+      const mvp = all.find((p) => p.mvp), ace = all.find((p) => p.ace);
+      if (mvp) lines.push(`🏅 MVP **${mvp.name}**${mvp.champion ? ` · ${mvp.champion} ${mvp.k}/${mvp.d}/${mvp.a}` : ''}`);
+      if (ace) lines.push(`⭐ ACE ${ace.name}${ace.champion ? ` · ${ace.champion} ${ace.k}/${ace.d}/${ace.a}` : ''}`);
+    }
+    // 순위 변동
+    const afterTop = (await getStats(gid)).players.filter((p) => p.games >= 3).sort((a, b) => b.score - a.score).slice(0, 5);
+    const beforeSet = new Set(beforeTop);
+    const changes = [];
+    if (afterTop[0] && beforeTop[0] && afterTop[0].id !== beforeTop[0]) changes.push(`👑 새 1위 **${afterTop[0].nickname || afterTop[0].name}**`);
+    afterTop.forEach((p, idx) => { if (!beforeSet.has(p.id)) changes.push(`📈 ${p.nickname || p.name} TOP5 진입(#${idx + 1})`); });
+    if (changes.length) lines.push('', `📊 ${changes.join(' · ')}`);
+    if (!lines.length) return;
+    await fetch(`https://discord.com/api/v10/webhooks/${i.application_id}/${i.token}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: lines.join('\n'), allowed_mentions: { parse: [] } }),
+    });
+  } catch { /* 공지 실패해도 저장은 유지 */ }
+}
+
 // 판독 확인/취소
-async function handleRecordConfirm(action, pendingId) {
+async function handleRecordConfirm(i, action, pendingId) {
   const pend = await getPending(pendingId);
   if (!pend) return updateMsg({ content: '⌛ 만료됐거나 이미 처리된 판독이에요.', embeds: [], components: [] });
   if (action === 'rex') { await deletePending(pendingId); return updateMsg({ content: '❌ 취소했어요 (저장 안 함).', embeds: [], components: [] }); }
   try {
+    const beforeTop = await topIds(pend.gid); // 저장 전 순위 스냅샷
     const r = await saveMatch(pend.gid, pend.data);
     await deletePending(pendingId);
     if (r?.duplicate) return updateMsg({ content: '⚠️ 이미 기록된 경기예요 (중복). 저장 안 함.', embeds: [], components: [] });
+    waitUntil(announceResult(i, pend.gid, beforeTop)); // 결과+MVP+순위변동 공지
     const winName = pend.data.winner === 'A' ? '팀1(위)' : '팀2(아래)';
     return updateMsg({ content: `✅ **저장 완료!** ${winName} 승리 · 통계·리더보드·칭호에 반영됐어요.`, embeds: [], components: [] });
   } catch (e) { return updateMsg({ content: '저장 오류: ' + e.message, embeds: [], components: [] }); }
