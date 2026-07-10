@@ -1,36 +1,37 @@
 // 내전 모집 큐 — 디코 메시지 렌더 + 배정 + 사이트↔디코 동기화 (route.js·사이트 API 공유)
 import { allocateQueue, LANES, subLanesOf } from './queue.js';
 import { TABLE, POS } from './table.js';
+import { balance } from './engine.js';
 
-// 마감 시 라인배정 로스터 → 균형 2팀 후보 랭킹 (10인만). personMap: discord_id → { tier, secondaryTier }.
-// 라인0을 A로 고정(미러 중복 제거) + 라인1~4 조합(2^4=16) → 점수차 오름차순. 라인당 2명 아니면 [].
+// 마감 시 → 사이트 밸런서(engine.balance)로 최적 팀편성 후보 랭킹 (10인만).
+//  올라운더(ALL)=아무 라인 배치 가능 + 점수 −1 혜택 / 특정 주라인=주+선택라인만. 엔진이 라인배치·팀분할 동시 최적화.
 export function buildTeamsRanked(queue, signups, personMap) {
   if (queue.size !== 10) return [];
-  const alloc = allocateSignups(queue, signups);
-  for (const l of LANES) if (alloc.lanes[l].length !== 2) return [];
   const info = new Map(signups.map((s) => [s.discord_id, s]));
-  const cell = (id, lane) => {
+  const alloc = allocateSignups(queue, signups);
+  const placed = LANES.flatMap((l) => alloc.lanes[l]); // 배정된 인원 (대기자 제외)
+  if (placed.length !== 10) return []; // 아직 10명 안 참
+  const players = placed.map((id) => {
     const s = info.get(id); const p = personMap?.get(id) || {};
-    const tier = effTier(p, lane) || 'G2'; // 배정 라인이 부라인(사람관리)이면 부라인티어
-    const idx = POS.indexOf(lane);
-    let pts = (TABLE[tier]?.[idx] ?? 15);
-    if (s?.main === 'all') pts -= 1; // ALL(아무 라인 양보) → 점수 −1 혜택 (자리 채워주는 보상)
-    return { pts, tier, name: s?.name || '?', discordId: id, lane };
-  };
-  const laneP = LANES.map((l) => alloc.lanes[l].map((id) => cell(id, l)));
-  const out = [];
-  for (let mask = 0; mask < 16; mask++) {
-    const A = [], B = []; let sa = 0, sb = 0;
-    LANES.forEach((l, i) => {
-      const [x, y] = laneP[i];
-      const flip = i === 0 ? 0 : (mask >> (i - 1)) & 1; // 라인0 고정 → 미러 제거
-      const a = flip ? y : x, b = flip ? x : y;
-      A.push(a); sa += a.pts; B.push(b); sb += b.pts;
-    });
-    out.push({ A, B, sumA: sa, sumB: sb, diff: Math.abs(sa - sb) });
-  }
-  out.sort((a, b) => a.diff - b.diff);
-  return out;
+    const all = s.main === 'all';
+    let positions = all ? [...LANES] : [...new Set([s.main, ...subLanesOf(s)])].filter((l) => LANES.includes(l));
+    if (!positions.length) positions = [...LANES];
+    return {
+      name: id, discordId: id, // name=discord_id (유니크 키). 표시는 metaMap으로.
+      tier: p.baseTier || 'G2', secondaryTier: p.secTier || null,
+      positions, primary: all ? [] : [s.main], // 올라운더는 주포지션 없음 → off-role 페널티 없이 자유 배치
+      adj: all ? -1 : 0, // 올라운더 점수 −1 혜택
+    };
+  });
+  let res;
+  try { res = balance(players, { topK: 16 }); } catch { return []; }
+  if (!res.feasible) return [];
+  const toCell = (x, pos) => ({ pts: x.pts, tier: x.tier, name: info.get(x.name)?.name || '?', discordId: x.name, lane: pos });
+  return res.candidates.map((c) => ({
+    A: c.lanes.map((l) => toCell(l.a, l.pos)),
+    B: c.lanes.map((l) => toCell(l.b, l.pos)),
+    sumA: c.sumA, sumB: c.sumB, diff: c.totalDiff,
+  }));
 }
 export function buildTeams(queue, signups, personMap) { return buildTeamsRanked(queue, signups, personMap)[0] || null; }
 
