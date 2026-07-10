@@ -74,6 +74,7 @@ export default function BalancerPage() {
   const [customTable, setCustomTable] = useState(null);
   const [awards, setAwards] = useState(null);
   const [statPlayers, setStatPlayers] = useState([]);
+  const [recruit, setRecruit] = useState(null); // 열린 오늘 내전(큐) — 있으면 불러오기 배너
   function loadPeople() {
     if (gid) fetch('/api/persons?gid=' + gid).then((x) => x.json()).then((r) => r.ok && setPeople(r.persons));
   }
@@ -83,7 +84,24 @@ export default function BalancerPage() {
     fetch('/api/awards?gid=' + gid).then((x) => x.json()).then((r) => r.ok && setAwards(r.awards));
     fetch('/api/stats?gid=' + gid).then((x) => x.json()).then((r) => r.ok && setStatPlayers(r.players || []));
     fetch('/api/adjust-setting?gid=' + gid).then((x) => x.json()).then((r) => r.ok && setAdjustOn(!!r.enabled)); // 방 전체 설정
+    fetch('/api/recruit?gid=' + gid).then((x) => x.json()).then((r) => setRecruit(r.ok && r.queue ? r : null)).catch(() => {});
   }, [gid]);
+
+  // 오늘 내전(디코 큐)의 배정 인원을 로스터에 자동 채우기 → 밸런서에서 자유 조정
+  async function loadRecruit() {
+    if (!gid) return;
+    const r = await fetch('/api/recruit?gid=' + gid).then((x) => x.json()).catch(() => null);
+    if (!r?.ok || !r.queue) { setRecruit(null); setErr('열린 오늘 내전이 없어요. 디코에서 /모집으로 시작하세요.'); return; }
+    setRecruit(r);
+    const LN = ['top', 'jungle', 'mid', 'adc', 'sup'];
+    const filled = [];
+    LN.forEach((l) => (r.lanes[l] || []).forEach((p) => { filled.push({ name: p.name, tier: p.tier || 'G2', roles: arraysToRoles([l], []) }); }));
+    if (!filled.length) { setErr('오늘 내전에 아직 배정된 인원이 없어요.'); return; }
+    const m = r.queue.size === 20 ? 20 : 10;
+    setMode(m); setResult(null); setResult20(null); setSplit20(null); setView(null); setViews20([null, null]);
+    setSel(null); setSel20(null); setErr(null); setRerollNote(null); setNote20(null);
+    setRoster([...filled, ...EMPTY(Math.max(0, m - filled.length))].slice(0, m));
+  }
   async function toggleAdjust() {
     const v = !adjustOn; setAdjustOn(v);
     setResult(null); setResult20(null); setView(null); setViews20([null, null]); // 재계산 유도
@@ -516,6 +534,14 @@ export default function BalancerPage() {
           <span className="attend-count">채움 <b>{usedNames.size}</b>/{mode}</span>
         </div>
       </div>
+
+      {recruit?.queue && (
+        <div className="panel" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', borderColor: 'rgba(79,182,214,.4)' }}>
+          <span>🎮 <b>오늘 내전</b> 진행 중 · <b>{['top', 'jungle', 'mid', 'adc', 'sup'].reduce((a, l) => a + (recruit.lanes?.[l]?.length || 0), 0)}</b>/{recruit.queue.size}명</span>
+          <button className="btn" onClick={loadRecruit}>📥 오늘 내전 인원 불러오기</button>
+          <span className="muted" style={{ fontSize: 12 }}>디코 큐 인원을 로스터에 자동으로 채워서 여기서 자유롭게 조정</span>
+        </div>
+      )}
 
       {people.length > 0 && (
         <div className="panel">
