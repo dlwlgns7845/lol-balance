@@ -44,6 +44,8 @@ const eembed = (e) => NextResponse.json({ type: 4, data: { embeds: [e], flags: 6
 const updateMsg = (data) => NextResponse.json({ type: 7, data }); // 버튼 눌린 메시지 갱신
 const callerId = (i) => i.member?.user?.id || i.user?.id;
 const discordUser = (i) => i.member?.user || i.user;
+// 명령 실행자의 디코 서버별명(없으면 global_name/username) — 가입·연동 시 즉시 nickname으로 저장 (지연 없이 표시)
+const callerNick = (i) => i.member?.nick || i.member?.user?.global_name || i.member?.user?.username || null;
 const opt = (i, name) => (i.data?.options || []).find((o) => o.name === name)?.value;
 
 // 디코 프로필 사진 URL (커스텀 없으면 기본 아바타)
@@ -124,7 +126,7 @@ async function cmdLink(i, gid) {
     || persons.find((p) => normNm(p.display_name).includes(q));
   if (!target) return ephem(`"${opt(i, '선수')}" 선수를 못 찾았어요. 사람관리에 등록된 이름으로.`);
   if (target.discord_id && target.discord_id !== me) return ephem(`"${target.display_name}" 는 이미 다른 계정에 연동돼 있어요. 관리자에게 문의하세요.`);
-  await updatePerson(target.id, { discord_id: me });
+  await updatePerson(target.id, { discord_id: me, nickname: callerNick(i) });
   await setDiscordAvatar(target, i); // 기본 아바타 = 디코 프로필 사진
   return ephem(`✅ <@${me}> ↔ **${target.display_name}** 연동 완료! 아바타는 디코 프로필 사진으로 설정됐어요 (\`/프로필\`로 변경 가능). 이제 \`/내전적\`·\`/밸런스\`에서 자동 인식돼요.`);
 }
@@ -183,13 +185,14 @@ async function processRegister(i, gid) {
       || (p.accounts || []).some((a) => normNm(a.game_name) === gkey)); // 이름·별명·등록계정(Riot ID)까지 매칭 → 중복 방지
     if (exist && exist.discord_id) return followup(i, `"${displayName}" 은(는) 이미 다른 계정에 연동돼 있어요. 관리자에게 문의.`);
     let personId;
+    const nick = callerNick(i);
     if (exist) { // 미연동 동명 카드 → 연결 + 측정 티어로 갱신
-      await updatePerson(exist.id, { discord_id: me, base_tier: tier });
+      await updatePerson(exist.id, { discord_id: me, base_tier: tier, nickname: nick });
       personId = exist.id;
     } else {
       const secondary = sub && sub !== main ? [sub] : [];
       const p = await createPerson(gid, { display_name: displayName, base_tier: tier, primary_positions: [main], secondary_positions: secondary });
-      await updatePerson(p.id, { discord_id: me });
+      await updatePerson(p.id, { discord_id: me, nickname: nick });
       personId = p.id;
     }
     try { await addAccount({ person_id: personId, game_name: displayName, tag_line: tag, region, opgg_tier: tier, opgg_confidence: est.confidence }); } catch { /* 계정저장 실패는 무시 */ }
