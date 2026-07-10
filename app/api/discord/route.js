@@ -9,6 +9,7 @@ import { getStats, getAwards, getMatchHistory, listPersons, updatePerson, create
   getGuildRoom, getGuildLink, requestGuildLink, getGroupByCode } from '../../../src/repo.js';
 import { balance, balance20Split } from '../../../src/engine.js';
 import { LANES } from '../../../src/queue.js';
+import { MAINTENANCE } from '../../../src/maintenance.js';
 import { queueMessage, buildTeamsRanked, buildMetaMap, allocateSignups, LANE_KR } from '../../../src/discord-queue.js';
 import { extractScoreboard } from '../../../src/vision.js';
 import { fetchTierEstimate } from '../../../src/opgg.js';
@@ -763,6 +764,7 @@ export async function POST(request) {
   }
   const i = JSON.parse(body);
   if (i.type === 1) return NextResponse.json({ type: 1 }); // PING → PONG
+  if (MAINTENANCE) return ephem('🔒 내전 밸런스 서비스를 닫았습니다.'); // 종료 중엔 명령·버튼 전부 차단
   if (i.type === 2) { // 슬래시 커맨드
     const h = HANDLERS[i.data?.name];
     if (!h) return ephem('알 수 없는 명령어예요.');

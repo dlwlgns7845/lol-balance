@@ -1,8 +1,5 @@
 import { NextResponse } from 'next/server';
-
-// 🔒 사이트 닫기 스위치. true = 모든 페이지가 "서비스 종료" 화면.
-//    다시 열려면 false 로 바꿔서 push. (봇 /api/* 는 영향 없음)
-const MAINTENANCE = true;
+import { MAINTENANCE } from './src/maintenance.js'; // 사이트+봇 공용 스위치
 
 const PAGE = `<!doctype html>
 <html lang="ko"><head>
@@ -22,7 +19,7 @@ const PAGE = `<!doctype html>
 <body><div class="box">
   <div class="ic">🔒</div>
   <h1>서비스 종료 안내</h1>
-  <p><span class="accent">내전 밸런스</span> 서비스를 잠시 닫았습니다.<br>이용해 주셔서 감사합니다.</p>
+  <p><span class="accent">내전 밸런스</span> 서비스를 닫았습니다.</p>
 </div></body></html>`;
 
 export function middleware() {
