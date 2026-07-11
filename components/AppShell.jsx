@@ -9,7 +9,6 @@ const NAV = [
   { href: '/recruit', label: '오늘 내전', ic: '🎮' },
   { href: '/people', label: '멤버 관리', ic: '👥' },
   { href: '/settings', label: '점수표', ic: '⚙️' },
-  { href: '/tournament', label: '멸망전', ic: '🏆' },
 ];
 
 export default function AppShell({ children }) {

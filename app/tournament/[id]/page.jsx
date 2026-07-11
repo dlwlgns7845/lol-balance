@@ -12,7 +12,7 @@ const emptyRoster = (n) => Array.from({ length: n }, () => ({ name: '', tier: ''
 
 export default function TournamentDetail() {
   const { id } = useParams();
-  const { isAdmin } = useGroup();
+  const { user, isAdmin } = useGroup();
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
   const [teamName, setTeamName] = useState('');
@@ -28,6 +28,7 @@ export default function TournamentDetail() {
   const matches = data?.matches || [];
   const approved = teams.filter((x) => x.status === 'approved');
   const nameOf = (tid) => teams.find((x) => x.id === tid)?.name || '?';
+  const canManage = !!user && !!t && (user.id === t.owner_id || isAdmin); // 대회 운영자(만든 사람) or 전역관리자
 
   async function measure(i) {
     const raw = (roster[i].name || '').trim();
@@ -100,7 +101,7 @@ export default function TournamentDetail() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <b>{tm.seed ? `${tm.seed}. ` : ''}{tm.name}</b>
               <span className="muted" style={{ fontSize: 11 }}>{TST[tm.status]}{tm.captain ? ` · 주장 ${tm.captain}` : ''}</span>
-              {isAdmin && t.status === 'recruiting' && (
+              {canManage && t.status === 'recruiting' && (
                 <span style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
                   {tm.status !== 'approved' && <button className="mini" onClick={() => admin({ teamId: tm.id, status: 'approved' })}>승인</button>}
                   {tm.status !== 'rejected' && <button className="mini" onClick={() => admin({ teamId: tm.id, status: 'rejected' })}>거절</button>}
@@ -111,7 +112,7 @@ export default function TournamentDetail() {
             <div className="muted" style={{ fontSize: 11.5, marginTop: 3 }}>{tm.members.map((mm) => `${mm.game_name}${mm.tier ? `(${mm.tier})` : ''}`).join(' · ') || '로스터 없음'}</div>
           </div>
         ))}
-        {isAdmin && t.status === 'recruiting' && (
+        {canManage && t.status === 'recruiting' && (
           <button className="btn" style={{ marginTop: 12 }} disabled={approved.length < 2} onClick={() => { if (confirm(`승인 ${approved.length}팀으로 대진을 생성할까요? (신청 마감)`)) admin({}, '/bracket', 'POST'); }} title={approved.length < 2 ? '승인 2팀 이상 필요' : ''}>⚔️ 대진 생성 ({approved.length}팀)</button>
         )}
       </div>
@@ -128,7 +129,7 @@ export default function TournamentDetail() {
                     {[m.team_a, m.team_b].map((tid, k) => (
                       <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 9px', borderTop: k ? '1px solid #2a2a33' : 'none', background: m.winner === tid && tid ? 'rgba(79,182,214,.18)' : 'transparent', fontWeight: m.winner === tid ? 700 : 400, borderRadius: 6 }}>
                         <span style={{ fontSize: 13 }}>{tid ? nameOf(tid) : <span className="muted">미정</span>}</span>
-                        {isAdmin && t.status === 'running' && tid && !m.winner && m.team_a && m.team_b && (
+                        {canManage && t.status === 'running' && tid && !m.winner && m.team_a && m.team_b && (
                           <button className="mini" style={{ padding: '1px 7px', fontSize: 10 }} onClick={() => admin({ matchId: m.id, winner: tid }, '/bracket', 'PATCH')}>승</button>
                         )}
                       </div>
@@ -138,7 +139,7 @@ export default function TournamentDetail() {
               </div>
             ))}
           </div>
-          {isAdmin && t.status === 'running' && <p className="hint" style={{ marginTop: 8 }}>각 경기에서 이긴 팀의 <b>승</b> 버튼을 누르면 다음 라운드로 자동 진출해요.</p>}
+          {canManage && t.status === 'running' && <p className="hint" style={{ marginTop: 8 }}>각 경기에서 이긴 팀의 <b>승</b> 버튼을 누르면 다음 라운드로 자동 진출해요.</p>}
         </div>
       )}
     </div>

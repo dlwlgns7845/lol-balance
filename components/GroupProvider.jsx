@@ -1,5 +1,6 @@
 'use client';
 import { createContext, useContext, useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import AppShell from './AppShell.jsx';
 import { apiFetch } from './api.js';
 import { supabaseBrowser, authConfigured } from '../src/supabase-browser.js';
@@ -18,6 +19,7 @@ export default function GroupProvider({ children }) {
   const [user, setUser] = useState(null);      // 구글 로그인 유저
   const [authReady, setAuthReady] = useState(!authConfigured());
   const [loaded, setLoaded] = useState(false);
+  const path = usePathname();
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [msg, setMsg] = useState(null);
@@ -142,6 +144,26 @@ export default function GroupProvider({ children }) {
 
   if (!loaded || !authReady) return null;
 
+  // 🏆 멸망전 — 방과 무관한 독립 진입. 방 게이트 우회 + 최소 셸 (내전 상단바 없음).
+  if (path && path.startsWith('/tournament')) {
+    return (
+      <Ctx.Provider value={{ group: null, user, login, logout,
+        isAdmin: !!user && ADMIN_EMAILS.includes((user.email || '').toLowerCase()), authOn: authConfigured() }}>
+        <div style={{ minHeight: '100vh' }}>
+          <header style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderBottom: '1px solid #24242c', background: '#101015' }}>
+            <a href="/" style={{ color: '#9aa0ad', textDecoration: 'none', fontSize: 13 }}>← 방 입장</a>
+            <span style={{ fontWeight: 800 }}>🏆 멸망전</span>
+            <span style={{ marginLeft: 'auto', fontSize: 13 }}>
+              {user ? <button className="linkbtn" onClick={logout}>로그아웃 · {user.user_metadata?.full_name || user.email}</button>
+                : (authConfigured() && <button className="btn" onClick={login}><span className="gg">G</span> 로그인</button>)}
+            </span>
+          </header>
+          <main style={{ padding: '20px 16px' }}>{children}</main>
+        </div>
+      </Ctx.Provider>
+    );
+  }
+
   if (!group) {
     return (
       <div className="gate-wrap">
@@ -176,6 +198,11 @@ export default function GroupProvider({ children }) {
             <button className="btn ghost" disabled={busy} onClick={() => enter(true)}>새 방 만들기</button>
           </div>
           {msg && <div className="err">{msg}</div>}
+
+          <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid #24242c', textAlign: 'center' }}>
+            <a className="btn ghost" href="/tournament" style={{ textDecoration: 'none' }}>🏆 멸망전 (커뮤니티 대회)</a>
+            <p className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>내전과 별개 · 팀 신청/대진/진행</p>
+          </div>
         </div>
       </div>
     );

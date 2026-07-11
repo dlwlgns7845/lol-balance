@@ -66,5 +66,16 @@ export async function requireOwner(request, groupId) {
   return { user, role };
 }
 
+// 멸망전(대회) 운영자 전용 — 대회 만든 유저(owner_id) 또는 전역 관리자만.
+export async function requireTournamentOwner(request, tournamentId) {
+  const user = await getUser(request);
+  if (isAdmin(user)) return user;
+  const { data } = await db().from('tournaments').select('owner_id').eq('id', tournamentId).maybeSingle();
+  if (!data) throw httpErr('대회를 찾을 수 없어요', 404);
+  if (!user) throw httpErr('로그인이 필요합니다', 401);
+  if (user.id !== data.owner_id) throw httpErr('대회 운영자만 할 수 있어요', 403);
+  return user;
+}
+
 // 라우트에서 status 코드 있는 에러를 JSON 응답으로
 export function errStatus(e) { return e?.status || 500; }

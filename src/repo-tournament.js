@@ -2,8 +2,8 @@
 import { db } from './supabase.js';
 import { generateSingleElim, nextSlot } from './bracket.js';
 
-export async function listTournaments(gid) {
-  const { data, error } = await db().from('tournaments').select('*').eq('group_id', gid).order('created_at', { ascending: false });
+export async function listTournaments() {
+  const { data, error } = await db().from('tournaments').select('*').order('created_at', { ascending: false });
   if (error) { if (error.code === '42P01') return []; throw error; } // 테이블 미생성(SQL 실행 전) → 빈 목록
   // 팀 수(승인) 카운트
   const ids = (data || []).map((t) => t.id);
@@ -15,9 +15,9 @@ export async function listTournaments(gid) {
   return (data || []).map((t) => ({ ...t, approvedTeams: counts[t.id] || 0 }));
 }
 
-export async function createTournament(gid, b) {
+export async function createTournament(ownerId, b) {
   const row = {
-    group_id: gid, name: (b.name || '').trim() || '새 대회',
+    owner_id: ownerId || null, name: (b.name || '').trim() || '새 대회',
     max_teams: [4, 8, 16, 32].includes(Number(b.max_teams)) ? Number(b.max_teams) : 8,
     team_size: Number(b.team_size) || 5, tier_cap: b.tier_cap || null,
     starts_at: b.starts_at || null,
@@ -25,6 +25,11 @@ export async function createTournament(gid, b) {
   const { data, error } = await db().from('tournaments').insert(row).select().single();
   if (error) throw error;
   return data;
+}
+
+export async function tournamentOwnerId(id) {
+  const { data } = await db().from('tournaments').select('owner_id').eq('id', id).maybeSingle();
+  return data?.owner_id ?? undefined; // undefined = 대회 없음
 }
 
 export async function getTournament(id) {
