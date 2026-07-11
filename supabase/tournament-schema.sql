@@ -54,6 +54,7 @@ create index if not exists idx_tmatch_tour on tournament_matches(tournament_id);
 
 -- v1 이미 실행한 경우 대비 (idempotent)
 alter table tournaments add column if not exists owner_id uuid;
+alter table tournaments add column if not exists notice text;   -- 공지(운영자 작성)
 alter table tournaments alter column group_id drop not null;
 
 grant all on tournaments, tournament_teams, tournament_team_members, tournament_matches

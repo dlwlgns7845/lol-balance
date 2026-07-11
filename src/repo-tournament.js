@@ -27,6 +27,13 @@ export async function createTournament(ownerId, b) {
   return data;
 }
 
+export async function updateTournament(id, patch) {
+  const clean = {};
+  ['notice', 'status', 'name', 'tier_cap'].forEach((k) => { if (k in patch) clean[k] = patch[k]; });
+  const { error } = await db().from('tournaments').update(clean).eq('id', id);
+  if (error) throw error;
+}
+
 export async function tournamentOwnerId(id) {
   const { data } = await db().from('tournaments').select('owner_id').eq('id', id).maybeSingle();
   return data?.owner_id ?? undefined; // undefined = 대회 없음
