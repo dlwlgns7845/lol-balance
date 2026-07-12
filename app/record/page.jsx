@@ -6,6 +6,10 @@ import { useGroup } from '../../components/GroupProvider.jsx';
 import { apiFetch } from '../../components/api.js';
 import { useDdragon } from '../../components/ddragon.js';
 
+const POS = ['top', 'jungle', 'mid', 'adc', 'sup'];       // 팀 내 순서 = 탑/정글/미드/원딜/서폿
+const POS_KR = { top: '탑', jungle: '정글', mid: '미드', adc: '원딜', sup: '서폿' };
+const posByIdx = (i) => POS[i % 5]; // rows = [1팀5 + 2팀5] → 팀 내 인덱스로 기본 포지션
+
 // 가능한 고해상도 유지 (아주 클 때만 다운스케일)
 function resizeToDataUrl(file, maxW = 1920) {
   return new Promise((resolve, reject) => {
@@ -54,8 +58,9 @@ export default function RecordPage() {
     apiFetch(`/api/matches/${editId}?gid=${gid}`).then((x) => x.json()).then((r) => {
       if (!r.ok) { setErr('불러오기 실패: ' + r.error); return; }
       const mm = r.match;
-      setRows(mm.participants.map((p) => ({
+      setRows(mm.participants.map((p, i) => ({
         team: p.team === 'B' ? 2 : 1, name: p.name, champion: p.champion,
+        position: p.position || posByIdx(i), // 저장된 포지션 우선, 없으면 순서 기본값
         k: p.k, d: p.d, a: p.a, damage: p.damage, cs: p.cs, personId: p.person_id || '__new__',
       })));
       setWinner(mm.winner); setDurationMin(mm.durationMin || 0); setEditing(true);
@@ -66,8 +71,8 @@ export default function RecordPage() {
   // 수동 입력: 빈 10칸(1팀 5 + 2팀 5)
   function manualEntry() {
     setErr(null); setMsg(null); setEditing(false); setDataUrl(null);
-    const empty = (team) => ({ team, name: '', champion: '', k: 0, d: 0, a: 0, damage: 0, cs: 0, personId: '__new__' });
-    setRows([...[1, 1, 1, 1, 1].map(() => empty(1)), ...[2, 2, 2, 2, 2].map(() => empty(2))]);
+    const empty = (team, position) => ({ team, position, name: '', champion: '', k: 0, d: 0, a: 0, damage: 0, cs: 0, personId: '__new__' });
+    setRows([...POS.map((p) => empty(1, p)), ...POS.map((p) => empty(2, p))]);
     setWinner('A'); setDurationMin(0);
   }
 
@@ -142,11 +147,12 @@ export default function RecordPage() {
       const flat = []; let winTeam = 1;
       for (const t of r.data.teams || []) {
         if (t.win) winTeam = t.team;
-        for (const p of t.players || []) {
+        (t.players || []).forEach((p, pi) => {
           flat.push({ team: t.team, name: p.name || '', champion: resolveChamp(p.champion || ''),
+            position: posByIdx(pi), // 스샷 순서 = 탑→서폿 기본. 아래 드롭다운으로 수정.
             k: p.k ?? 0, d: p.d ?? 0, a: p.a ?? 0, damage: p.damage ?? 0, cs: p.cs ?? 0,
             personId: matchPerson(p.name) });
-        }
+        });
       }
       if (flat.length !== 10) throw new Error(`10명이 아니라 ${flat.length}명 추출됨 — 스샷 다시 확인`);
       setRows(flat);
@@ -165,8 +171,10 @@ export default function RecordPage() {
     }
     setSaving(true); setErr(null); setMsg(null);
     try {
-      const participants = rows.map((r) => {
-        const base = { team: r.team === 2 ? 'B' : 'A', champion: resolveChamp(r.champion),
+      // 팀별 포지션 순(탑→정글→미드→원딜→서폿)으로 정렬 → 저장 slot·표시 순서가 포지션과 일치
+      const ordered = [...rows].sort((a, b) => (a.team - b.team) || (POS.indexOf(a.position) - POS.indexOf(b.position)));
+      const participants = ordered.map((r) => {
+        const base = { team: r.team === 2 ? 'B' : 'A', champion: resolveChamp(r.champion), position: r.position || null,
           k: Number(r.k), d: Number(r.d), a: Number(r.a), damage: Number(r.damage), cs: Number(r.cs) };
         return r.personId && r.personId !== '__new__'
           ? { ...base, person_id: r.personId }
@@ -254,12 +262,17 @@ export default function RecordPage() {
           </div>
           <table className="rec-table">
             <thead>
-              <tr><th>팀</th><th className="l">닉/이름</th><th className="l">→ 사람</th><th>챔피언</th><th>K</th><th>D</th><th>A</th><th>딜량</th><th>CS</th></tr>
+              <tr><th>팀</th><th>포지션</th><th className="l">닉/이름</th><th className="l">→ 사람</th><th>챔피언</th><th>K</th><th>D</th><th>A</th><th>딜량</th><th>CS</th></tr>
             </thead>
             <tbody>
               {rows.map((r, i) => (
                 <tr key={i} className={r.team === (winner === 'A' ? 1 : 2) ? 'win' : ''}>
                   <td>{r.team}</td>
+                  <td>
+                    <select value={r.position || ''} onChange={(e) => editRow(i, { position: e.target.value })} style={{ width: 62 }}>
+                      {POS.map((p) => <option key={p} value={p}>{POS_KR[p]}</option>)}
+                    </select>
+                  </td>
                   <td className="l">{r.name}</td>
                   <td className="l">
                     <select value={r.personId} onChange={(e) => editRow(i, { personId: e.target.value })}>
