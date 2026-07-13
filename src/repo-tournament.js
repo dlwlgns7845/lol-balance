@@ -384,6 +384,22 @@ export async function endAuction(tournamentId) {
   return getTournament(tournamentId);
 }
 
+// 🔄 경매 전체 초기화 (테스트용) — 팀·낙찰·대진 삭제, 신청자 풀 복원, 예산 리셋, 모집중.
+export async function resetAuction(tournamentId) {
+  const { data: teams } = await db().from('tournament_teams').select('id').eq('tournament_id', tournamentId);
+  const ids = (teams || []).map((t) => t.id);
+  if (ids.length) {
+    await db().from('tournament_team_members').delete().in('team_id', ids);
+    await db().from('tournament_teams').delete().in('id', ids);
+  }
+  await db().from('tournament_matches').delete().eq('tournament_id', tournamentId);
+  let { error } = await db().from('tournament_pool').update({ sold_to: null, price: null, passed: false }).eq('tournament_id', tournamentId);
+  if (error && /passed/i.test(error.message || '')) await db().from('tournament_pool').update({ sold_to: null, price: null }).eq('tournament_id', tournamentId);
+  await db().from('tournaments').update({ status: 'recruiting' }).eq('id', tournamentId);
+  await upsertAuction(tournamentId, { status: 'idle', current_pool_id: null, current_bid: 0, current_bidder: null, bid_deadline: null });
+  return getTournament(tournamentId);
+}
+
 // 낙찰 취소: 예산 환급, 로스터에서 제거, 풀로 복귀.
 export async function undoSale(tournamentId, poolId) {
   const { data: p } = await db().from('tournament_pool').select('*').eq('id', poolId).maybeSingle();

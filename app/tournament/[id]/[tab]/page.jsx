@@ -612,6 +612,11 @@ function LiveAuction({ teams, pool, auction, canManage, id, reload, user, S }) {
           ))}
         </div>
       )}
+      {canManage && (
+        <div style={{ marginTop: 14, paddingTop: 10, borderTop: '1px solid #23232b', display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="mini" style={{ color: '#e06a78', borderColor: 'rgba(224,106,120,.4)' }} disabled={busy} onClick={() => { if (confirm('경매를 완전히 초기화할까요?\n\n팀·낙찰·대진이 모두 삭제되고 신청자 전원이 풀로 복원됩니다. 예산도 리셋돼요. (테스트용)')) act({ action: 'reset' }); }}>🔄 경매 초기화 (테스트)</button>
+        </div>
+      )}
     </div>
   );
 }

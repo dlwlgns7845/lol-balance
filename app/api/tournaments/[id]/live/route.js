@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { drawCaptains, makeCaptain, removeCaptainTeam, assignCaptainUser, nominateNext, placeBid, sellCurrent, passCurrent, endAuction, distributeLeftover } from '../../../../../src/repo-tournament.js';
+import { drawCaptains, makeCaptain, removeCaptainTeam, assignCaptainUser, nominateNext, placeBid, sellCurrent, passCurrent, endAuction, distributeLeftover, resetAuction } from '../../../../../src/repo-tournament.js';
 import { requireTournamentOwner, getUser, isAdmin, errStatus } from '../../../../../src/auth.js';
 
 // 실시간 경매 동작. bid=팀장 유저 or 운영자, 나머지=운영자.
@@ -25,6 +25,7 @@ export async function POST(request, { params }) {
     else if (body.action === 'pass') res = await passCurrent(id);
     else if (body.action === 'distribute') res = await distributeLeftover(id);
     else if (body.action === 'end') res = await endAuction(id);
+    else if (body.action === 'reset') res = await resetAuction(id);
     else throw new Error('알 수 없는 동작');
     return NextResponse.json({ ok: true, ...res });
   } catch (e) { return NextResponse.json({ ok: false, error: e.message }, { status: errStatus(e) }); }
