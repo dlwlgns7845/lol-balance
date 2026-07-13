@@ -214,7 +214,7 @@ function SettingsEditor({ S, admin }) {
                 <select value={d.format} onChange={(e) => setD((x) => ({ ...x, format: e.target.value }))} style={inp}>
                   <option value="single_elim">싱글 엘리미네이션</option>
                   <option value="group_stage">그룹 스테이지 → 본선</option>
-                  <option value="double_elim" disabled>더블 엘리 (준비 중)</option>
+                  <option value="double_elim">더블 엘리미네이션 (패자조)</option>
                 </select>
               </div>
               {d.format === 'group_stage' && (
@@ -222,6 +222,9 @@ function SettingsEditor({ S, admin }) {
                   <div style={cell}><label style={lbl}>조 개수</label><input type="number" min={1} max={8} value={d.groups.count} onChange={(e) => setD((x) => ({ ...x, groups: { ...x.groups, count: +e.target.value } }))} style={inp} /></div>
                   <div style={cell}><label style={lbl}>조별 진출 팀</label><input type="number" min={1} max={8} value={d.groups.advance} onChange={(e) => setD((x) => ({ ...x, groups: { ...x.groups, advance: +e.target.value } }))} style={inp} /></div>
                 </>
+              )}
+              {d.format === 'double_elim' && (
+                <div style={{ gridColumn: '1 / -1', fontSize: 11.5, color: '#d0a56f' }}>⚠️ 더블 엘리는 승인 팀이 <b>4·8·16·32…</b> (2의 거듭제곱)일 때 대진이 생성돼요. 최종결승은 단판이에요.</div>
               )}
               <div style={cell}><label style={lbl}>시드 배정</label>
                 <select value={d.seeding} onChange={(e) => setD((x) => ({ ...x, seeding: e.target.value }))} style={inp}>
@@ -475,6 +478,8 @@ function Scoreboard({ t, matches, nameOf, canManage, admin, S }) {
   if (matches.length === 0) return <div className="panel center muted" style={{ padding: '40px 0' }}>아직 대진이 생성되지 않았어요. (신청 탭에서 대진 생성)</div>;
   const groupM = matches.filter((m) => m.bracket === 'G');
   const kM = matches.filter((m) => m.bracket === 'K');
+  const wM = matches.filter((m) => m.bracket === 'W');
+  if (wM.length > 0) return <DoubleElimBoard matches={matches} t={t} nameOf={nameOf} canManage={canManage} admin={admin} />;
   if (groupM.length === 0) return <BracketView matches={matches} title="대진표" t={t} nameOf={nameOf} canManage={canManage} admin={admin} />;
 
   // 그룹 스테이지 모드
@@ -528,17 +533,34 @@ function Scoreboard({ t, matches, nameOf, canManage, admin, S }) {
   );
 }
 
-// 싱글엘리/본선 공용 브라켓 렌더
-function BracketView({ matches, title, t, nameOf, canManage, admin }) {
+// 더블 엘리: 승자조·패자조·최종결승 3단
+function DoubleElimBoard({ matches, t, nameOf, canManage, admin }) {
+  const W = matches.filter((m) => m.bracket === 'W');
+  const L = matches.filter((m) => m.bracket === 'L');
+  const GF = matches.filter((m) => m.bracket === 'GF');
+  return (
+    <>
+      <BracketView matches={W} title="🏆 승자조" t={t} nameOf={nameOf} canManage={canManage} admin={admin}
+        roundLabel={(r, tot) => (r === tot ? '승자조 결승' : `${2 ** (tot - r + 1)}강`)} />
+      <BracketView matches={L} title="💀 패자조" t={t} nameOf={nameOf} canManage={canManage} admin={admin}
+        roundLabel={(r, tot) => (r === tot ? '패자조 결승' : `패자조 R${r}`)} />
+      <BracketView matches={GF} title="👑 최종 결승" t={t} nameOf={nameOf} canManage={canManage} admin={admin}
+        roundLabel={() => '최종 결승'} />
+    </>
+  );
+}
+
+// 싱글엘리/본선/각 브라켓 공용 렌더
+function BracketView({ matches, title, t, nameOf, canManage, admin, roundLabel }) {
   const totalRounds = Math.max(...matches.map((m) => m.round));
-  const roundLabel = (round) => (round === totalRounds ? '결승' : `${2 ** (totalRounds - round + 1)}강`);
+  const rl = roundLabel || ((round) => (round === totalRounds ? '결승' : `${2 ** (totalRounds - round + 1)}강`));
   return (
     <div className="panel" style={{ overflowX: 'auto' }}>
       <h2>{title}</h2>
       <div style={{ display: 'flex', gap: 24, minWidth: 'min-content', paddingBottom: 8 }}>
         {Array.from({ length: totalRounds }, (_, r) => r + 1).map((round) => (
           <div key={round} style={{ display: 'flex', flexDirection: 'column', gap: 10, justifyContent: 'space-around', minWidth: 160 }}>
-            <div className="muted" style={{ fontSize: 11, textAlign: 'center' }}>{roundLabel(round)}</div>
+            <div className="muted" style={{ fontSize: 11, textAlign: 'center' }}>{rl(round, totalRounds)}</div>
             {matches.filter((m) => m.round === round).sort((a, b) => a.pos - b.pos).map((m) => (
               <div key={m.id} style={{ border: '1px solid #33333c', borderRadius: 8, background: '#1c1c22' }}>
                 {[m.team_a, m.team_b].map((tid, k) => (

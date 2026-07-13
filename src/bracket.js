@@ -109,3 +109,60 @@ export const groupsComplete = (matches) => {
   const g = matches.filter((m) => m.bracket === 'G');
   return g.length > 0 && g.every((m) => m.winner);
 };
+
+// ── 더블 엘리미네이션 (승자조 W · 패자조 L · 최종결승 GF) ──
+// 단순화: 참가팀 = 2의 거듭제곱(4/8/16/32…). 부전승 없음. 최종결승 단판(브라켓 리셋 없음).
+
+// 팀 수 n(2^k)에서 파생 파라미터
+export function deParams(n) {
+  const k = Math.log2(n);
+  if (!Number.isInteger(k) || n < 4) throw new Error('더블 엘리는 4·8·16·32… (2의 거듭제곱) 팀만 가능해요');
+  return { k, lbRounds: 2 * (k - 1) };
+}
+// WB matches R1 개수로 n 역산
+export const deParamsFromMatches = (matches) => deParams(matches.filter((m) => m.bracket === 'W' && m.round === 1).length * 2);
+
+// 승자조 승자 진출
+export function wbWinTo(round, pos, k) {
+  return round < k
+    ? { bracket: 'W', round: round + 1, pos: Math.floor(pos / 2), slot: pos % 2 ? 'b' : 'a' }
+    : { bracket: 'GF', round: 1, pos: 0, slot: 'a' }; // 승자조 결승 승자 → 최종결승
+}
+// 승자조 패자 → 패자조 (R1은 초기 진입, R>=2는 major 라운드에 역순 배치=리매치 지연)
+export function wbLoseTo(round, pos, k) {
+  if (round === 1) return { bracket: 'L', round: 1, pos: Math.floor(pos / 2), slot: pos % 2 ? 'b' : 'a' };
+  const l = 2 * (round - 1);
+  const cnt = 2 ** (k - round);
+  return { bracket: 'L', round: l, pos: cnt - 1 - pos, slot: 'b' }; // slot a=패자조 생존자, b=WB 강등자
+}
+// 패자조 승자 진출
+export function lbWinTo(l, pos, k, lbRounds) {
+  if (l === lbRounds) return { bracket: 'GF', round: 1, pos: 0, slot: 'b' }; // 패자조 결승 승자 → 최종결승
+  if (l % 2 === 1) return { bracket: 'L', round: l + 1, pos, slot: 'a' };    // minor→다음 major slot a
+  return { bracket: 'L', round: l + 1, pos: Math.floor(pos / 2), slot: pos % 2 ? 'b' : 'a' }; // major→다음 minor
+}
+
+// 더블 엘리 대진 생성. teams: [{id, seed?}] (n=2^k). 반환: [{bracket, round, pos, team_a, team_b, winner}]
+export function generateDoubleElim(teams) {
+  const n = teams.length;
+  const { k, lbRounds } = deParams(n);
+  const seeded = teams.map((t, i) => ({ id: t.id, seed: t.seed || i + 1 }));
+  const bySeed = new Map(seeded.map((t) => [t.seed, t.id]));
+  const slots = seedOrder(n).map((seed) => bySeed.get(seed) || null);
+  const matches = [];
+  // 승자조
+  for (let r = 1; r <= k; r += 1) {
+    for (let p = 0; p < 2 ** (k - r); p += 1) {
+      matches.push({ bracket: 'W', round: r, pos: p, team_a: r === 1 ? slots[2 * p] : null, team_b: r === 1 ? slots[2 * p + 1] : null, winner: null });
+    }
+  }
+  // 패자조 라운드별 매치 수
+  const lbCount = { 1: n / 4 };
+  for (let r = 2; r <= k; r += 1) { lbCount[2 * (r - 1)] = 2 ** (k - r); if (r < k) lbCount[2 * (r - 1) + 1] = 2 ** (k - r - 1); }
+  for (let l = 1; l <= lbRounds; l += 1) {
+    for (let p = 0; p < (lbCount[l] || 0); p += 1) matches.push({ bracket: 'L', round: l, pos: p, team_a: null, team_b: null, winner: null });
+  }
+  // 최종결승
+  matches.push({ bracket: 'GF', round: 1, pos: 0, team_a: null, team_b: null, winner: null });
+  return matches;
+}

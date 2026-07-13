@@ -1,6 +1,7 @@
 // 멸망전(대회) DB 접근 — 내전 repo와 분리. 서버 전용(service_role).
 import { db } from './supabase.js';
-import { generateSingleElim, nextSlot, generateGroups, groupStandings, knockoutSeeds, groupsComplete } from './bracket.js';
+import { generateSingleElim, nextSlot, generateGroups, groupStandings, knockoutSeeds, groupsComplete,
+  generateDoubleElim, deParamsFromMatches, wbWinTo, wbLoseTo, lbWinTo } from './bracket.js';
 import { normalizeSettings, validateEligibility, seedTeams, teamStrength } from './tournament-settings.js';
 
 const isMissingCol = (e) => e && (e.code === '42703' || e.code === 'PGRST204' || /column .* does not exist|settings/.test(e.message || ''));
@@ -230,12 +231,14 @@ export async function generateBracket(tournamentId) {
     if (seeded.length < settings.groups.count * 2) throw new Error(`그룹 ${settings.groups.count}개엔 팀이 부족해요 (조당 2팀 이상 필요)`);
     const { matches: gm } = generateGroups(seeded, settings.groups.count);
     matches = gm.map((m) => ({ tournament_id: tournamentId, ...m }));
+  } else if (settings.format === 'double_elim') {
+    matches = generateDoubleElim(seeded).map((m) => ({ tournament_id: tournamentId, ...m })); // n=2^k 검증은 내부에서
   } else {
     matches = generateSingleElim(seeded).map((m) => ({ tournament_id: tournamentId, ...m }));
   }
   const { error } = await db().from('tournament_matches').insert(matches);
   if (error) {
-    if (/bracket|grp/i.test(error.message || '')) throw new Error('그룹 스테이지를 쓰려면 마이그레이션(tournament-format-schema.sql)을 먼저 실행하세요');
+    if (/bracket|grp/i.test(error.message || '')) throw new Error('그룹/더블엘리를 쓰려면 마이그레이션(tournament-format-schema.sql)을 먼저 실행하세요');
     throw error;
   }
   await db().from('tournaments').update({ status: 'running' }).eq('id', tournamentId);
@@ -271,6 +274,23 @@ export async function reportMatch(matchId, b) {
   if (m.bracket === 'G') {
     // 조별: 모든 조 경기 끝나면 본선 자동 생성. 아니면 대기.
     if (groupsComplete(cur)) await buildKnockoutFromGroups(m.tournament_id, cur);
+  } else if (m.bracket === 'W' || m.bracket === 'L' || m.bracket === 'GF') {
+    // 더블 엘리: 승자/패자 라우팅 (승자조 패자는 패자조로 강등)
+    const { k, lbRounds } = deParamsFromMatches(cur);
+    const loser = winner === m.team_a ? m.team_b : m.team_a;
+    const place = async (route, team) => {
+      if (!route || !team) return;
+      const nm = cur.find((x) => x.bracket === route.bracket && x.round === route.round && x.pos === route.pos);
+      if (nm) await db().from('tournament_matches').update({ [`team_${route.slot}`]: team }).eq('id', nm.id);
+    };
+    if (m.bracket === 'GF') {
+      await db().from('tournaments').update({ status: 'done' }).eq('id', m.tournament_id); // 최종결승 = 종료
+    } else if (m.bracket === 'W') {
+      await place(wbWinTo(m.round, m.pos, k), winner);
+      await place(wbLoseTo(m.round, m.pos, k), loser);
+    } else { // L
+      await place(lbWinTo(m.round, m.pos, k, lbRounds), winner);
+    }
   } else {
     // 싱글엘리(null) / 본선(K): 같은 브라켓 내에서 진출
     const seg = cur.filter((x) => (x.bracket || null) === (m.bracket || null));
