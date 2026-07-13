@@ -576,14 +576,52 @@ function Stats({ teams, matches, nameOf }) {
   );
 }
 
+// 점수제: 제출된 팀별 합계 점수 + 상한 대비
+function ScoreOverview({ teams, S }) {
+  const cap = S.scoreCap;
+  const teamScore = (tm) => {
+    let total = 0, ok = (tm.members || []).length === 5;
+    (tm.members || []).forEach((m) => { if (m.role && TABLE[m.tier]) total += tierPts(m.tier, POS.indexOf(m.role)); else ok = false; });
+    return { total: Math.round(total * 10) / 10, complete: ok };
+  };
+  return (
+    <div className="panel">
+      <h2>📊 팀 점수 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 상한 {cap}점</span></h2>
+      {teams.length === 0 && <div className="muted" style={{ marginTop: 8 }}>아직 제출된 팀이 없어요.</div>}
+      {teams.map((tm) => {
+        const { total, complete } = teamScore(tm);
+        return (
+          <div key={tm.id} style={{ borderTop: '1px solid #2a2a33', padding: '8px 0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <b>{tm.seed ? `${tm.seed}. ` : ''}{tm.name}</b>
+              <span className={total > cap ? 'sf-over' : 'sf-ok'} style={{ fontWeight: 800 }}>{complete ? total : '—'}</span>
+              <span className="muted" style={{ fontSize: 11 }}>/ {cap}</span>
+            </div>
+            <div className="muted" style={{ fontSize: 11.5, marginTop: 3 }}>{(tm.members || []).map((m) => `${POS_KR[m.role] || m.role || '?'} ${m.game_name}(${m.tier || '?'})`).join(' · ') || '멤버 없음'}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── 🏅 점수표 ───
-function Scoreboard({ t, matches, nameOf, canManage, admin, S }) {
-  if (matches.length === 0) return <div className="panel center muted" style={{ padding: '40px 0' }}>아직 대진이 생성되지 않았어요. (신청 탭에서 대진 생성)</div>;
+function Scoreboard({ t, matches, teams, nameOf, canManage, admin, S }) {
+  const overview = S.teamFormation === 'score' ? <ScoreOverview teams={teams} S={S} /> : null;
+  if (matches.length === 0) {
+    return (
+      <>
+        {overview}
+        {S.teamFormation === 'score' && <div className="panel"><h2>📋 점수표 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 티어별 라인 점수</span></h2><ScoreTableRef /></div>}
+        <div className="panel center muted" style={{ padding: '32px 0' }}>아직 대진이 생성되지 않았어요. (신청 탭에서 대진 생성)</div>
+      </>
+    );
+  }
   const groupM = matches.filter((m) => m.bracket === 'G');
   const kM = matches.filter((m) => m.bracket === 'K');
   const wM = matches.filter((m) => m.bracket === 'W');
-  if (wM.length > 0) return <DoubleElimBoard matches={matches} t={t} nameOf={nameOf} canManage={canManage} admin={admin} />;
-  if (groupM.length === 0) return <BracketView matches={matches} title="대진표" t={t} nameOf={nameOf} canManage={canManage} admin={admin} />;
+  if (wM.length > 0) return <>{overview}<DoubleElimBoard matches={matches} t={t} nameOf={nameOf} canManage={canManage} admin={admin} /></>;
+  if (groupM.length === 0) return <>{overview}<BracketView matches={matches} title="대진표" t={t} nameOf={nameOf} canManage={canManage} admin={admin} /></>;
 
   // 그룹 스테이지 모드
   const gmap = {};
@@ -593,6 +631,7 @@ function Scoreboard({ t, matches, nameOf, canManage, admin, S }) {
   const advance = S.groups.advance;
   return (
     <>
+      {overview}
       <div className="panel">
         <h2>조별 리그 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 조별 {advance}팀 진출</span></h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginTop: 10 }}>
