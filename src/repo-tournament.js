@@ -2,7 +2,7 @@
 import { db } from './supabase.js';
 import { generateSingleElim, nextSlot, generateGroups, groupStandings, knockoutSeeds, groupsComplete,
   generateDoubleElim, deParamsFromMatches, wbWinTo, wbLoseTo, lbWinTo } from './bracket.js';
-import { normalizeSettings, validateEligibility, seedTeams, teamStrength } from './tournament-settings.js';
+import { normalizeSettings, validateEligibility, seedTeams, teamStrength, tierRank } from './tournament-settings.js';
 import { tierPts } from './engine.js';
 import { POS, TABLE } from './table.js';
 
@@ -298,7 +298,12 @@ export async function nominateNext(tournamentId, poolId = null) {
   const avail = (pool || []).filter((p) => !p.sold_to);
   if (!avail.length) { await upsertAuction(tournamentId, { status: 'done', current_pool_id: null, current_bid: 0, current_bidder: null, bid_deadline: null }); return getTournament(tournamentId); }
   let pick = poolId ? avail.find((p) => p.id === poolId) : null;
-  if (!pick) pick = avail[Math.floor(Math.random() * avail.length)];
+  if (!pick) { // 대기(미유찰) 우선, 없으면 유찰 선수 재경매
+    const waiting = avail.filter((p) => !p.passed);
+    const src = waiting.length ? waiting : avail;
+    pick = src[Math.floor(Math.random() * src.length)];
+  }
+  await db().from('tournament_pool').update({ passed: false }).eq('id', pick.id); // 재경매 시 유찰 해제(컬럼 없으면 무시)
   const deadline = new Date(Date.now() + bidSeconds * 1000).toISOString();
   await upsertAuction(tournamentId, { status: 'bidding', current_pool_id: pick.id, current_bid: 0, current_bidder: null, bid_deadline: deadline });
   return getTournament(tournamentId);
@@ -337,8 +342,38 @@ export async function sellCurrent(tournamentId) {
   return getTournament(tournamentId);
 }
 
-export async function passCurrent(tournamentId) { // 유찰
+export async function passCurrent(tournamentId) { // 유찰 → 명단에 남김
+  const { data: a } = await db().from('tournament_auction').select('current_pool_id').eq('tournament_id', tournamentId).maybeSingle();
+  if (a?.current_pool_id) await db().from('tournament_pool').update({ passed: true }).eq('id', a.current_pool_id); // passed 컬럼 없으면 무시
   await upsertAuction(tournamentId, { status: 'idle', current_pool_id: null, current_bid: 0, current_bidder: null, bid_deadline: null });
+  return getTournament(tournamentId);
+}
+
+// 잔여(유찰 포함) 선수를 잔여 예산 많은 팀 순 라운드로빈으로 배정 → 종료.
+export async function distributeLeftover(tournamentId) {
+  const { data: capts } = await db().from('tournament_teams').select('*').eq('tournament_id', tournamentId).eq('is_captain_team', true);
+  if (!capts || !capts.length) throw new Error('팀장이 없어요');
+  const { data: pool } = await db().from('tournament_pool').select('*').eq('tournament_id', tournamentId);
+  const { data: mems } = await db().from('tournament_team_members').select('team_id').in('team_id', capts.map((t) => t.id));
+  const count = {}; capts.forEach((t) => { count[t.id] = 0; });
+  (mems || []).forEach((m) => { if (count[m.team_id] != null) count[m.team_id] += 1; });
+  const TARGET = 5;
+  const leftover = (pool || []).filter((p) => !p.sold_to)
+    .sort((x, y) => (tierRank(x.tier) ?? 999) - (tierRank(y.tier) ?? 999)); // 강한 선수 먼저
+  let changed = true;
+  while (leftover.length && changed) {
+    changed = false;
+    const order = capts.filter((t) => count[t.id] < TARGET).sort((a, b) => (b.budget ?? 0) - (a.budget ?? 0));
+    for (const team of order) {
+      if (!leftover.length) break;
+      const p = leftover.shift();
+      await db().from('tournament_team_members').insert({ team_id: team.id, game_name: p.game_name, tag_line: p.tag_line, tier: p.tier, role: p.role });
+      await db().from('tournament_pool').update({ sold_to: team.id, price: 0, passed: false }).eq('id', p.id);
+      count[team.id] += 1;
+      changed = true;
+    }
+  }
+  await upsertAuction(tournamentId, { status: 'done', current_pool_id: null, current_bid: 0, current_bidder: null, bid_deadline: null });
   return getTournament(tournamentId);
 }
 export async function endAuction(tournamentId) {

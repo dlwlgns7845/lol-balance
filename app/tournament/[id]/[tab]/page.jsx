@@ -465,7 +465,9 @@ function LiveAuction({ teams, pool, auction, canManage, id, reload, user, S }) {
   const captainTeams = teams.filter((tm) => tm.is_captain_team);
   const hasCaptains = captainTeams.length > 0;
   const byId = Object.fromEntries(pool.map((p) => [p.id, p]));
-  const applicants = pool.filter((p) => !p.sold_to); // 팀장/낙찰 안 된 신청자
+  const waiting = pool.filter((p) => !p.sold_to && !p.passed); // 대기 신청자
+  const passedPlayers = pool.filter((p) => !p.sold_to && p.passed); // 유찰 명단
+  const remainingTotal = waiting.length + passedPlayers.length;
   const drafted = pool.filter((p) => p.sold_to && p.price > 0);
   const nominated = auc.current_pool_id ? byId[auc.current_pool_id] : null;
   const bidderTeam = auc.current_bidder ? teams.find((x) => x.id === auc.current_bidder) : null;
@@ -523,10 +525,10 @@ function LiveAuction({ teams, pool, auction, canManage, id, reload, user, S }) {
           </div>
         </div>
         <div className="sf-side">
-          <div className="sf-coltitle">🧑‍🤝‍🧑 신청자 ({applicants.length})</div>
+          <div className="sf-coltitle">🧑‍🤝‍🧑 대기 신청자 ({waiting.length})</div>
           <div className="la-applicants">
-            {applicants.length === 0 && <div className="muted" style={{ fontSize: 12.5 }}>남은 신청자가 없어요.</div>}
-            {applicants.map((p) => (
+            {waiting.length === 0 && <div className="muted" style={{ fontSize: 12.5 }}>대기 신청자가 없어요.</div>}
+            {waiting.map((p) => (
               <div key={p.id} className={`la-app ${nominated?.id === p.id ? 'nom' : ''}`}>
                 <b>{p.game_name}</b>
                 <span className={tierClass(p.tier)} style={{ fontSize: 11 }}>{p.tier ? (TIER_LABEL[p.tier] || p.tier) : '미확인'}</span>
@@ -535,6 +537,21 @@ function LiveAuction({ teams, pool, auction, canManage, id, reload, user, S }) {
               </div>
             ))}
           </div>
+          {passedPlayers.length > 0 && (
+            <>
+              <div className="sf-coltitle" style={{ marginTop: 12, color: '#e0925a' }}>🔁 유찰 명단 ({passedPlayers.length})</div>
+              <div className="la-applicants">
+                {passedPlayers.map((p) => (
+                  <div key={p.id} className={`la-app ${nominated?.id === p.id ? 'nom' : ''}`} style={{ opacity: 0.9 }}>
+                    <b>{p.game_name}</b>
+                    <span className={tierClass(p.tier)} style={{ fontSize: 11 }}>{p.tier ? (TIER_LABEL[p.tier] || p.tier) : '미확인'}</span>
+                    {p.role && <span className="muted" style={{ fontSize: 11 }}>{POS_KR[p.role] || p.role}</span>}
+                    {canManage && auc.status !== 'bidding' && <button className="mini" style={{ marginLeft: 'auto' }} disabled={busy} onClick={() => act({ action: 'nominate', poolId: p.id })}>재경매</button>}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -561,9 +578,10 @@ function LiveAuction({ teams, pool, auction, canManage, id, reload, user, S }) {
             </>
           ) : (
             <div className="la-idle">
-              <span className="muted">대기 중 — {applicants.length ? '다음 선수를 지명하세요.' : '남은 선수가 없어요.'}</span>
-              {canManage && applicants.length > 0 && <button className="btn" disabled={busy} onClick={() => act({ action: 'nominate' })}>🎲 다음 선수 (랜덤)</button>}
-              {canManage && applicants.length === 0 && auc.status !== 'done' && <button className="btn" disabled={busy} onClick={() => act({ action: 'end' })}>경매 종료</button>}
+              <span className="muted">대기 중 — {remainingTotal ? '다음 선수를 지명하세요.' : '남은 선수가 없어요.'}</span>
+              {canManage && (waiting.length > 0 || passedPlayers.length > 0) && <button className="btn" disabled={busy} onClick={() => act({ action: 'nominate' })}>🎲 {waiting.length ? '다음 선수' : '유찰 재경매'} (랜덤)</button>}
+              {canManage && remainingTotal > 0 && <button className="mini" disabled={busy} onClick={() => { if (confirm(`남은 ${remainingTotal}명을 잔여 예산 많은 팀 순서로 배정하고 종료할까요?`)) act({ action: 'distribute' }); }}>잔여 포인트순 배정+종료</button>}
+              {canManage && remainingTotal === 0 && auc.status !== 'done' && <button className="btn" disabled={busy} onClick={() => act({ action: 'end' })}>경매 종료</button>}
             </div>
           )}
         </div>
