@@ -15,6 +15,14 @@ function fmtDate(s) {
   const d = new Date(s);
   return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+const WD = ['일', '월', '화', '수', '목', '금', '토'];
+function fmtDateTime(s) {
+  if (!s) return { date: '', time: '' };
+  const d = new Date(s);
+  const p2 = (n) => String(n).padStart(2, '0');
+  return { date: `${p2(d.getMonth() + 1)}-${p2(d.getDate())} (${WD[d.getDay()]})`, time: `${p2(d.getHours())}:${p2(d.getMinutes())}` };
+}
+const fmtDur = (min) => (min ? `${Math.round(min)}분` : '');
 const k = (n) => (n >= 1000 ? (n / 1000).toFixed(1) + 'k' : n);
 const kdaRatio = (p) => (p.d ? ((p.k + p.a) / p.d) : (p.k + p.a)).toFixed(2);
 const rClass = (r) => (r >= 5 ? 'kv-5' : r >= 4 ? 'kv-4' : r >= 3 ? 'kv-3' : '');
@@ -145,6 +153,7 @@ function RosterRich({ label, players, win, color, dd, maxDmg, maxTaken, duration
 function MatchCard({ m, dd, open, onToggle, onDelete, byName, highlight, carryThreshold = 20, onPlayer }) {
   const aWin = m.winner === 'A';
   const mvp = [...m.A, ...m.B].find((p) => p.mvp);
+  const svp = [...m.A, ...m.B].find((p) => p.ace); // 패배팀 에이스 = SVP
   const mvpCarry = mvp && (mvp.score || 0) >= carryThreshold;
   const splash = mvp && dd.splash(mvp.champion); // 로딩아트(저해상 세로) 대신 스플래시(고해상 가로) → 선명
   const maxDmg = Math.max(1, ...[...m.A, ...m.B].map((p) => p.damage || 0));
@@ -180,15 +189,52 @@ function MatchCard({ m, dd, open, onToggle, onDelete, byName, highlight, carryTh
         </div>
       );
     }
+    const dt = fmtDateTime(m.played_at);
+    const dur = fmtDur(m.durationMin);
+    const side = (players) => (
+      <div className="mho-side">
+        {players.map((p, i) => (
+          <div className="mho-champ" key={i} title={`${p.name} · ${p.champion}`}>
+            <ChampImg name={p.champion} iconUrl={dd.icon} size={30} />
+            <span className="mho-cn">{p.name}</span>
+          </div>
+        ))}
+      </div>
+    );
+    const keyP = (p, cls, label) => p && (
+      <div className="mho-kp">
+        <span className={`mho-kpb ${cls}`}>{label}</span>
+        <span className="mho-kpn">{p.name}</span>
+        <span className="mho-kpk muted">{p.k}/{p.d}/{p.a}</span>
+      </div>
+    );
     return (
-      <div className="mh-compact" onClick={onToggle}>
-        <span className={`mh-win-tag ${aWin ? 'blue' : 'r'}`}>{aWin ? '블루 승리' : '레드 승리'}</span>
-        <span className="mh-score"><b className="t-blue-c">{m.killsA}</b> <span className="muted">vs</span> <b className="t-red-c">{m.killsB}</b></span>
-        <div className="mh-icons">{m.A.map((p, i) => <ChampImg key={i} name={p.champion} iconUrl={dd.icon} size={28} />)}</div>
-        <span className="muted vs">vs</span>
-        <div className="mh-icons">{m.B.map((p, i) => <ChampImg key={i} name={p.champion} iconUrl={dd.icon} size={28} />)}</div>
-        <span className="mh-date muted">📅 {fmtDate(m.played_at)}</span>
-        <span className="mh-chev">▾</span>
+      <div className={`mh-oprow ${aWin ? 'w-blue' : 'w-red'}`} onClick={onToggle}>
+        <div className="mho-result">
+          <span className={`mho-res ${aWin ? 'blue' : 'red'}`}>{aWin ? '블루 승리' : '레드 승리'}</span>
+          {dur && <span className="mho-dur muted">⏱ {dur}</span>}
+        </div>
+        <div className="mho-date muted">
+          <span>{dt.date}</span><span>{dt.time}</span>
+        </div>
+        <div className="mho-teams">
+          {side(m.A)}
+          <span className="mho-vslabel muted">VS</span>
+          {side(m.B)}
+        </div>
+        <div className="mho-score">
+          <div className="mho-vs"><b className="t-blue-c">{m.killsA}</b><span className="muted"> VS </span><b className="t-red-c">{m.killsB}</b></div>
+          <div className="mho-kdatot muted">
+            <span>{sum(m.A, 'k')}/{sum(m.A, 'd')}/{sum(m.A, 'a')}</span>
+            <span className="mho-kdadiv">·</span>
+            <span>{sum(m.B, 'k')}/{sum(m.B, 'd')}/{sum(m.B, 'a')}</span>
+          </div>
+        </div>
+        <div className="mho-players">
+          {keyP(mvp, 'mvp', 'MVP')}
+          {keyP(svp, 'svp', 'SVP')}
+        </div>
+        <span className="mh-chev">›</span>
       </div>
     );
   }
@@ -199,7 +245,9 @@ function MatchCard({ m, dd, open, onToggle, onDelete, byName, highlight, carryTh
         <div className="mh-hero-left">
           <span className={`mh-win-tag ${aWin ? 'blue' : 'r'}`}>{aWin ? '블루 승리' : '레드 승리'}</span>
           <div className="mh-bigscore"><b className="t-blue-c">{m.killsA}</b><span className="muted"> · </span><b className="t-red-c">{m.killsB}</b></div>
-          <div className="muted" style={{ fontSize: 12 }}>📅 {fmtDate(m.played_at)}</div>
+          <div className="muted" style={{ fontSize: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <span>📅 {fmtDate(m.played_at)}</span>{m.durationMin ? <span>⏱ {fmtDur(m.durationMin)}</span> : null}
+          </div>
         </div>
         {mvp && (
           <div className={`mh-mvp ${mvpCarry ? 'carry' : ''}`}>
