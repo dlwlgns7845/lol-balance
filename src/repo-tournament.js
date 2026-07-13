@@ -145,13 +145,17 @@ export async function applyTeam(tournamentId, b) {
 
 // ── 경매 드래프트 ──
 
-// 선수 풀에 추가 (누구나 신청 or 주최자 추가)
+// 선수 풀에 신청 (개인 단위, 인게임 티어 배정 후). 주최자 참가자격 검증.
 export async function addPoolPlayer(tournamentId, b) {
-  const { data: t } = await db().from('tournaments').select('status').eq('id', tournamentId).maybeSingle();
+  const { data: t } = await db().from('tournaments').select('status, settings').eq('id', tournamentId).maybeSingle();
   if (!t) throw new Error('대회를 찾을 수 없어요');
   if (t.status !== 'recruiting') throw new Error('모집이 마감된 대회예요');
   const game_name = (b.game_name || '').trim();
   if (!game_name) throw new Error('게임 닉네임을 입력하세요');
+  // 자격 검증 (티어 상/하한 · 최소 판수). 로스터 인원 조건은 개인 신청엔 미적용.
+  const chk = validateEligibility(t.settings, [{ game_name, tier: b.tier || null, games: b.games ?? null }]);
+  const relevant = chk.errors.filter((e) => !e.includes('로스터'));
+  if (relevant.length) throw new Error(relevant.join('\n'));
   const row = { tournament_id: tournamentId, game_name, tag_line: b.tag_line || null, tier: b.tier || null, role: b.role || null };
   const { data, error } = await db().from('tournament_pool').insert(row).select().single();
   if (error) { if (/tournament_pool|does not exist/i.test(error.message || '')) throw new Error('경매 마이그레이션(tournament-auction-schema.sql)을 먼저 실행하세요'); throw error; }

@@ -5,13 +5,12 @@ import { useGroup } from '../../../../components/GroupProvider.jsx';
 import { apiFetch } from '../../../../components/api.js';
 import { normalizeSettings } from '../../../../src/tournament-settings.js';
 import { groupStandings } from '../../../../src/bracket.js';
-import { TIER_ORDER, TIER_LABEL } from '../../../../src/table.js';
+import { TIER_ORDER, TIER_LABEL, POS_KR, tierClass } from '../../../../src/table.js';
 
 const LANES = ['top', 'jungle', 'mid', 'adc', 'sup'];
 const STLABEL = { recruiting: '🟢 팀 모집중', running: '🔵 진행중', done: '🏁 종료' };
 const TST = { pending: '⏳대기', approved: '✅승인', rejected: '❌거절', eliminated: '💀탈락' };
 const inp = { background: '#26262e', color: '#ddd', border: '1px solid #33333c', borderRadius: 6, padding: '6px 10px', fontSize: 13 };
-const emptyRoster = (n) => Array.from({ length: n }, () => ({ name: '', tier: '', role: '' }));
 const FORMAT_LABEL = { single_elim: '싱글 엘리미네이션', double_elim: '더블 엘리미네이션', group_stage: '그룹 스테이지(예선)' };
 const SEED_LABEL = { order: '신청 순서', tier: '티어 시드(강팀 분산)', random: '랜덤 추첨' };
 
@@ -254,16 +253,82 @@ function SettingsEditor({ S, admin }) {
   );
 }
 
-// ─── 💰 경매 드래프트 ───
-function Auction({ t, teams, pool, canManage, id, reload, S, user, login }) {
+// ─── 📝 개인 신청 (인게임 티어 자동 배정) — 모든 방식 공통 ───
+function ApplyPlayer({ t, id, reload, S }) {
+  const [name, setName] = useState(''); const [role, setRole] = useState('');
+  const [busy, setBusy] = useState(false); const [msg, setMsg] = useState(null); const [err, setErr] = useState(null);
+  const el = S.eligibility;
+  async function apply() {
+    const [gn, tg] = (name || '').split('#');
+    if (!gn || !tg) { setErr('게임닉#태그 형식으로 입력하세요 (예: Hide on bush#KR1)'); return; }
+    setBusy(true); setErr(null); setMsg(null);
+    try {
+      // 인게임 티어 자동 배정 (기준: 현재 시즌 / 역대 최고)
+      const prof = await fetch(`/api/seed?name=${encodeURIComponent(gn.trim())}&tag=${encodeURIComponent(tg.trim())}&region=NA`).then((x) => x.json()).catch(() => ({}));
+      const tier = prof.found ? ((el.tierBasis === 'peak' ? prof.peakTier : prof.suggestedTier) || null) : null;
+      const games = prof.games ?? null;
+      const r = await apiFetch(`/api/tournaments/${id}/auction`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ game_name: gn.trim(), tag_line: tg.trim(), tier, role: role || null, games }) }).then((x) => x.json());
+      if (!r.ok) throw new Error(r.error);
+      setMsg(`✅ 신청 완료 — 배정 티어 ${tier ? (TIER_LABEL[tier] || tier) : '미확인'}${games ? ` · 현재시즌 ${games}판` : ''}`);
+      setName(''); setRole(''); reload();
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  }
+  return (
+    <div className="panel">
+      <h2>📝 선수 신청 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 인게임 티어 자동 배정</span></h2>
+      <div style={{ background: 'rgba(207,174,111,.08)', border: '1px solid rgba(207,174,111,.25)', borderRadius: 8, padding: '8px 12px', fontSize: 12.5, color: '#d8c48f', margin: '8px 0' }}>
+        📋 기준 <b>{el.tierBasis === 'peak' ? '역대 최고 티어' : '현재 시즌 티어'}</b>
+        {(el.tierCap || el.tierFloor) ? <> · {el.tierCap ? TIER_LABEL[el.tierCap] : '무제한'} ~ {el.tierFloor ? TIER_LABEL[el.tierFloor] : '무제한'}</> : ' · 티어 제한 없음'}
+        {el.minGames > 0 ? <> · 현재시즌 <b>{el.minGames}판+</b></> : ''}
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <input placeholder="게임닉#태그 (예: Hide on bush#KR1)" value={name} onChange={(e) => setName(e.target.value)} style={{ ...inp, flex: 1, minWidth: 200 }} />
+        <select value={role} onChange={(e) => setRole(e.target.value)} style={{ ...inp, width: 110 }}><option value="">선호 라인</option>{LANES.map((l) => <option key={l} value={l}>{POS_KR[l] || l}</option>)}</select>
+        <button className="btn" disabled={busy || !name.trim()} onClick={apply}>{busy ? '티어 조회 중…' : '신청'}</button>
+      </div>
+      {msg && <div className="muted" style={{ marginTop: 8, color: '#7fd4a8' }}>{msg}</div>}
+      {err && <div className="err" style={{ whiteSpace: 'pre-wrap' }}>{err}</div>}
+    </div>
+  );
+}
+
+// ─── 🧑‍🤝‍🧑 신청자 목록 (티어 배정됨) ───
+function PoolList({ pool, canManage, id, reload }) {
+  const [busy, setBusy] = useState(false);
+  async function remove(pid) {
+    if (!confirm('이 신청자를 삭제할까요?')) return;
+    setBusy(true);
+    try {
+      const r = await apiFetch(`/api/tournaments/${id}/auction`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'remove', poolId: pid }) }).then((x) => x.json());
+      if (!r.ok) { alert('실패: ' + r.error); return; }
+      reload();
+    } finally { setBusy(false); }
+  }
+  return (
+    <div className="panel">
+      <h2>🧑‍🤝‍🧑 신청자 <span className="muted" style={{ fontSize: 13, fontWeight: 400 }}>{pool.length}명</span></h2>
+      {pool.length === 0 && <div className="muted" style={{ marginTop: 8 }}>아직 신청자가 없어요.</div>}
+      {pool.map((p) => (
+        <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, borderTop: '1px solid #2a2a33', padding: '7px 0' }}>
+          <b style={{ minWidth: 130 }}>{p.game_name}{p.tag_line ? <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>#{p.tag_line}</span> : ''}</b>
+          <span className={tierClass(p.tier)} style={{ fontSize: 12.5, fontWeight: 700 }}>{p.tier ? (TIER_LABEL[p.tier] || p.tier) : '티어 미확인'}</span>
+          {p.role && <span className="muted" style={{ fontSize: 11.5 }}>{POS_KR[p.role] || p.role}</span>}
+          {p.sold_to && <span className="accent" style={{ fontSize: 11 }}>낙찰 {p.price}p</span>}
+          {canManage && !p.sold_to && <button className="mini" style={{ marginLeft: 'auto' }} disabled={busy} onClick={() => remove(p.id)}>🗑</button>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── 🔨 경매 콘솔 (팀 짜기 — 관리자) ───
+function AuctionConsole({ t, teams, pool, id, reload, S }) {
   const [tName, setTName] = useState(''); const [tCap, setTCap] = useState('');
-  const [pName, setPName] = useState(''); const [pTier, setPTier] = useState(''); const [pRole, setPRole] = useState('');
   const [bidTeam, setBidTeam] = useState({}); const [bidPrice, setBidPrice] = useState({});
   const [busy, setBusy] = useState(false);
   const unsold = pool.filter((p) => !p.sold_to);
   const sold = pool.filter((p) => p.sold_to);
   const teamById = Object.fromEntries(teams.map((x) => [x.id, x]));
-
   async function call(path, body, method = 'POST') {
     setBusy(true);
     try {
@@ -273,151 +338,70 @@ function Auction({ t, teams, pool, canManage, id, reload, S, user, login }) {
     } finally { setBusy(false); }
   }
   const regTeam = async () => { if (await call('/teams', { name: tName, captain: tCap })) { setTName(''); setTCap(''); } };
-  const regPlayer = async () => {
-    const [gn, tg] = (pName || '').split('#');
-    if (await call('/auction', { game_name: (gn || '').trim(), tag_line: (tg || '').trim(), tier: pTier || null, role: pRole || null })) { setPName(''); setPTier(''); setPRole(''); }
-  };
   const sell = (poolId) => call('/auction', { action: 'sell', poolId, teamId: bidTeam[poolId], price: Number(bidPrice[poolId] || 0) }, 'PATCH');
   const undo = (poolId) => call('/auction', { action: 'undo', poolId }, 'PATCH');
-  const remove = (poolId) => call('/auction', { action: 'remove', poolId }, 'PATCH');
-
   return (
-    <>
-      {t.status === 'recruiting' && !user && (
-        <div className="panel center" style={{ padding: '28px 0' }}>
-          <div className="muted" style={{ marginBottom: 10 }}>둘러보기는 로그인 없이 되지만, <b>팀·선수 등록은 로그인이 필요해요.</b></div>
-          <button className="btn" onClick={login}><span className="gg">G</span> 로그인</button>
-        </div>
-      )}
-      {t.status === 'recruiting' && user && (
-        <div className="panel">
-          <h2>💰 경매 드래프트 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>팀별 예산 {S.auction.budget}p</span></h2>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 10 }}>
-            <div>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#cfae6f', marginBottom: 6 }}>🧑‍✈️ 주장 팀 등록</div>
-              <input placeholder="팀 이름" value={tName} onChange={(e) => setTName(e.target.value)} style={{ ...inp, width: '100%', marginBottom: 5 }} />
-              <input placeholder="주장 (디코 등)" value={tCap} onChange={(e) => setTCap(e.target.value)} style={{ ...inp, width: '100%', marginBottom: 5 }} />
-              <button className="btn" disabled={busy || !tName.trim()} onClick={regTeam} style={{ width: '100%' }}>팀 등록</button>
-            </div>
-            <div>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#cfae6f', marginBottom: 6 }}>🎯 선수 풀 등록</div>
-              <input placeholder="게임닉#태그" value={pName} onChange={(e) => setPName(e.target.value)} style={{ ...inp, width: '100%', marginBottom: 5 }} />
-              <div style={{ display: 'flex', gap: 5, marginBottom: 5 }}>
-                <select value={pTier} onChange={(e) => setPTier(e.target.value)} style={{ ...inp, flex: 1 }}><option value="">티어</option>{TIER_ORDER.map((kk) => <option key={kk} value={kk}>{TIER_LABEL[kk]}</option>)}</select>
-                <select value={pRole} onChange={(e) => setPRole(e.target.value)} style={{ ...inp, width: 80 }}><option value="">라인</option>{LANES.map((l) => <option key={l} value={l}>{l}</option>)}</select>
-              </div>
-              <button className="btn" disabled={busy || !pName.trim()} onClick={regPlayer} style={{ width: '100%' }}>선수 등록</button>
-            </div>
+    <div className="panel">
+      <h2>🔨 경매 콘솔 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 팀별 예산 {S.auction.budget}p · 미낙찰 {unsold.length} / 낙찰 {sold.length}</span></h2>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', margin: '10px 0', flexWrap: 'wrap' }}>
+        <span className="muted" style={{ fontSize: 12 }}>🧑‍✈️ 주장 팀 추가:</span>
+        <input placeholder="팀 이름" value={tName} onChange={(e) => setTName(e.target.value)} style={{ ...inp, width: 140 }} />
+        <input placeholder="주장" value={tCap} onChange={(e) => setTCap(e.target.value)} style={{ ...inp, width: 110 }} />
+        <button className="mini" disabled={busy || !tName.trim()} onClick={regTeam}>추가</button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, margin: '10px 0' }}>
+        {teams.map((tm) => (
+          <div key={tm.id} className="tg-group" style={{ padding: '8px 10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}><b>{tm.name}</b><span className="accent">{tm.budget ?? 0}p</span></div>
+            <div className="muted" style={{ fontSize: 11, marginTop: 3 }}>{(tm.members || []).map((m) => m.game_name).join(', ') || '로스터 없음'}</div>
           </div>
+        ))}
+        {teams.length === 0 && <div className="muted">먼저 주장 팀을 추가하세요.</div>}
+      </div>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: '#cfae6f', margin: '6px 0' }}>미낙찰 선수</div>
+      {unsold.length === 0 && <div className="muted" style={{ fontSize: 12 }}>낙찰 대기 선수가 없어요.</div>}
+      {unsold.map((p) => (
+        <div key={p.id} style={{ display: 'flex', gap: 6, alignItems: 'center', borderTop: '1px solid #23232b', padding: '6px 0', flexWrap: 'wrap' }}>
+          <b style={{ minWidth: 110 }}>{p.game_name}</b>
+          <span className={tierClass(p.tier)} style={{ fontSize: 11 }}>{p.tier ? (TIER_LABEL[p.tier] || p.tier) : ''}{p.role ? ` · ${POS_KR[p.role] || p.role}` : ''}</span>
+          <span style={{ marginLeft: 'auto', display: 'flex', gap: 5, alignItems: 'center' }}>
+            <select value={bidTeam[p.id] || ''} onChange={(e) => setBidTeam((s) => ({ ...s, [p.id]: e.target.value }))} style={{ ...inp, width: 110 }}><option value="">낙찰 팀</option>{teams.map((tm) => <option key={tm.id} value={tm.id}>{tm.name}</option>)}</select>
+            <input type="number" min={0} placeholder="가격" value={bidPrice[p.id] ?? ''} onChange={(e) => setBidPrice((s) => ({ ...s, [p.id]: e.target.value }))} style={{ ...inp, width: 64 }} />
+            <button className="mini" disabled={busy || !bidTeam[p.id]} onClick={() => sell(p.id)}>낙찰</button>
+          </span>
         </div>
-      )}
-
-      {canManage && t.status === 'recruiting' && (
-        <div className="panel">
-          <h2>🔨 경매 콘솔 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 미낙찰 {unsold.length} / 낙찰 {sold.length}</span></h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, margin: '10px 0' }}>
-            {teams.map((tm) => (
-              <div key={tm.id} className="tg-group" style={{ padding: '8px 10px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><b>{tm.name}</b><span className="accent">{tm.budget ?? 0}p</span></div>
-                <div className="muted" style={{ fontSize: 11, marginTop: 3 }}>{(tm.members || []).map((m) => m.game_name).join(', ') || '로스터 없음'}</div>
-              </div>
-            ))}
-            {teams.length === 0 && <div className="muted">먼저 주장 팀을 등록하세요.</div>}
-          </div>
-          <div style={{ fontSize: 12.5, fontWeight: 700, color: '#cfae6f', margin: '6px 0' }}>미낙찰 선수</div>
-          {unsold.length === 0 && <div className="muted" style={{ fontSize: 12 }}>등록된 선수가 없어요.</div>}
-          {unsold.map((p) => (
-            <div key={p.id} style={{ display: 'flex', gap: 6, alignItems: 'center', borderTop: '1px solid #23232b', padding: '6px 0', flexWrap: 'wrap' }}>
-              <b style={{ minWidth: 110 }}>{p.game_name}</b>
-              <span className="muted" style={{ fontSize: 11 }}>{p.tier ? (TIER_LABEL[p.tier] || p.tier) : ''}{p.role ? ` · ${p.role}` : ''}</span>
-              <span style={{ marginLeft: 'auto', display: 'flex', gap: 5, alignItems: 'center' }}>
-                <select value={bidTeam[p.id] || ''} onChange={(e) => setBidTeam((s) => ({ ...s, [p.id]: e.target.value }))} style={{ ...inp, width: 110 }}><option value="">낙찰 팀</option>{teams.map((tm) => <option key={tm.id} value={tm.id}>{tm.name}</option>)}</select>
-                <input type="number" min={0} placeholder="가격" value={bidPrice[p.id] ?? ''} onChange={(e) => setBidPrice((s) => ({ ...s, [p.id]: e.target.value }))} style={{ ...inp, width: 64 }} />
-                <button className="mini" disabled={busy || !bidTeam[p.id]} onClick={() => sell(p.id)}>낙찰</button>
-                <button className="mini" disabled={busy} onClick={() => { if (confirm('선수 삭제?')) remove(p.id); }}>🗑</button>
-              </span>
-            </div>
-          ))}
-          {sold.length > 0 && <div style={{ fontSize: 12.5, fontWeight: 700, color: '#cfae6f', margin: '12px 0 6px' }}>낙찰 결과</div>}
-          {sold.map((p) => (
-            <div key={p.id} style={{ display: 'flex', gap: 8, alignItems: 'center', borderTop: '1px solid #23232b', padding: '5px 0', fontSize: 12.5 }}>
-              <b style={{ minWidth: 110 }}>{p.game_name}</b>
-              <span>→ {teamById[p.sold_to]?.name || '?'} <span className="accent">{p.price}p</span></span>
-              <button className="mini" style={{ marginLeft: 'auto' }} disabled={busy} onClick={() => undo(p.id)}>낙찰취소</button>
-            </div>
-          ))}
+      ))}
+      {sold.length > 0 && <div style={{ fontSize: 12.5, fontWeight: 700, color: '#cfae6f', margin: '12px 0 6px' }}>낙찰 결과</div>}
+      {sold.map((p) => (
+        <div key={p.id} style={{ display: 'flex', gap: 8, alignItems: 'center', borderTop: '1px solid #23232b', padding: '5px 0', fontSize: 12.5 }}>
+          <b style={{ minWidth: 110 }}>{p.game_name}</b>
+          <span>→ {teamById[p.sold_to]?.name || '?'} <span className="accent">{p.price}p</span></span>
+          <button className="mini" style={{ marginLeft: 'auto' }} disabled={busy} onClick={() => undo(p.id)}>낙찰취소</button>
         </div>
-      )}
-    </>
+      ))}
+    </div>
   );
 }
 
 // ─── 📝 신청 ───
 function Apply({ t, teams, pool, canManage, admin, id, reload, S, user, login }) {
   const isAuction = S.teamFormation === 'auction';
+  const approved = teams.filter((x) => x.status === 'approved');
   const loginGate = (
     <div className="panel center" style={{ padding: '28px 0' }}>
-      <div className="muted" style={{ marginBottom: 10 }}>둘러보기는 로그인 없이 되지만, <b>신청·등록은 로그인이 필요해요.</b></div>
+      <div className="muted" style={{ marginBottom: 10 }}>둘러보기는 로그인 없이 되지만, <b>신청은 로그인이 필요해요.</b></div>
       <button className="btn" onClick={login}><span className="gg">G</span> 로그인</button>
     </div>
   );
-  const [teamName, setTeamName] = useState('');
-  const [captain, setCaptain] = useState('');
-  const [roster, setRoster] = useState(emptyRoster(5));
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState(null);
-  const approved = teams.filter((x) => x.status === 'approved');
-
-  async function measure(i) {
-    const [gn, tg] = (roster[i].name || '').trim().split('#');
-    if (!tg) { setRoster((r) => r.map((x, idx) => idx === i ? { ...x, tier: '#태그 필요' } : x)); return; }
-    setRoster((r) => r.map((x, idx) => idx === i ? { ...x, tier: '…' } : x));
-    const prof = await fetch(`/api/seed?name=${encodeURIComponent(gn.trim())}&tag=${encodeURIComponent(tg.trim())}&region=NA`).then((x) => x.json()).catch(() => ({}));
-    const tierVal = prof.found ? ((S.eligibility.tierBasis === 'peak' ? prof.peakTier : prof.suggestedTier) || '?') : '못찾음';
-    setRoster((r) => r.map((x, idx) => idx === i ? { ...x, tier: tierVal, games: prof.games ?? null } : x));
-  }
-  async function apply() {
-    setBusy(true); setErr(null);
-    try {
-      const members = roster.filter((m) => m.name.trim()).map((m) => { const [gn, tg] = m.name.split('#'); return { game_name: (gn || '').trim(), tag_line: (tg || '').trim(), tier: m.tier, role: m.role || null, games: m.games ?? null }; });
-      const r = await fetch('/api/tournaments/' + id + '/teams', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: teamName, captain, members }) }).then((x) => x.json());
-      if (!r.ok) throw new Error(r.error);
-      setTeamName(''); setCaptain(''); setRoster(emptyRoster(5)); reload();
-    } catch (e) { setErr(e.message); } finally { setBusy(false); }
-  }
-
   return (
     <>
-      {isAuction && <Auction t={t} teams={teams} pool={pool} canManage={canManage} id={id} reload={reload} S={S} user={user} login={login} />}
-      {t.status === 'recruiting' && !isAuction && !user && loginGate}
-      {t.status === 'recruiting' && !isAuction && user && (
-        <div className="panel">
-          <h2>📝 팀 신청</h2>
-          <div style={{ background: 'rgba(207,174,111,.08)', border: '1px solid rgba(207,174,111,.25)', borderRadius: 8, padding: '8px 12px', fontSize: 12.5, color: '#d8c48f', marginBottom: 12 }}>
-            📋 참가 자격 — 로스터 <b>{S.eligibility.rosterMin}~{S.eligibility.rosterMax}명</b>
-            {(S.eligibility.tierCap || S.eligibility.tierFloor) ? <> · <b>{S.eligibility.tierBasis === 'peak' ? '최고티어' : '현재티어'}</b> {S.eligibility.tierCap ? TIER_LABEL[S.eligibility.tierCap] : '무제한'} ~ {S.eligibility.tierFloor ? TIER_LABEL[S.eligibility.tierFloor] : '무제한'}</> : ' · 티어 제한 없음'}
-            {S.eligibility.minGames > 0 ? <> · 현재시즌 <b>{S.eligibility.minGames}판+</b></> : ''}
-            {S.eligibility.minLevel > 0 ? <> · 최소 <b>{S.eligibility.minLevel}레벨</b></> : ''}
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-            <input placeholder="팀 이름" value={teamName} onChange={(e) => setTeamName(e.target.value)} style={{ ...inp, flex: 1, minWidth: 140 }} />
-            <input placeholder="주장 (디코 등)" value={captain} onChange={(e) => setCaptain(e.target.value)} style={inp} />
-          </div>
-          {roster.map((m, i) => (
-            <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 5 }}>
-              <span className="muted" style={{ width: 14 }}>{i + 1}</span>
-              <input placeholder="게임닉#태그" value={m.name} onChange={(e) => setRoster((r) => r.map((x, idx) => idx === i ? { ...x, name: e.target.value } : x))} style={{ ...inp, flex: 1 }} />
-              <button className="mini" type="button" onClick={() => measure(i)}>🔎</button>
-              <span className="muted" style={{ width: 66, fontSize: 12 }}>{m.tier}</span>
-              <select value={m.role} onChange={(e) => setRoster((r) => r.map((x, idx) => idx === i ? { ...x, role: e.target.value } : x))} style={{ ...inp, width: 78 }}>
-                <option value="">라인</option>{LANES.map((l) => <option key={l} value={l}>{l}</option>)}
-              </select>
-            </div>
-          ))}
-          <button className="btn" disabled={busy || !teamName.trim()} onClick={apply} style={{ marginTop: 8 }}>신청하기</button>
-          {err && <div className="err">{err}</div>}
-        </div>
-      )}
+      {/* ① 개인 신청 → 인게임 티어 자동 배정 (경매/점수제 공통) */}
+      {t.status === 'recruiting' && (user ? <ApplyPlayer t={t} id={id} reload={reload} S={S} /> : loginGate)}
+      {/* ② 신청자 목록 (티어 배정됨) */}
+      <PoolList pool={pool} canManage={canManage} id={id} reload={reload} />
+      {/* ③ 팀 짜기 — 경매 콘솔 (관리자) */}
+      {isAuction && canManage && t.status === 'recruiting' && <AuctionConsole t={t} teams={teams} pool={pool} id={id} reload={reload} S={S} />}
+      {/* ④ 짜인 팀 + 대진 생성 */}
       <div className="panel">
         <h2>참가팀 ({approved.length}{t.status === 'recruiting' ? ` · 대기 ${teams.filter((x) => x.status === 'pending').length}` : ''})</h2>
         {teams.length === 0 && <div className="muted">아직 신청한 팀이 없어요.</div>}
