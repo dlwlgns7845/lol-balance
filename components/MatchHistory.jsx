@@ -27,6 +27,12 @@ const k = (n) => (n >= 1000 ? (n / 1000).toFixed(1) + 'k' : n);
 const kdaRatio = (p) => (p.d ? ((p.k + p.a) / p.d) : (p.k + p.a)).toFixed(2);
 const rClass = (r) => (r >= 5 ? 'kv-5' : r >= 4 ? 'kv-4' : r >= 3 ? 'kv-3' : '');
 const sum = (arr, f) => arr.reduce((a, x) => a + (x[f] || 0), 0);
+// 블루↔레드 로컬 스왑 (서버 반영 후 재조회 없이 즉시 UI 갱신). 선수는 그대로 승/패 유지 → mvp/ace 불변.
+const swapMatchLocal = (m) => ({
+  ...m, winner: m.winner === 'A' ? 'B' : m.winner === 'B' ? 'A' : m.winner,
+  A: m.B, B: m.A, killsA: m.killsB, killsB: m.killsA, csA: m.csB, csB: m.csA, goldA: m.goldB, goldB: m.goldA,
+  objectives: m.objectives ? { A: m.objectives.B || {}, B: m.objectives.A || {} } : m.objectives,
+});
 
 function RosterFull({ label, players, win, cs, dd, color, maxDmg, byName, highlight, carryThreshold = 20, onPlayer }) {
   return (
@@ -150,7 +156,7 @@ function RosterRich({ label, players, win, color, dd, maxDmg, maxTaken, duration
   );
 }
 
-function MatchCard({ m, dd, open, onToggle, onDelete, byName, highlight, carryThreshold = 20, onPlayer }) {
+function MatchCard({ m, dd, open, onToggle, onDelete, onSwap, byName, highlight, carryThreshold = 20, onPlayer }) {
   const aWin = m.winner === 'A';
   const mvp = [...m.A, ...m.B].find((p) => p.mvp);
   const ace = [...m.A, ...m.B].find((p) => p.ace); // 패배팀 에이스
@@ -257,6 +263,7 @@ function MatchCard({ m, dd, open, onToggle, onDelete, byName, highlight, carryTh
           </div>
         )}
         <div className="mh-hero-actions">
+          {onSwap && <button className="mh-edit" title="블루↔레드 진영 뒤집기 (수동 업로드 보정)" onClick={(e) => { e.stopPropagation(); onSwap(m); }}>🔄 블루↔레드</button>}
           {onDelete && <Link href={`/record?edit=${m.id}`} className="mh-edit" title="이 경기 수정" onClick={(e) => e.stopPropagation()}>✏️ 수정</Link>}
           {onDelete && <button className="mh-del" title="이 경기 기록 삭제" onClick={(e) => { e.stopPropagation(); onDelete(m); }}>🗑 삭제</button>}
           <span className="mh-chev open">▴</span>
@@ -320,6 +327,18 @@ export default function MatchHistory({ gid, dd, filterName, showSearch }) {
     setBusy(false);
   }
 
+  async function onSwap(m) {
+    if (busy) return;
+    if (!window.confirm(`이 경기의 블루↔레드를 뒤집을까요?\n(현재 ${m.winner === 'A' ? '블루' : '레드'} 승리 → ${m.winner === 'A' ? '레드' : '블루'} 승리)`)) return;
+    setBusy(true);
+    try {
+      const r = await apiFetch(`/api/matches/${m.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ group_id: gid, action: 'swapSides' }) }).then((x) => x.json());
+      if (!r.ok) throw new Error(r.error);
+      setData((d) => d.map((x) => (x.id === m.id ? swapMatchLocal(x) : x)));
+    } catch (e) { window.alert('뒤집기 실패: ' + e.message); }
+    setBusy(false);
+  }
+
   if (!data) return <div className="panel center muted">불러오는 중…</div>;
 
   // 선수 필터 (그 사람이 낀 경기만) + 검색 (챔피언·선수 이름)
@@ -343,7 +362,7 @@ export default function MatchHistory({ gid, dd, filterName, showSearch }) {
         <div className="mh-list">
           {list.map((m) => (
             <MatchCard key={m.id} m={m} dd={dd} open={!!open[m.id]} byName={byName} highlight={highlight} carryThreshold={carryTh}
-              onToggle={() => setOpen((o) => ({ ...o, [m.id]: !o[m.id] }))} onDelete={canEdit ? onDelete : null}
+              onToggle={() => setOpen((o) => ({ ...o, [m.id]: !o[m.id] }))} onDelete={canEdit ? onDelete : null} onSwap={canEdit ? onSwap : null}
               onPlayer={players.length ? openPlayer : null} />
           ))}
         </div>

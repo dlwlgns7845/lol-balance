@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { deleteMatch, getMatchForEdit, updateMatch } from '../../../../src/repo.js';
+import { deleteMatch, getMatchForEdit, updateMatch, swapSides } from '../../../../src/repo.js';
 import { requireEditor, errStatus } from '../../../../src/auth.js';
 
 // 편집용 경기 로드 (편집자+)
@@ -18,6 +18,10 @@ export async function PATCH(request, { params }) {
   try {
     const body = await request.json();
     await requireEditor(request, body.group_id);
+    if (body.action === 'swapSides') { // 블루↔레드 뒤집기
+      const match = await swapSides(body.group_id, params.id);
+      return NextResponse.json({ ok: true, match });
+    }
     const match = await updateMatch(body.group_id, params.id, {
       winner: body.winner, participants: body.participants, durationMin: body.durationMin,
     });

@@ -564,6 +564,30 @@ export async function updateMatch(groupId, matchId, { winner, participants, dura
   return { id: matchId };
 }
 
+// 블루↔레드 뒤집기: 수동 업로드 시 진영이 반대로 들어간 경기 보정.
+// 참가자 team A↔B, win 재계산, 경기 winner 반전, objectives A/B 스왑.
+export async function swapSides(groupId, matchId) {
+  if (!matchId) throw new Error('matchId 필요');
+  const { data: m } = await db().from('matches').select('winner, objectives').eq('id', matchId).maybeSingle();
+  if (!m) throw new Error('경기를 찾을 수 없어요');
+  const newWinner = m.winner === 'A' ? 'B' : m.winner === 'B' ? 'A' : m.winner;
+  const { data: ps, error: pe } = await db().from('match_participants').select('id, team').eq('match_id', matchId);
+  if (pe) throw pe;
+  for (const p of ps || []) {
+    const t = p.team === 'A' ? 'B' : p.team === 'B' ? 'A' : p.team;
+    if (t !== p.team) await db().from('match_participants').update({ team: t, win: t === newWinner }).eq('id', p.id);
+  }
+  const upd = { winner: newWinner };
+  const obj = m.objectives;
+  if (obj && (obj.A || obj.B)) upd.objectives = { A: obj.B || {}, B: obj.A || {} };
+  let { error } = await db().from('matches').update(upd).eq('id', matchId);
+  if (error && /objectives/i.test(error.message || '')) { // objectives 컬럼 없으면 winner만
+    ({ error } = await db().from('matches').update({ winner: newWinner }).eq('id', matchId));
+  }
+  if (error) throw error;
+  return { id: matchId, winner: newWinner };
+}
+
 // 두 사람 병합: mergeId(흡수될 쪽)의 계정·기록·레이팅을 keepId로 옮기고 삭제
 export async function mergePersons(keepId, mergeId) {
   if (!keepId || !mergeId || keepId === mergeId) throw new Error('서로 다른 두 사람을 선택하세요');
