@@ -252,6 +252,36 @@ export async function drawCaptains(tournamentId, numTeams) {
   return getTournament(tournamentId);
 }
 
+// 신청자 1명을 팀장으로 승격 → 팀장 팀 생성(예산·본인 편입).
+export async function makeCaptain(tournamentId, poolId) {
+  const { data: t } = await db().from('tournaments').select('status, settings').eq('id', tournamentId).maybeSingle();
+  if (!t) throw new Error('대회를 찾을 수 없어요');
+  if (t.status !== 'recruiting') throw new Error('모집 중일 때만 가능해요');
+  const budget = normalizeSettings(t.settings).auction.budget;
+  const { data: p } = await db().from('tournament_pool').select('*').eq('id', poolId).maybeSingle();
+  if (!p || p.sold_to) throw new Error('이미 배정된 선수예요');
+  const { data: team, error } = await db().from('tournament_teams')
+    .insert({ tournament_id: tournamentId, name: `${p.game_name} 팀`, is_captain_team: true, budget, status: 'approved' }).select().single();
+  if (error) { if (/budget|is_captain|captain_user/i.test(error.message || '')) throw new Error('실시간 경매 마이그레이션(tournament-auction-live-schema.sql)을 먼저 실행하세요'); throw error; }
+  await db().from('tournament_team_members').insert({ team_id: team.id, game_name: p.game_name, tag_line: p.tag_line, tier: p.tier, role: p.role });
+  await db().from('tournament_pool').update({ sold_to: team.id, price: 0 }).eq('id', p.id);
+  const { data: exist } = await db().from('tournament_auction').select('tournament_id').eq('tournament_id', tournamentId).maybeSingle();
+  if (!exist) await upsertAuction(tournamentId, { status: 'idle', current_pool_id: null, current_bid: 0, current_bidder: null });
+  return getTournament(tournamentId);
+}
+
+// 팀장 해제 (낙찰받은 선수 없을 때만) → 팀장을 신청자 풀로 복귀.
+export async function removeCaptainTeam(tournamentId, teamId) {
+  const { data: team } = await db().from('tournament_teams').select('*').eq('id', teamId).maybeSingle();
+  if (!team || team.tournament_id !== tournamentId || !team.is_captain_team) throw new Error('팀장 팀이 아니에요');
+  const { data: soldPs } = await db().from('tournament_pool').select('id, price').eq('sold_to', teamId);
+  if ((soldPs || []).some((p) => (p.price || 0) > 0)) throw new Error('이미 낙찰받은 선수가 있어 해제할 수 없어요 (먼저 낙찰 취소)');
+  await db().from('tournament_pool').update({ sold_to: null, price: null }).eq('sold_to', teamId); // 팀장 본인 풀 복귀
+  await db().from('tournament_team_members').delete().eq('team_id', teamId);
+  await db().from('tournament_teams').delete().eq('id', teamId);
+  return getTournament(tournamentId);
+}
+
 export async function assignCaptainUser(tournamentId, teamId, userId) {
   const { error } = await db().from('tournament_teams').update({ captain_user_id: userId || null }).eq('id', teamId).eq('tournament_id', tournamentId);
   if (error) throw error;

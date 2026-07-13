@@ -46,6 +46,9 @@ export default function TournamentLayout({ children }) {
           {selId && TABS.map(([k, label]) => (
             <Link key={k} href={`/tournament/${selId}/${k}`} className={tab === k ? 'active' : ''}>{label}</Link>
           ))}
+          {selId && list.find((x) => x.id === selId)?.settings?.teamFormation === 'auction' && (
+            <Link href={`/tournament/${selId}/auction`} className={tab === 'auction' ? 'active' : ''}>🔨 경매</Link>
+          )}
           {selId && user && (
             <Link href={`/tournament/${selId}/admin`} className={tab === 'admin' ? 'active' : ''}>⚙️ 관리자</Link>
           )}
