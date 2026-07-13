@@ -1160,6 +1160,22 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 .sf-sc { color: #6fb0e0; font-weight: 800; font-size: 11px; }
 .sf-ok { color: var(--green); }
 .sf-over { color: var(--red); }
+
+/* 실시간 경매 */
+.la-stage { background: #16161c; border: 1px solid #2a2a33; border-radius: 10px; padding: 16px; margin: 12px 0; }
+.la-nom { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.la-nomname { font-size: 20px; }
+.la-nomname b { font-size: 22px; }
+.la-bidnow { font-size: 15px; }
+.la-bidbtns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.la-bidbtns .btn.high { background: rgba(78,201,138,.2); border-color: var(--green); color: #9fe0bd; }
+.la-admin { display: flex; gap: 8px; margin-top: 12px; align-items: center; }
+.la-idle { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.la-done { text-align: center; font-size: 18px; font-weight: 800; color: #e8c07d; }
+.la-teams { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-top: 12px; }
+.la-team { border: 1px solid #2a2a33; border-radius: 8px; background: #1a1a20; padding: 9px 11px; }
+.la-team.high { border-color: var(--green); box-shadow: 0 0 0 1px rgba(78,201,138,.4); }
+.la-team.mine { background: rgba(79,182,214,.08); }
 .sf-x { border: 0; background: transparent; color: #999; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; }
 .sf-pooltitle { font-size: 12px; margin: 12px 0 6px; font-weight: 700; }
 .sf-pool { display: flex; flex-wrap: wrap; gap: 6px; min-height: 46px; padding: 8px; background: #141419; border: 1px dashed #33333c; border-radius: 8px; }
