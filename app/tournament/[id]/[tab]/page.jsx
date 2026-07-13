@@ -269,7 +269,7 @@ function SettingsEditor({ S, admin }) {
 function ScoreTableRef() {
   return (
     <div style={{ overflowX: 'auto', margin: '8px 0' }}>
-      <table className="tg-table" style={{ fontSize: 11 }}>
+      <table className="tg-table">
         <thead><tr><th style={{ textAlign: 'left' }}>티어</th>{POS.map((p) => <th key={p}>{POS_KR[p]}</th>)}</tr></thead>
         <tbody>
           {TIER_ORDER.map((kk) => (
