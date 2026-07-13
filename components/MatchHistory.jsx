@@ -131,9 +131,9 @@ function RosterRich({ label, players, win, color, dd, maxDmg, maxTaken, duration
         <span />
         <span>선수</span>
         <span>KDA</span>
-        <span>피해량<br /><small>가함/받음</small></span>
-        <span>와드<br /><small>시야/설치·제거</small></span>
-        <span>CS<br /><small>·/분</small></span>
+        <span className="mhr-dmg"><span className="mhr-dmg-c">피해량</span><span className="mhr-dmg-c">받은피해량</span></span>
+        <span>와드</span>
+        <span>CS</span>
         <span>아이템</span>
         <span style={{ textAlign: 'right' }}>골드</span>
       </div>
