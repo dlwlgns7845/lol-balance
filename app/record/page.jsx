@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useGroup } from '../../components/GroupProvider.jsx';
 import { apiFetch } from '../../components/api.js';
 import { useDdragon } from '../../components/ddragon.js';
+import { parseRofl } from '../../components/rofl.js';
 
 const POS = ['top', 'jungle', 'mid', 'adc', 'sup'];       // 팀 내 순서 = 탑/정글/미드/원딜/서폿
 const POS_KR = { top: '탑', jungle: '정글', mid: '미드', adc: '원딜', sup: '서폿' };
@@ -35,6 +36,9 @@ export default function RecordPage() {
   const resolveChamp = (c) => (dd.id && dd.id(c)) || c;
   const [persons, setPersons] = useState([]);
   const [dataUrl, setDataUrl] = useState(null);
+  const [objectives, setObjectives] = useState(null); // 리플 팀 오브젝트 (리플일 때만)
+  const [source, setSource] = useState(null);         // 'replay' | 'screenshot' | 'manual'
+  const roflRef = useRef();
   const [rows, setRows] = useState([]);
   const [winner, setWinner] = useState('A');
   const [durationMin, setDurationMin] = useState(0);
@@ -73,7 +77,7 @@ export default function RecordPage() {
     setErr(null); setMsg(null); setEditing(false); setDataUrl(null);
     const empty = (team, position) => ({ team, position, name: '', champion: '', k: 0, d: 0, a: 0, damage: 0, cs: 0, personId: '__new__' });
     setRows([...POS.map((p) => empty(1, p)), ...POS.map((p) => empty(2, p))]);
-    setWinner('A'); setDurationMin(0);
+    setWinner('A'); setDurationMin(0); setSource('manual'); setObjectives(null);
   }
 
   useEffect(() => {
@@ -121,6 +125,34 @@ export default function RecordPage() {
   }
   function matchPerson(name) { return matchPersonId(name, persons); }
 
+  // 라이엇ID(게임명#태그) → 사람. 계정(game_name+tag_line) 정확매칭 우선, 없으면 이름 매칭 폴백.
+  function matchByRiot(gameName, tag) {
+    const norm = (s) => (s || '').toLowerCase().replace(/\s+/g, '');
+    const g = norm(gameName), t = norm(tag);
+    const p = persons.find((pp) => (pp.accounts || []).some((a) => norm(a.game_name) === g && (!t || norm(a.tag_line) === t)));
+    return p ? p.id : matchPersonId(gameName, persons);
+  }
+
+  // 🎬 리플(.rofl) 업로드 → 브라우저에서 파싱 → 표 자동채움 + 사람 자동매핑 + 오브젝트 캡처
+  async function onRofl(e) {
+    const file = e.target.files?.[0]; if (!file) return;
+    setErr(null); setMsg(null); setEditing(false); setDataUrl(null); setLoading(true);
+    try {
+      const { players, winner: w, objectives: obj, durationMin: dur } = await parseRofl(file);
+      const ord = { top: 0, jungle: 1, mid: 2, adc: 3, sup: 4 };
+      const sorted = [...players].sort((a, b) => (a.team === b.team ? (ord[a.position] ?? 9) - (ord[b.position] ?? 9) : (a.team === 'A' ? -1 : 1)));
+      setRows(sorted.map((p) => ({
+        team: p.team === 'B' ? 2 : 1, name: p.riotId, champion: p.champion, position: p.position || 'top',
+        k: p.k, d: p.d, a: p.a, damage: p.damage, cs: p.cs, gold: p.gold,
+        personId: matchByRiot(p.gameName, p.tag), detail: p.detail,
+      })));
+      setObjectives(obj); setSource('replay'); setWinner(w); setDurationMin(dur);
+      setMsg('리플 분석 완료 — 사람·포지션 확인하고 저장하세요.');
+    } catch (er) { setErr('리플 분석 실패: ' + er.message); }
+    setLoading(false);
+    if (roflRef.current) roflRef.current.value = '';
+  }
+
   // 사람 목록이 (스샷 분석 후) 늦게 로드돼도 아직 신규(__new__)인 행을 재매칭
   useEffect(() => {
     if (!rows.length || !persons.length) return;
@@ -158,6 +190,7 @@ export default function RecordPage() {
       setRows(flat);
       setWinner(winTeam === 2 ? 'B' : 'A');
       setDurationMin(r.data.durationMin || 0);
+      setSource('screenshot'); setObjectives(null);
     } catch (e) { setErr('분석 실패: ' + e.message); }
     setLoading(false);
   }
@@ -175,7 +208,8 @@ export default function RecordPage() {
       const ordered = [...rows].sort((a, b) => (a.team - b.team) || (POS.indexOf(a.position) - POS.indexOf(b.position)));
       const participants = ordered.map((r) => {
         const base = { team: r.team === 2 ? 'B' : 'A', champion: resolveChamp(r.champion), position: r.position || null,
-          k: Number(r.k), d: Number(r.d), a: Number(r.a), damage: Number(r.damage), cs: Number(r.cs) };
+          k: Number(r.k), d: Number(r.d), a: Number(r.a), damage: Number(r.damage), cs: Number(r.cs),
+          gold: r.gold != null ? Number(r.gold) : null, detail: r.detail ?? null };
         return r.personId && r.personId !== '__new__'
           ? { ...base, person_id: r.personId }
           : { ...base, name: r.name, tier: 'G2' };
@@ -193,7 +227,7 @@ export default function RecordPage() {
       }
       const res = await apiFetch('/api/matches', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ group_id: gid, winner, participants, force, durationMin }),
+        body: JSON.stringify({ group_id: gid, winner, participants, force, durationMin, objectives, source }),
       }).then((x) => x.json());
       if (!res.ok) throw new Error(res.error);
       if (res.duplicate) {
@@ -235,10 +269,16 @@ export default function RecordPage() {
       ) : (
         <div className="panel">
           <div className="controls">
+            <span className="muted" style={{ fontSize: 12 }}>📸 스샷:</span>
             <input ref={fileRef} type="file" accept="image/*" onChange={onFile} style={{ width: 'auto' }} />
             <button className="btn" onClick={analyze} disabled={!dataUrl || loading}>{loading ? 'AI 분석 중…' : 'AI 분석'}</button>
             {dataUrl && <span className="muted">이미지 준비됨</span>}
             <button className="btn ghost" style={{ marginLeft: 'auto' }} onClick={manualEntry} title="스샷 없이 직접 10명 입력">✏️ 수동 입력</button>
+          </div>
+          <div className="controls" style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #24242c' }}>
+            <span className="muted" style={{ fontSize: 12 }}>🎬 리플:</span>
+            <input ref={roflRef} type="file" accept=".rofl" onChange={onRofl} disabled={loading} style={{ width: 'auto' }} />
+            <span className="muted" style={{ fontSize: 11 }}>게임 후 저장된 <code>.rofl</code> 넣으면 스코어보드·아이템·오브젝트 자동 추출 (스샷 불필요, 사람 자동매핑)</span>
           </div>
           {err && <div className="err">{err}</div>}
           {msg && <div className="seed-status" style={{ fontSize: 13 }}>✓ {msg} — <Link href="/" className="accent">통계 보기</Link></div>}
@@ -260,6 +300,15 @@ export default function RecordPage() {
             </span>
             <button className="btn" onClick={() => save()} disabled={saving}>{saving ? (editing ? '수정 중…' : '저장 중…') : (editing ? '수정 저장' : '저장')}</button>
           </div>
+          {source === 'replay' && objectives && (
+            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', margin: '0 0 12px', fontSize: 12.5, padding: '9px 12px', background: '#181820', borderRadius: 8, border: '1px solid #2a2a33' }}>
+              <span className="muted" style={{ fontSize: 11 }}>🎬 리플 추출 · 팀 오브젝트</span>
+              {[['A', '🟦', 1], ['B', '🟥', 2]].map(([tm, ic]) => { const o = objectives[tm]; return (
+                <span key={tm}>{ic} 킬{o.kills} · 🐉{o.dragons}{o.elder ? `+엘더${o.elder}` : ''} · 🦗공허유충{o.grubs} · 🐦전령{o.heralds} · 👑바론{o.barons} · 🗼{o.towers}</span>
+              ); })}
+              <span className="muted" style={{ fontSize: 10.5, width: '100%' }}>※ 아이템·비전·딜분포 등 상세는 저장돼요 (통계 화면 준비 중). 첫 용 타이밍은 리플 스탯에 없어 카운트만.</span>
+            </div>
+          )}
           <table className="rec-table">
             <thead>
               <tr><th>팀</th><th>포지션</th><th className="l">닉/이름</th><th className="l">→ 사람</th><th>챔피언</th><th>K</th><th>D</th><th>A</th><th>딜량</th><th>CS</th></tr>

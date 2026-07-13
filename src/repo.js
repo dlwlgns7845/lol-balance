@@ -439,7 +439,7 @@ async function findDuplicateMatch(groupId, resolved, winner) {
 }
 
 // participants: [{ name, tier, primary, secondary, team:'A'|'B', position, points }]
-export async function saveMatch(groupId, { winner, totalWeight, participants, force, durationMin }) {
+export async function saveMatch(groupId, { winner, totalWeight, participants, force, durationMin, objectives, source }) {
   if (!groupId) throw new Error('groupId 필요');
   if (winner !== 'A' && winner !== 'B') throw new Error('winner는 A/B');
   if (!participants || participants.length !== 10) throw new Error('참가자 10명 필요');
@@ -455,12 +455,13 @@ export async function saveMatch(groupId, { winner, totalWeight, participants, fo
     if (dupId) return { duplicate: true, matchId: dupId };
   }
   const dur = durationMin ? Math.round(durationMin) : null;
+  const baseIns = { group_id: groupId, winner, total_weight: totalWeight ?? null };
+  // 리플 상세(objectives·source)·duration은 추가 컬럼 — 있으면 저장, 스키마 미반영이면 빼고 재시도(기존 저장 항상 되게)
   let ins = await db().from('matches')
-    .insert({ group_id: groupId, winner, total_weight: totalWeight ?? null, duration_min: dur }).select().single();
-  // duration_min 컬럼 미반영이면 빼고 재시도 → 저장은 항상 되게
-  if (ins.error && /duration_min/i.test(ins.error.message || '')) {
-    ins = await db().from('matches')
-      .insert({ group_id: groupId, winner, total_weight: totalWeight ?? null }).select().single();
+    .insert({ ...baseIns, duration_min: dur, source: source ?? null, objectives: objectives ?? null }).select().single();
+  if (ins.error && /(duration_min|source|objectives)/i.test(ins.error.message || '')) {
+    ins = await db().from('matches').insert({ ...baseIns, duration_min: dur }).select().single();
+    if (ins.error && /duration_min/i.test(ins.error.message || '')) ins = await db().from('matches').insert(baseIns).select().single();
   }
   const { data: match, error } = ins;
   if (error) throw error;
@@ -477,11 +478,12 @@ export async function saveMatch(groupId, { winner, totalWeight, participants, fo
     gold: p.gold ?? null,
     damage: p.damage ?? null,
     slot: idx, // 스샷 위→아래 순서 보존
+    detail: p.detail ?? null, // 리플 상세(아이템·비전 등). 스샷/수동이면 null.
   }));
   let { error: e2 } = await db().from('match_participants').insert(rows);
-  // slot 컬럼이 아직 없으면(스키마 미적용) 빼고 재시도 → 저장은 항상 되게
-  if (e2 && /slot/i.test(e2.message || '')) {
-    ({ error: e2 } = await db().from('match_participants').insert(rows.map(({ slot, ...r }) => r)));
+  // slot·detail 컬럼이 아직 없으면(스키마 미적용) 빼고 재시도 → 저장은 항상 되게
+  if (e2 && /(slot|detail)/i.test(e2.message || '')) {
+    ({ error: e2 } = await db().from('match_participants').insert(rows.map(({ slot, detail, ...r }) => r)));
   }
   if (e2) {
     // 참가자 저장 실패 → 방금 만든 경기 행 정리 (고아 경기 방지)
