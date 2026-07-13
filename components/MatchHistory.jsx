@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import ChampImg from './ChampImg.jsx';
+import { TIER_LABEL, tierClass } from '../src/table.js';
 import { useGroup } from './GroupProvider.jsx';
 import { apiFetch } from './api.js';
 import TitleBadges from './TitleBadges.jsx';
@@ -101,15 +102,15 @@ function RichRow({ p, dd, color, maxDmg, maxTaken, durationMin, byName, onPlayer
       <ChampImg name={p.champion} iconUrl={dd.icon} size={32} />
       <div className="mhr-name">
         <span className="mhr-nm">{p.name}<TitleBadges titles={byName?.[normNm(p.name)]} max={2} />{p.mvp && <span className="mbadge mvp">MVP</span>}{p.ace && <span className="mbadge ace">ACE</span>}</span>
-        <span className="muted" style={{ fontSize: 10.5 }}>{p.champion}</span>
+        <span className={`mhr-tier ${p.tier ? tierClass(p.tier) : 'muted'}`}>{p.tier ? (TIER_LABEL[p.tier] || p.tier) : p.champion}</span>
       </div>
       <div className="mhr-kda">
         <span>{p.k} / <span className="red">{p.d}</span> / {p.a}</span>
         <span className={`muted mhr-ratio ${rClass(+kdaRatio(p))}`}>{kdaRatio(p)}</span>
       </div>
-      <div className="mhr-dmg" title="가한 피해 / 받은 피해">
-        <div className="mhr-dmg-r"><span>{k(p.damage || 0)}</span><div className="dmg-bar"><span className={`f ${color}`} style={{ width: Math.round((p.damage || 0) / maxDmg * 100) + '%' }} /></div></div>
-        <div className="mhr-dmg-r"><span className="muted">{k(det.dmgTaken || 0)}</span><div className="dmg-bar"><span className="f taken" style={{ width: Math.round((det.dmgTaken || 0) / maxTaken * 100) + '%' }} /></div></div>
+      <div className="mhr-dmg" title="가한 피해 | 받은 피해">
+        <div className="mhr-dmg-c"><span>{k(p.damage || 0)}</span><div className="dmg-bar"><span className={`f ${color}`} style={{ width: Math.round((p.damage || 0) / maxDmg * 100) + '%' }} /></div></div>
+        <div className="mhr-dmg-c"><span className="muted">{k(det.dmgTaken || 0)}</span><div className="dmg-bar"><span className="f taken" style={{ width: Math.round((det.dmgTaken || 0) / maxTaken * 100) + '%' }} /></div></div>
       </div>
       <div className="mhr-c muted"><b>{det.visionScore || 0}</b><span>👁 {det.wardsPlaced || 0}/{det.wardsKilled || 0}</span></div>
       <div className="mhr-c muted"><b>{p.cs || 0}</b><span>{csm ? csm + '/분' : 'CS'}</span></div>

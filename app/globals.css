@@ -613,7 +613,7 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mhr-team.t-red { box-shadow: inset 3px 0 0 #e84d4d; background: rgba(224,77,77,.05); --tint: rgba(224,77,77,.11); }
 .mhr-head { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font-size: 12.5px; background: rgba(255,255,255,.02); border-bottom: 1px solid var(--line); }
 .mhr-head .mhf-label { font-weight: 700; }
-.mhr-row { display: grid; grid-template-columns: 32px minmax(90px,1.3fr) 70px minmax(60px,1fr) 44px 48px 158px 56px; align-items: center; gap: 8px; padding: 5px 12px; border-bottom: 1px solid rgba(255,255,255,.04); }
+.mhr-row { display: grid; grid-template-columns: 32px minmax(88px,1.2fr) 68px minmax(104px,1.3fr) 44px 48px 158px 56px; align-items: center; gap: 8px; padding: 5px 12px; border-bottom: 1px solid rgba(255,255,255,.04); }
 .mhr-row:last-child { border-bottom: none; }
 .mhr-row.mhr-alt { background: var(--tint); } /* 지브라: 팀 색 베이스로 한 줄씩 진하게 */
 .mhr-row.clk { cursor: pointer; }
@@ -623,10 +623,10 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mhr-nm { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 3px; }
 .mhr-kda { display: flex; flex-direction: column; font-size: 12px; }
 .mhr-ratio { font-size: 10.5px; font-weight: 700; }
-.mhr-dmg { display: flex; flex-direction: column; gap: 3px; font-size: 10.5px; }
-.mhr-dmg-r { display: flex; align-items: center; gap: 5px; }
-.mhr-dmg-r > span { min-width: 34px; }
-.mhr-dmg-r .dmg-bar { flex: 1; height: 5px; }
+.mhr-dmg { display: flex; gap: 6px; font-size: 10px; }
+.mhr-dmg-c { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; text-align: center; }
+.mhr-dmg-c .dmg-bar { height: 5px; }
+.mhr-tier { font-size: 10.5px; font-weight: 600; }
 .dmg-bar .f.taken { background: linear-gradient(90deg, #6b7280, #9aa1ac); }
 .mhr-colhead { font-size: 10px; padding-top: 6px; padding-bottom: 6px; background: rgba(255,255,255,.015); border-bottom: 1px solid var(--line); cursor: default; }
 .mhr-colhead:hover { background: rgba(255,255,255,.015); }
