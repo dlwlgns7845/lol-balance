@@ -227,7 +227,8 @@ export async function sellPlayer(tournamentId, b) {
 async function upsertAuction(tournamentId, patch) {
   const row = { tournament_id: tournamentId, updated_at: new Date().toISOString(), ...patch };
   let { error } = await db().from('tournament_auction').upsert(row, { onConflict: 'tournament_id' });
-  if (error && /bid_deadline/i.test(error.message || '')) { const { bid_deadline, ...r } = row; ({ error } = await db().from('tournament_auction').upsert(r, { onConflict: 'tournament_id' })); } // 타이머 컬럼 미생성 폴백
+  if (error && /extends/i.test(error.message || '')) { delete row.extends; ({ error } = await db().from('tournament_auction').upsert(row, { onConflict: 'tournament_id' })); } // 연장카운트 컬럼 미생성 폴백
+  if (error && /bid_deadline/i.test(error.message || '')) { delete row.bid_deadline; ({ error } = await db().from('tournament_auction').upsert(row, { onConflict: 'tournament_id' })); } // 타이머 컬럼 미생성 폴백
   if (error) { if (/tournament_auction|does not exist/i.test(error.message || '')) throw new Error('실시간 경매 마이그레이션(tournament-auction-live-schema.sql)을 먼저 실행하세요'); throw error; }
 }
 
@@ -305,7 +306,7 @@ export async function nominateNext(tournamentId, poolId = null) {
   }
   await db().from('tournament_pool').update({ passed: false }).eq('id', pick.id); // 재경매 시 유찰 해제(컬럼 없으면 무시)
   const deadline = new Date(Date.now() + bidSeconds * 1000).toISOString();
-  await upsertAuction(tournamentId, { status: 'bidding', current_pool_id: pick.id, current_bid: 0, current_bidder: null, bid_deadline: deadline });
+  await upsertAuction(tournamentId, { status: 'bidding', current_pool_id: pick.id, current_bid: 0, current_bidder: null, bid_deadline: deadline, extends: 0 });
   return getTournament(tournamentId);
 }
 
@@ -324,8 +325,13 @@ export async function placeBid(tournamentId, teamId, user, amount, isAdmin) {
   if (bid <= cur) throw new Error(`현재가 ${cur}p보다 높게 입찰하세요`);
   if ((team.budget ?? 0) < bid) throw new Error(`예산 부족 (남은 ${team.budget ?? 0} < ${bid})`);
   const { data: tt } = await db().from('tournaments').select('settings').eq('id', tournamentId).maybeSingle();
-  const deadline = new Date(Date.now() + normalizeSettings(tt?.settings).auction.bidSeconds * 1000).toISOString(); // 입찰 시 타이머 연장
-  await upsertAuction(tournamentId, { status: 'bidding', current_pool_id: a.current_pool_id, current_bid: bid, current_bidder: teamId, increment: a.increment || 5, bid_deadline: deadline });
+  const au = normalizeSettings(tt?.settings).auction;
+  // 연장 상한 도달(횟수) 또는 일정 금액 초과 시 타이머 리셋 안 함 → 하드 마감/스나이핑
+  const curExt = a.extends || 0;
+  const shouldReset = (au.bidMaxExtends === 0 || curExt < au.bidMaxExtends) && (au.bidNoResetOver === 0 || bid < au.bidNoResetOver);
+  const patch = { status: 'bidding', current_pool_id: a.current_pool_id, current_bid: bid, current_bidder: teamId, increment: a.increment || 5 };
+  if (shouldReset) { patch.bid_deadline = new Date(Date.now() + au.bidSeconds * 1000).toISOString(); patch.extends = curExt + 1; }
+  await upsertAuction(tournamentId, patch);
   return getTournament(tournamentId);
 }
 

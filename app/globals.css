@@ -1185,6 +1185,8 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 .la-app.nom { border-color: #e8c07d; box-shadow: 0 0 0 1px rgba(232,192,125,.4); }
 .la-timer { font-size: 18px; font-weight: 800; color: #7fd4a8; min-width: 52px; }
 .la-timer.urgent { color: var(--red); animation: pulse 1s infinite; }
+.la-ext { font-size: 12px; font-weight: 700; color: #cfae6f; padding: 2px 8px; border-radius: 5px; background: rgba(207,174,111,.12); }
+.la-ext.locked { color: var(--red); background: rgba(224,106,120,.15); }
 @keyframes pulse { 50% { opacity: .5; } }
 @media (max-width: 760px) { .la-lists { grid-template-columns: 1fr; } }
 .sf-x { border: 0; background: transparent; color: #999; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; }

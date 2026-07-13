@@ -261,6 +261,8 @@ function SettingsEditor({ S, admin }) {
                 <>
                   <div style={cell}><label style={lbl}>팀별 예산(포인트)</label><input type="number" min={1} value={d.auction.budget} onChange={(e) => setD((x) => ({ ...x, auction: { ...x.auction, budget: +e.target.value } }))} style={inp} /></div>
                   <div style={cell}><label style={lbl}>입찰 제한시간(초)</label><input type="number" min={5} max={600} value={d.auction.bidSeconds} onChange={(e) => setD((x) => ({ ...x, auction: { ...x.auction, bidSeconds: +e.target.value } }))} style={inp} /></div>
+                  <div style={cell}><label style={lbl}>타이머 연장 상한(0=무제한)</label><input type="number" min={0} max={100} value={d.auction.bidMaxExtends} onChange={(e) => setD((x) => ({ ...x, auction: { ...x.auction, bidMaxExtends: +e.target.value } }))} style={inp} /></div>
+                  <div style={cell}><label style={lbl}>이 금액↑ 연장중단(0=off)</label><input type="number" min={0} value={d.auction.bidNoResetOver} onChange={(e) => setD((x) => ({ ...x, auction: { ...x.auction, bidNoResetOver: +e.target.value } }))} style={inp} /></div>
                 </>
               )}
               {d.teamFormation === 'score' && (
@@ -505,6 +507,10 @@ function LiveAuction({ teams, pool, auction, canManage, id, reload, user, S }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remainSec, canManage, auc.status, auc.current_pool_id, auc.current_bidder]);
   const suggested = (auc.current_bid || 0) + inc;
+  const au = S.auction || {};
+  const extCnt = auc.extends || 0;
+  const locked = (au.bidMaxExtends > 0 && extCnt >= au.bidMaxExtends) || (au.bidNoResetOver > 0 && (auc.current_bid || 0) >= au.bidNoResetOver);
+  const extInfo = auc.status === 'bidding' ? (locked ? '🔒 시간 고정' : (au.bidMaxExtends > 0 ? `연장 ${extCnt}/${au.bidMaxExtends}` : null)) : null;
   const myTeam = captainTeams.find((tm) => tm.captain_user_id === user?.id);
   const proxyTeams = captainTeams.filter((tm) => !tm.captain_user_id); // 팀장 유저 미지정 → 관리자 대리
   const doBid = (teamId, amount) => act({ action: 'bid', teamId, amount });
@@ -569,7 +575,8 @@ function LiveAuction({ teams, pool, auction, canManage, id, reload, user, S }) {
               <div className="la-nom">
                 <div className="la-nomname"><b>{nominated.game_name}</b> <span className={tierClass(nominated.tier)}>{nominated.tier ? (TIER_LABEL[nominated.tier] || nominated.tier) : ''}</span>{nominated.role ? <span className="muted"> · {POS_KR[nominated.role] || nominated.role}</span> : ''}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  {remainSec != null && <span className={`la-timer ${remainSec <= 5 ? 'urgent' : ''}`}>⏱ {remainSec}s</span>}
+                  {remainSec != null && <span className={`la-timer ${remainSec <= 5 || locked ? 'urgent' : ''}`}>⏱ {remainSec}s</span>}
+                  {extInfo && <span className={`la-ext ${locked ? 'locked' : ''}`}>{extInfo}</span>}
                   <div className="la-bidnow">현재가 <b className="accent">{auc.current_bid}p</b> {bidderTeam ? <>— <b>{bidderTeam.name}</b></> : <span className="muted">입찰 없음</span>}</div>
                 </div>
               </div>
