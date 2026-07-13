@@ -606,6 +606,34 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mh-mvp-id { display: flex; flex-direction: column; }
 .mh-mvp-id b { font-size: 14px; } .mh-mvp-id span { font-size: 11px; }
 .t-blue-c { color: var(--blue); } .t-red-c { color: #e08a94; }
+/* 🎬 리플 op.gg식 리치 로스터 (풀폭 스택 + 아이템/와드/골드) */
+.mhr-teams { display: flex; flex-direction: column; gap: 10px; padding: 12px 16px; background: var(--bg2); }
+.mhr-team { background: var(--panel2); border-radius: 10px; overflow: hidden; }
+.mhr-team.t-blue { box-shadow: inset 3px 0 0 #4d7de8; }
+.mhr-team.t-red { box-shadow: inset 3px 0 0 #e84d4d; }
+.mhr-head { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font-size: 12.5px; background: rgba(255,255,255,.02); border-bottom: 1px solid var(--line); }
+.mhr-head .mhf-label { font-weight: 700; }
+.mhr-row { display: grid; grid-template-columns: 32px minmax(90px,1.3fr) 70px minmax(60px,1fr) 44px 48px 158px 56px; align-items: center; gap: 8px; padding: 5px 12px; border-bottom: 1px solid rgba(255,255,255,.04); }
+.mhr-row:last-child { border-bottom: none; }
+.mhr-row.clk { cursor: pointer; }
+.mhr-row.clk:hover { background: rgba(79,182,214,.06); }
+.mhr-row.me { background: rgba(79,182,214,.1); }
+.mhr-name { min-width: 0; display: flex; flex-direction: column; }
+.mhr-nm { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 3px; }
+.mhr-kda { display: flex; flex-direction: column; font-size: 12px; }
+.mhr-ratio { font-size: 10.5px; font-weight: 700; }
+.mhr-dmg { display: flex; flex-direction: column; gap: 2px; font-size: 11px; }
+.mhr-c { display: flex; flex-direction: column; align-items: center; line-height: 1.2; }
+.mhr-c b { font-size: 12px; color: var(--text); }
+.mhr-c span { font-size: 9.5px; }
+.mhr-items { display: flex; gap: 2px; }
+.mhr-item { width: 20px; height: 20px; border-radius: 4px; background: rgba(255,255,255,.045); overflow: hidden; }
+.mhr-item img { border-radius: 4px; display: block; }
+.mhr-gold { font-size: 11.5px; text-align: right; }
+.mhobj { display: flex; gap: 10px; flex-wrap: wrap; padding: 8px 12px; background: var(--panel2); border-radius: 8px; margin: 0 16px 2px; font-size: 12px; }
+.mhobj-t { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 240px; }
+.mhobj-ic { font-size: 13px; }
+
 .mhf-teams { display: grid; grid-template-columns: 1fr 1fr; background: var(--bg2); }
 .mhf-team { padding: 12px 16px; }
 .mhf-team.t-blue { background: rgba(111,168,220,.06); }

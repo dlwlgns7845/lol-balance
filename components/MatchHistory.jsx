@@ -51,12 +51,71 @@ function RosterFull({ label, players, win, cs, dd, color, maxDmg, byName, highli
   );
 }
 
+// ── op.gg식 리치 표시 (리플 경기 전용 — detail 있을 때) ──
+function ObjectivesBar({ obj }) {
+  if (!obj) return null;
+  const line = (o, ic, cls) => (
+    <div className={`mhobj-t ${cls}`}>
+      <span className="mhobj-ic">{ic}</span>
+      <span>🐉 {o.dragons || 0}{o.elder ? `+엘더${o.elder}` : ''}</span>
+      <span>🦗 {o.grubs || 0}</span>
+      <span>🐦 {o.heralds || 0}</span>
+      <span>👑 {o.barons || 0}</span>
+      {o.atakhan ? <span>😈 {o.atakhan}</span> : null}
+      <span>🗼 {o.towers || 0}</span>
+      <span className="muted">🌾 {k(o.gold || 0)}</span>
+    </div>
+  );
+  return <div className="mhobj">{line(obj.A, '🟦', 'b')}{line(obj.B, '🟥', 'r')}</div>;
+}
+
+function RichRow({ p, dd, color, maxDmg, durationMin, byName, onPlayer, itemUrl, highlight }) {
+  const det = p.detail || {};
+  const items = det.items || [];
+  const csm = durationMin ? (p.cs / durationMin).toFixed(1) : null;
+  return (
+    <div className={`mhr-row ${highlight && normNm(p.name) === highlight ? 'me' : ''} ${onPlayer && p.personId ? 'clk' : ''}`}
+      onClick={onPlayer && p.personId ? (e) => { e.stopPropagation(); onPlayer(p.personId); } : undefined}>
+      <ChampImg name={p.champion} iconUrl={dd.icon} size={32} />
+      <div className="mhr-name">
+        <span className="mhr-nm">{p.name}<TitleBadges titles={byName?.[normNm(p.name)]} max={2} />{p.mvp && <span className="mbadge mvp">MVP</span>}{p.ace && <span className="mbadge ace">ACE</span>}</span>
+        <span className="muted" style={{ fontSize: 10.5 }}>{p.champion}</span>
+      </div>
+      <div className="mhr-kda">
+        <span>{p.k} / <span className="red">{p.d}</span> / {p.a}</span>
+        <span className={`muted mhr-ratio ${rClass(+kdaRatio(p))}`}>{kdaRatio(p)}</span>
+      </div>
+      <div className="mhr-dmg">
+        <span>{k(p.damage || 0)}</span>
+        <div className="dmg-bar"><span className={`f ${color}`} style={{ width: Math.round((p.damage || 0) / maxDmg * 100) + '%' }} /></div>
+      </div>
+      <div className="mhr-c muted"><b>{det.visionScore || 0}</b><span>👁 {det.wardsPlaced || 0}/{det.wardsKilled || 0}</span></div>
+      <div className="mhr-c muted"><b>{p.cs || 0}</b><span>{csm ? csm + '/분' : 'CS'}</span></div>
+      <div className="mhr-items">{[0, 1, 2, 3, 4, 5, 6].map((i) => { const u = itemUrl(items[i]); return <span key={i} className="mhr-item">{u ? <img src={u} alt="" width={20} height={20} /> : null}</span>; })}</div>
+      <div className="mhr-gold muted">🌾 {k(p.gold || 0)}</div>
+    </div>
+  );
+}
+
+function RosterRich({ label, players, win, color, dd, maxDmg, durationMin, byName, onPlayer, itemUrl, highlight }) {
+  return (
+    <div className={`mhr-team t-${color}`}>
+      <div className="mhr-head">
+        <span className="mhf-label">{label} <span className={`mhf-res ${win ? 'g' : 'r'}`}>{win ? '승리' : '패배'}</span></span>
+        <span className="muted">{sum(players, 'k')} / <span className="red">{sum(players, 'd')}</span> / {sum(players, 'a')} · 🌾 {k(sum(players, 'gold'))}</span>
+      </div>
+      {players.map((p, i) => <RichRow key={i} p={p} dd={dd} color={color} maxDmg={maxDmg} durationMin={durationMin} byName={byName} onPlayer={onPlayer} itemUrl={itemUrl} highlight={highlight} />)}
+    </div>
+  );
+}
+
 function MatchCard({ m, dd, open, onToggle, onDelete, byName, highlight, carryThreshold = 20, onPlayer }) {
   const aWin = m.winner === 'A';
   const mvp = [...m.A, ...m.B].find((p) => p.mvp);
   const mvpCarry = mvp && (mvp.score || 0) >= carryThreshold;
   const splash = mvp && dd.splash(mvp.champion); // 로딩아트(저해상 세로) 대신 스플래시(고해상 가로) → 선명
   const maxDmg = Math.max(1, ...[...m.A, ...m.B].map((p) => p.damage || 0));
+  const itemUrl = (id) => (id && dd.version ? `https://ddragon.leagueoflegends.com/cdn/${dd.version}/img/item/${id}.png` : null);
 
   if (!open) {
     // 본인(highlight)이 있으면 op.gg식 본인 중심 행
@@ -121,10 +180,20 @@ function MatchCard({ m, dd, open, onToggle, onDelete, byName, highlight, carryTh
           <span className="mh-chev open">▴</span>
         </div>
       </div>
-      <div className="mhf-teams">
-        <RosterFull label="블루" players={m.A} win={aWin} cs={m.csA} dd={dd} color="blue" maxDmg={maxDmg} byName={byName} highlight={highlight} carryThreshold={carryThreshold} onPlayer={onPlayer} />
-        <RosterFull label="레드" players={m.B} win={!aWin} cs={m.csB} dd={dd} color="red" maxDmg={maxDmg} byName={byName} highlight={highlight} carryThreshold={carryThreshold} onPlayer={onPlayer} />
-      </div>
+      {m.source === 'replay' && (m.A[0]?.detail || m.B[0]?.detail) ? (
+        <>
+          <ObjectivesBar obj={m.objectives} />
+          <div className="mhr-teams">
+            <RosterRich label="블루" players={m.A} win={aWin} color="blue" dd={dd} maxDmg={maxDmg} durationMin={m.durationMin} byName={byName} onPlayer={onPlayer} itemUrl={itemUrl} highlight={highlight} />
+            <RosterRich label="레드" players={m.B} win={!aWin} color="red" dd={dd} maxDmg={maxDmg} durationMin={m.durationMin} byName={byName} onPlayer={onPlayer} itemUrl={itemUrl} highlight={highlight} />
+          </div>
+        </>
+      ) : (
+        <div className="mhf-teams">
+          <RosterFull label="블루" players={m.A} win={aWin} cs={m.csA} dd={dd} color="blue" maxDmg={maxDmg} byName={byName} highlight={highlight} carryThreshold={carryThreshold} onPlayer={onPlayer} />
+          <RosterFull label="레드" players={m.B} win={!aWin} cs={m.csB} dd={dd} color="red" maxDmg={maxDmg} byName={byName} highlight={highlight} carryThreshold={carryThreshold} onPlayer={onPlayer} />
+        </div>
+      )}
     </div>
   );
 }

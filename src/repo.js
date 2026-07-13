@@ -1061,10 +1061,16 @@ export async function getAwards(groupId) {
 
 // ── 경기 히스토리: 최근 경기별 풀 로스터 + MVP/ACE ──
 export async function getMatchHistory(groupId, limit = 30) {
-  const { data: matches, error } = await db().from('matches')
-    .select('id, played_at, winner').eq('group_id', groupId)
-    .order('played_at', { ascending: false }).limit(limit);
-  if (error) throw error;
+  // 리플 상세(objectives/source/duration) 포함 시도 → 컬럼 미반영이면 기본 필드로 폴백
+  let matches;
+  {
+    const res = await db().from('matches').select('id, played_at, winner, objectives, source, duration_min')
+      .eq('group_id', groupId).order('played_at', { ascending: false }).limit(limit);
+    if (res.error && /(objectives|source|duration_min)/i.test(res.error.message || '')) {
+      const r2 = await db().from('matches').select('id, played_at, winner').eq('group_id', groupId).order('played_at', { ascending: false }).limit(limit);
+      if (r2.error) throw r2.error; matches = r2.data;
+    } else { if (res.error) throw res.error; matches = res.data; }
+  }
   if (!matches || !matches.length) return { matches: [] };
   const mids = matches.map((m) => m.id);
   // slot(스샷 행 순서) 기준 정렬 → 스크린샷 순서 그대로 표시. 컬럼 없으면 정렬 없이 폴백.
@@ -1099,13 +1105,15 @@ export async function getMatchHistory(groupId, limit = 30) {
     scored.forEach((z) => { scoreById[z.x.id] = z.s; });
     [...scored].sort((a, b) => b.s - a.s).forEach((z, i) => { rankById[z.x.id] = i + 1; });
     const row = (x) => ({ personId: x.person_id, name: nameById[x.person_id] || '?', champion: x.champion,
-      k: x.kills, d: x.deaths, a: x.assists, cs: x.cs, damage: x.damage,
+      k: x.kills, d: x.deaths, a: x.assists, cs: x.cs, damage: x.damage, gold: x.gold, position: x.position,
+      detail: x.detail || null, // 리플 상세(아이템·비전 등) — 있을 때만
       mvp: x.id === mvpId, ace: x.id === aceId, rank: rankById[x.id],
       score: Math.round((scoreById[x.id] || 0) * 10) / 10 });
     return {
       id: match.id, played_at: match.played_at, winner: win, mvpScore: mvpId ? Math.round((scoreById[mvpId] || 0) * 10) / 10 : 0,
+      objectives: match.objectives || null, source: match.source || null, durationMin: match.duration_min || null,
       A: ps.filter((x) => x.team === 'A').map(row), B: ps.filter((x) => x.team === 'B').map(row),
-      killsA: tot.A.k, killsB: tot.B.k, csA: tot.A.cs, csB: tot.B.cs,
+      killsA: tot.A.k, killsB: tot.B.k, csA: tot.A.cs, csB: tot.B.cs, goldA: tot.A.g, goldB: tot.B.g,
     };
   });
   // 완전 캐리 무지개 기준: 기록된 MVP 점수들 중 '많이 높은' 축(상위 15% 지점). 표본 적으면 절대값 20.
