@@ -50,3 +50,62 @@ export function generateSingleElim(teams) {
   }
   return matches;
 }
+
+// ── 그룹 스테이지 (조별 라운드로빈 → 본선 싱글엘리) ──
+
+// 시드 순서 teams를 groupCount개 조로 스네이크 분배 → 각 조 라운드로빈 매치.
+// 반환 매치: { bracket:'G', grp, round:1, pos, team_a, team_b, winner:null }
+export function generateGroups(teams, groupCount) {
+  const gc = Math.max(1, Math.min(groupCount, teams.length));
+  const groups = Array.from({ length: gc }, () => []);
+  teams.forEach((t, i) => {
+    const band = Math.floor(i / gc);
+    const gi = band % 2 === 0 ? i % gc : gc - 1 - (i % gc); // 스네이크(강팀 분산)
+    groups[gi].push(t.id);
+  });
+  const matches = [];
+  groups.forEach((g, gi) => {
+    let pos = 0;
+    for (let a = 0; a < g.length; a++) for (let b = a + 1; b < g.length; b++) {
+      matches.push({ bracket: 'G', grp: gi, round: 1, pos: pos++, team_a: g[a], team_b: g[b], winner: null });
+    }
+  });
+  return { groups: groups.map((ids) => ids.slice()), matches };
+}
+
+// 조 내 승자승(head-to-head): x가 y를 이겼으면 -1, 졌으면 1, 미정 0
+function h2h(matches, gi, xid, yid) {
+  const m = matches.find((mm) => mm.bracket === 'G' && mm.grp === gi && mm.winner
+    && ((mm.team_a === xid && mm.team_b === yid) || (mm.team_a === yid && mm.team_b === xid)));
+  if (!m) return 0;
+  return m.winner === xid ? -1 : 1;
+}
+
+// 조별 순위표: [[{id, w, l, played}]] — 승수 → 승자승 → 패수 순.
+export function groupStandings(matches, groups) {
+  return groups.map((g, gi) => {
+    const rec = Object.fromEntries(g.map((id) => [id, { id, w: 0, l: 0, played: 0 }]));
+    matches.filter((m) => m.bracket === 'G' && m.grp === gi && m.winner).forEach((m) => {
+      const loser = m.winner === m.team_a ? m.team_b : m.team_a;
+      if (rec[m.winner]) { rec[m.winner].w += 1; rec[m.winner].played += 1; }
+      if (rec[loser]) { rec[loser].l += 1; rec[loser].played += 1; }
+    });
+    return Object.values(rec).sort((x, y) => (y.w - x.w) || h2h(matches, gi, x.id, y.id) || (x.l - y.l));
+  });
+}
+
+// 조별 상위 advance팀을 본선 시드로. 조1위끼리 → 조2위끼리 순, 크로스 배치.
+export function knockoutSeeds(standings, advance) {
+  const adv = Math.max(1, advance);
+  const seeds = [];
+  for (let rank = 0; rank < adv; rank += 1) {
+    standings.forEach((st) => { if (st[rank]) seeds.push(st[rank].id); });
+  }
+  return seeds.map((id, i) => ({ id, seed: i + 1 }));
+}
+
+// 모든 조 경기가 끝났는지
+export const groupsComplete = (matches) => {
+  const g = matches.filter((m) => m.bracket === 'G');
+  return g.length > 0 && g.every((m) => m.winner);
+};

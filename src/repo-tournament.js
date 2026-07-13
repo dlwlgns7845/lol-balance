@@ -1,6 +1,6 @@
 // 멸망전(대회) DB 접근 — 내전 repo와 분리. 서버 전용(service_role).
 import { db } from './supabase.js';
-import { generateSingleElim, nextSlot } from './bracket.js';
+import { generateSingleElim, nextSlot, generateGroups, groupStandings, knockoutSeeds, groupsComplete } from './bracket.js';
 import { normalizeSettings, validateEligibility, seedTeams, teamStrength } from './tournament-settings.js';
 
 const isMissingCol = (e) => e && (e.code === '42703' || e.code === 'PGRST204' || /column .* does not exist|settings/.test(e.message || ''));
@@ -93,46 +93,81 @@ export async function deleteTeam(teamId) {
   if (error) throw error;
 }
 
-// 대진 생성: 승인팀 시드 배정(설정) → 싱글엘리 매치 insert → status=running
+// 대진 생성: 승인팀 시드 배정(설정) → 포맷별 매치 insert → status=running
 export async function generateBracket(tournamentId) {
   const { data: tRow } = await db().from('tournaments').select('settings').eq('id', tournamentId).maybeSingle();
-  const seeding = normalizeSettings(tRow?.settings).seeding;
+  const settings = normalizeSettings(tRow?.settings);
   const { data: teams } = await db().from('tournament_teams').select('id, created_at').eq('tournament_id', tournamentId).eq('status', 'approved').order('created_at');
   if (!teams || teams.length < 2) throw new Error('승인된 팀이 2팀 이상이어야 대진을 짤 수 있어요');
   // 티어 시드용 팀 전력 계산(멤버 티어 평균). order/random은 불필요.
   let strengthById = {};
-  if (seeding === 'tier') {
+  if (settings.seeding === 'tier') {
     const { data: mem } = await db().from('tournament_team_members').select('team_id, tier').in('team_id', teams.map((t) => t.id));
     const byTeam = {};
     (mem || []).forEach((m) => { (byTeam[m.team_id] = byTeam[m.team_id] || []).push(m.tier); });
     strengthById = Object.fromEntries(teams.map((t) => [t.id, teamStrength(byTeam[t.id])]));
   }
-  const seeded = seedTeams(teams.map((t) => ({ id: t.id, created_at: t.created_at, strength: strengthById[t.id] })), seeding);
+  const seeded = seedTeams(teams.map((t) => ({ id: t.id, created_at: t.created_at, strength: strengthById[t.id] })), settings.seeding);
   await db().from('tournament_teams').update({ seed: null }).eq('tournament_id', tournamentId); // 초기화
   for (const s of seeded) await db().from('tournament_teams').update({ seed: s.seed }).eq('id', s.id);
   await db().from('tournament_matches').delete().eq('tournament_id', tournamentId); // 재생성 대비
-  const matches = generateSingleElim(seeded).map((m) => ({ tournament_id: tournamentId, ...m }));
+  let matches;
+  if (settings.format === 'group_stage') {
+    if (seeded.length < settings.groups.count * 2) throw new Error(`그룹 ${settings.groups.count}개엔 팀이 부족해요 (조당 2팀 이상 필요)`);
+    const { matches: gm } = generateGroups(seeded, settings.groups.count);
+    matches = gm.map((m) => ({ tournament_id: tournamentId, ...m }));
+  } else {
+    matches = generateSingleElim(seeded).map((m) => ({ tournament_id: tournamentId, ...m }));
+  }
   const { error } = await db().from('tournament_matches').insert(matches);
-  if (error) throw error;
+  if (error) {
+    if (/bracket|grp/i.test(error.message || '')) throw new Error('그룹 스테이지를 쓰려면 마이그레이션(tournament-format-schema.sql)을 먼저 실행하세요');
+    throw error;
+  }
   await db().from('tournaments').update({ status: 'running' }).eq('id', tournamentId);
   return getTournament(tournamentId);
 }
 
-// 경기 결과 입력: 승자 저장 + 다음 라운드로 진출. 결승이면 대회 종료.
+// 조별 경기 완료 시 본선(K) 생성 — 조별 상위 advance팀을 시드로 싱글엘리.
+async function buildKnockoutFromGroups(tournamentId, all) {
+  if (all.some((x) => x.bracket === 'K')) return; // 이미 생성됨
+  const { data: tRow } = await db().from('tournaments').select('settings').eq('id', tournamentId).maybeSingle();
+  const advance = normalizeSettings(tRow?.settings).groups.advance;
+  const gmap = {};
+  all.filter((x) => x.bracket === 'G').forEach((x) => {
+    (gmap[x.grp] = gmap[x.grp] || new Set());
+    if (x.team_a) gmap[x.grp].add(x.team_a); if (x.team_b) gmap[x.grp].add(x.team_b);
+  });
+  const groups = Object.keys(gmap).sort((a, c) => a - c).map((gi) => [...gmap[gi]]);
+  const seeds = knockoutSeeds(groupStandings(all, groups), advance);
+  if (seeds.length < 2) return;
+  const kMatches = generateSingleElim(seeds).map((m) => ({ tournament_id: tournamentId, bracket: 'K', ...m }));
+  await db().from('tournament_matches').insert(kMatches);
+}
+
+// 경기 결과 입력: 승자 저장 + 진출/본선생성. 최종 결승이면 대회 종료.
 export async function reportMatch(matchId, b) {
   const { data: m } = await db().from('tournament_matches').select('*').eq('id', matchId).maybeSingle();
   if (!m) throw new Error('경기를 찾을 수 없어요');
   const winner = b.winner;
   if (winner !== m.team_a && winner !== m.team_b) throw new Error('승자가 이 경기의 팀이 아니에요');
   await db().from('tournament_matches').update({ winner, score_a: b.score_a ?? null, score_b: b.score_b ?? null }).eq('id', matchId);
-  const { data: all } = await db().from('tournament_matches').select('round, pos, id').eq('tournament_id', m.tournament_id);
-  const totalRounds = Math.max(...all.map((x) => x.round));
-  const nx = nextSlot(m.round, m.pos, totalRounds);
-  if (nx) {
-    const nextM = all.find((x) => x.round === nx.round && x.pos === nx.pos);
-    if (nextM) await db().from('tournament_matches').update({ [`team_${nx.slot}`]: winner }).eq('id', nextM.id);
+  const { data: all } = await db().from('tournament_matches').select('*').eq('tournament_id', m.tournament_id);
+  const cur = all.map((x) => (x.id === matchId ? { ...x, winner } : x)); // 방금 결과 반영본
+  if (m.bracket === 'G') {
+    // 조별: 모든 조 경기 끝나면 본선 자동 생성. 아니면 대기.
+    if (groupsComplete(cur)) await buildKnockoutFromGroups(m.tournament_id, cur);
   } else {
-    await db().from('tournaments').update({ status: 'done' }).eq('id', m.tournament_id); // 결승 = 종료
+    // 싱글엘리(null) / 본선(K): 같은 브라켓 내에서 진출
+    const seg = cur.filter((x) => (x.bracket || null) === (m.bracket || null));
+    const totalRounds = Math.max(...seg.map((x) => x.round));
+    const nx = nextSlot(m.round, m.pos, totalRounds);
+    if (nx) {
+      const nextM = seg.find((x) => x.round === nx.round && x.pos === nx.pos);
+      if (nextM) await db().from('tournament_matches').update({ [`team_${nx.slot}`]: winner }).eq('id', nextM.id);
+    } else {
+      await db().from('tournaments').update({ status: 'done' }).eq('id', m.tournament_id); // 최종 결승 = 종료
+    }
   }
   return getTournament(m.tournament_id);
 }

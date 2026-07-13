@@ -1125,3 +1125,17 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
   background-size: 200% 100%; color: #fff !important; border: 0;
   animation: rainbow-move 3s linear infinite;
 }
+
+/* 멸망전 조별 리그 */
+.tg-group { border: 1px solid #2a2a33; border-radius: 10px; background: #16161c; padding: 10px 12px; }
+.tg-gtitle { font-weight: 800; font-size: 13px; color: #cfae6f; margin-bottom: 6px; }
+.tg-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.tg-table th { color: #888; font-weight: 600; font-size: 11px; padding: 3px 6px; text-align: center; }
+.tg-table td { padding: 4px 6px; text-align: center; border-top: 1px solid #23232b; }
+.tg-table tr.tg-adv td { background: rgba(78,201,138,.1); color: #9fe0bd; font-weight: 700; }
+.tg-matches { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.tg-m { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 3px 4px; }
+.tg-m > span:first-child { flex: 1; text-align: right; }
+.tg-m > span:nth-child(3) { flex: 1; text-align: left; }
+.tg-m .tg-win { color: var(--blue); font-weight: 700; }
+.tg-btns { display: flex; gap: 3px; }

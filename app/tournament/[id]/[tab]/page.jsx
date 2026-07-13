@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import { useGroup } from '../../../../components/GroupProvider.jsx';
 import { apiFetch } from '../../../../components/api.js';
 import { normalizeSettings } from '../../../../src/tournament-settings.js';
+import { groupStandings } from '../../../../src/bracket.js';
 import { TIER_ORDER, TIER_LABEL } from '../../../../src/table.js';
 
 const LANES = ['top', 'jungle', 'mid', 'adc', 'sup'];
@@ -132,10 +133,16 @@ function SettingsEditor({ S, admin }) {
               <div style={cell}><label style={lbl}>대진 방식</label>
                 <select value={d.format} onChange={(e) => setD((x) => ({ ...x, format: e.target.value }))} style={inp}>
                   <option value="single_elim">싱글 엘리미네이션</option>
+                  <option value="group_stage">그룹 스테이지 → 본선</option>
                   <option value="double_elim" disabled>더블 엘리 (준비 중)</option>
-                  <option value="group_stage" disabled>그룹 스테이지 (준비 중)</option>
                 </select>
               </div>
+              {d.format === 'group_stage' && (
+                <>
+                  <div style={cell}><label style={lbl}>조 개수</label><input type="number" min={1} max={8} value={d.groups.count} onChange={(e) => setD((x) => ({ ...x, groups: { ...x.groups, count: +e.target.value } }))} style={inp} /></div>
+                  <div style={cell}><label style={lbl}>조별 진출 팀</label><input type="number" min={1} max={8} value={d.groups.advance} onChange={(e) => setD((x) => ({ ...x, groups: { ...x.groups, advance: +e.target.value } }))} style={inp} /></div>
+                </>
+              )}
               <div style={cell}><label style={lbl}>시드 배정</label>
                 <select value={d.seeding} onChange={(e) => setD((x) => ({ ...x, seeding: e.target.value }))} style={inp}>
                   <option value="order">신청 순서</option><option value="tier">티어 시드(강팀 분산)</option><option value="random">랜덤 추첨</option>
@@ -271,14 +278,71 @@ function Stats({ teams, matches, nameOf }) {
   );
 }
 
-// ─── 🏅 점수표 (브라켓) ───
-function Scoreboard({ t, matches, nameOf, canManage, admin }) {
+// ─── 🏅 점수표 ───
+function Scoreboard({ t, matches, nameOf, canManage, admin, S }) {
   if (matches.length === 0) return <div className="panel center muted" style={{ padding: '40px 0' }}>아직 대진이 생성되지 않았어요. (신청 탭에서 대진 생성)</div>;
+  const groupM = matches.filter((m) => m.bracket === 'G');
+  const kM = matches.filter((m) => m.bracket === 'K');
+  if (groupM.length === 0) return <BracketView matches={matches} title="대진표" t={t} nameOf={nameOf} canManage={canManage} admin={admin} />;
+
+  // 그룹 스테이지 모드
+  const gmap = {};
+  groupM.forEach((x) => { (gmap[x.grp] = gmap[x.grp] || new Set()); if (x.team_a) gmap[x.grp].add(x.team_a); if (x.team_b) gmap[x.grp].add(x.team_b); });
+  const groups = Object.keys(gmap).sort((a, b) => a - b).map((gi) => [...gmap[gi]]);
+  const standings = groupStandings(matches, groups);
+  const advance = S.groups.advance;
+  return (
+    <>
+      <div className="panel">
+        <h2>조별 리그 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 조별 {advance}팀 진출</span></h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginTop: 10 }}>
+          {groups.map((g, gi) => (
+            <div key={gi} className="tg-group">
+              <div className="tg-gtitle">{String.fromCharCode(65 + gi)}조</div>
+              <table className="tg-table">
+                <thead><tr><th>#</th><th style={{ textAlign: 'left' }}>팀</th><th>승</th><th>패</th></tr></thead>
+                <tbody>
+                  {standings[gi].map((s, i) => (
+                    <tr key={s.id} className={i < advance ? 'tg-adv' : ''}>
+                      <td>{i + 1}</td><td style={{ textAlign: 'left' }}>{nameOf(s.id)}</td><td>{s.w}</td><td>{s.l}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="tg-matches">
+                {groupM.filter((mm) => mm.grp === gi).sort((a, b) => a.pos - b.pos).map((mm) => (
+                  <div key={mm.id} className="tg-m">
+                    <span className={mm.winner === mm.team_a ? 'tg-win' : ''}>{nameOf(mm.team_a)}</span>
+                    <span className="muted" style={{ fontSize: 10 }}>vs</span>
+                    <span className={mm.winner === mm.team_b ? 'tg-win' : ''}>{nameOf(mm.team_b)}</span>
+                    {canManage && t.status === 'running' && !mm.winner && (
+                      <span className="tg-btns">
+                        <button className="mini" title={`${nameOf(mm.team_a)} 승`} onClick={() => admin({ matchId: mm.id, winner: mm.team_a }, '/bracket', 'PATCH')}>◀</button>
+                        <button className="mini" title={`${nameOf(mm.team_b)} 승`} onClick={() => admin({ matchId: mm.id, winner: mm.team_b }, '/bracket', 'PATCH')}>▶</button>
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        {canManage && t.status === 'running' && <p className="hint" style={{ marginTop: 8 }}>각 경기에서 이긴 팀 방향(◀/▶) 버튼 클릭. 초록 = 진출권.</p>}
+      </div>
+      {kM.length > 0
+        ? <BracketView matches={kM} title="본선 대진표" t={t} nameOf={nameOf} canManage={canManage} admin={admin} />
+        : <div className="panel center muted" style={{ padding: '24px 0' }}>조별 경기가 모두 끝나면 본선 대진이 자동으로 생성돼요.</div>}
+    </>
+  );
+}
+
+// 싱글엘리/본선 공용 브라켓 렌더
+function BracketView({ matches, title, t, nameOf, canManage, admin }) {
   const totalRounds = Math.max(...matches.map((m) => m.round));
-  const roundLabel = (round) => round === totalRounds ? '결승' : `${2 ** (totalRounds - round + 1)}강`;
+  const roundLabel = (round) => (round === totalRounds ? '결승' : `${2 ** (totalRounds - round + 1)}강`);
   return (
     <div className="panel" style={{ overflowX: 'auto' }}>
-      <h2>대진표</h2>
+      <h2>{title}</h2>
       <div style={{ display: 'flex', gap: 24, minWidth: 'min-content', paddingBottom: 8 }}>
         {Array.from({ length: totalRounds }, (_, r) => r + 1).map((round) => (
           <div key={round} style={{ display: 'flex', flexDirection: 'column', gap: 10, justifyContent: 'space-around', minWidth: 160 }}>
