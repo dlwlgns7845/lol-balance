@@ -14,6 +14,7 @@ const TST = { pending: '⏳대기', approved: '✅승인', rejected: '❌거절'
 const inp = { background: '#26262e', color: '#ddd', border: '1px solid #33333c', borderRadius: 6, padding: '6px 10px', fontSize: 13 };
 const FORMAT_LABEL = { single_elim: '싱글 엘리미네이션', double_elim: '더블 엘리미네이션', group_stage: '그룹 스테이지(예선)' };
 const SEED_LABEL = { order: '신청 순서', tier: '티어 시드(강팀 분산)', random: '랜덤 추첨' };
+const FORMATION_LABEL = { auction: '경매 드래프트', score: '점수제', roster: '로스터 신청' };
 
 export default function TournamentTab() {
   const { id, tab } = useParams();
@@ -187,7 +188,7 @@ function SettingsEditor({ S, admin }) {
       {!open ? (
         <div className="muted" style={{ fontSize: 13, marginTop: 8, lineHeight: 1.8 }}>
           로스터 {el.rosterMin}~{el.rosterMax}명 · {TIER_BASIS_LABEL[el.tierBasis]} {el.tierCap ? TIER_LABEL[el.tierCap] : '무제한'}~{el.tierFloor ? TIER_LABEL[el.tierFloor] : '무제한'}
-          {el.minGames > 0 ? ` · ${el.minGames}판+` : ''}{el.minLevel > 0 ? ` · 최소 ${el.minLevel}레벨` : ''} · {FORMAT_LABEL[d.format]} · 시드 {SEED_LABEL[d.seeding]}{d.bestOf > 1 ? ` · BO${d.bestOf}` : ''}
+          {el.minGames > 0 ? ` · ${el.minGames}판+` : ''}{el.minLevel > 0 ? ` · 최소 ${el.minLevel}레벨` : ''} · {FORMAT_LABEL[d.format]} · 시드 {SEED_LABEL[d.seeding]}{d.bestOf > 1 ? ` · BO${d.bestOf}` : ''} · <b style={{ color: '#cfae6f' }}>{FORMATION_LABEL[d.teamFormation]}</b>
         </div>
       ) : (
         <div style={{ marginTop: 12, display: 'grid', gap: 14 }}>
@@ -584,9 +585,8 @@ function Apply({ t, teams, pool, auction, canManage, admin, id, reload, S, user,
       {t.status === 'recruiting' && (user ? <ApplyPlayer t={t} id={id} reload={reload} S={S} /> : loginGate)}
       {/* ② 신청자 목록 (티어 배정됨) */}
       <PoolList pool={pool} canManage={canManage} id={id} reload={reload} />
-      {/* ③ 팀 짜기 — 경매는 실시간 경매(모두 관전, 팀장 입찰), 점수제는 점수표 탭 */}
-      {isAuction && <LiveAuction t={t} teams={teams} pool={pool} auction={auction} canManage={canManage} id={id} reload={reload} user={user} S={S} />}
-      {S.teamFormation === 'score' && <div className="panel center muted" style={{ padding: '20px 0' }}>점수제 팀 짜기·시뮬레이션은 <b>🏅 점수표 탭</b>에서 하세요.</div>}
+      {/* ③ 팀 짜기(경매·점수제)는 🏅 점수표 탭에서 */}
+      {t.status === 'recruiting' && <div className="panel center muted" style={{ padding: '18px 0' }}>{isAuction ? '실시간 경매' : '점수제 팀 짜기'}는 <b>🏅 점수표 탭</b>에서 진행돼요.</div>}
       {/* ④ 짜인 팀 + 대진 생성 */}
       <div className="panel">
         <h2>참가팀 ({approved.length}{t.status === 'recruiting' ? ` · 대기 ${teams.filter((x) => x.status === 'pending').length}` : ''})</h2>
@@ -672,18 +672,23 @@ function ScoreOverview({ teams, S }) {
   );
 }
 
-// ─── 🏅 점수표 ───
-function Scoreboard({ t, matches, teams, pool, nameOf, canManage, admin, S, id, reload, user, login }) {
+// ─── 🏅 점수표 (팀 구성 + 대진) ───
+function Scoreboard({ t, matches, teams, pool, auction, nameOf, canManage, admin, S, id, reload, user, login }) {
   const isScore = S.teamFormation === 'score';
-  // 점수제: 신청자 리스트 + 드래그 팀 시뮬레이터(제출) + 제출 팀 점수
-  const builder = isScore ? <ScoreFormation pool={pool} S={S} id={id} reload={reload} user={user} login={login} /> : null;
+  const isAuction = S.teamFormation === 'auction';
+  // 팀 구성 UI: 점수제=드래그 빌더, 경매=실시간 경매
+  const builder = isScore
+    ? <ScoreFormation pool={pool} S={S} id={id} reload={reload} user={user} login={login} />
+    : isAuction
+      ? <LiveAuction t={t} teams={teams} pool={pool} auction={auction} canManage={canManage} id={id} reload={reload} user={user} S={S} />
+      : null;
   const overview = isScore ? <ScoreOverview teams={teams} S={S} /> : null;
   if (matches.length === 0) {
     return (
       <>
         {builder}
         {overview}
-        {!isScore && <div className="panel center muted" style={{ padding: '32px 0' }}>아직 대진이 생성되지 않았어요. (신청 탭에서 대진 생성)</div>}
+        {!isScore && !isAuction && <div className="panel center muted" style={{ padding: '32px 0' }}>아직 대진이 생성되지 않았어요. (신청 탭에서 대진 생성)</div>}
       </>
     );
   }
