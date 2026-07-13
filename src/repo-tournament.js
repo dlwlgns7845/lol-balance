@@ -1,6 +1,9 @@
 // 멸망전(대회) DB 접근 — 내전 repo와 분리. 서버 전용(service_role).
 import { db } from './supabase.js';
 import { generateSingleElim, nextSlot } from './bracket.js';
+import { normalizeSettings, validateEligibility, seedTeams, teamStrength } from './tournament-settings.js';
+
+const isMissingCol = (e) => e && (e.code === '42703' || e.code === 'PGRST204' || /column .* does not exist|settings/.test(e.message || ''));
 
 export async function listTournaments() {
   const { data, error } = await db().from('tournaments').select('*').order('created_at', { ascending: false });
@@ -16,13 +19,17 @@ export async function listTournaments() {
 }
 
 export async function createTournament(ownerId, b) {
-  const row = {
+  const base = {
     owner_id: ownerId || null, name: (b.name || '').trim() || '새 대회',
     max_teams: [4, 8, 16, 32].includes(Number(b.max_teams)) ? Number(b.max_teams) : 8,
     team_size: Number(b.team_size) || 5, tier_cap: b.tier_cap || null,
     starts_at: b.starts_at || null,
   };
-  const { data, error } = await db().from('tournaments').insert(row).select().single();
+  const row = { ...base, settings: normalizeSettings(b.settings) };
+  let { data, error } = await db().from('tournaments').insert(row).select().single();
+  if (error && isMissingCol(error)) { // settings 컬럼 미생성(SQL 실행 전) → 없이 재시도
+    ({ data, error } = await db().from('tournaments').insert(base).select().single());
+  }
   if (error) throw error;
   return data;
 }
@@ -30,7 +37,12 @@ export async function createTournament(ownerId, b) {
 export async function updateTournament(id, patch) {
   const clean = {};
   ['notice', 'status', 'name', 'tier_cap'].forEach((k) => { if (k in patch) clean[k] = patch[k]; });
-  const { error } = await db().from('tournaments').update(clean).eq('id', id);
+  if ('settings' in patch) clean.settings = normalizeSettings(patch.settings);
+  let { error } = await db().from('tournaments').update(clean).eq('id', id);
+  if (error && isMissingCol(error) && 'settings' in clean) { // settings 컬럼 미생성 → 없이 재시도
+    delete clean.settings;
+    ({ error } = await db().from('tournaments').update(clean).eq('id', id));
+  }
   if (error) throw error;
 }
 
@@ -53,13 +65,15 @@ export async function getTournament(id) {
 }
 
 export async function applyTeam(tournamentId, b) {
-  const { data: t } = await db().from('tournaments').select('status, max_teams').eq('id', tournamentId).maybeSingle();
+  const { data: t } = await db().from('tournaments').select('*').eq('id', tournamentId).maybeSingle();
   if (!t) throw new Error('대회를 찾을 수 없어요');
   if (t.status !== 'recruiting') throw new Error('신청이 마감된 대회예요');
   const name = (b.name || '').trim();
   if (!name) throw new Error('팀 이름을 입력하세요');
   const members = (b.members || []).filter((m) => (m.game_name || '').trim());
   if (!members.length) throw new Error('로스터를 1명 이상 입력하세요');
+  const chk = validateEligibility(t.settings, members); // 주최자 참가자격 규칙
+  if (!chk.ok) throw new Error(chk.errors.join('\n'));
   const { data: team, error } = await db().from('tournament_teams')
     .insert({ tournament_id: tournamentId, name, captain: b.captain || null }).select().single();
   if (error) throw error;
@@ -79,12 +93,21 @@ export async function deleteTeam(teamId) {
   if (error) throw error;
 }
 
-// 대진 생성: 승인팀 시드 배정 → 싱글엘리 매치 insert → status=running
+// 대진 생성: 승인팀 시드 배정(설정) → 싱글엘리 매치 insert → status=running
 export async function generateBracket(tournamentId) {
+  const { data: tRow } = await db().from('tournaments').select('settings').eq('id', tournamentId).maybeSingle();
+  const seeding = normalizeSettings(tRow?.settings).seeding;
   const { data: teams } = await db().from('tournament_teams').select('id, created_at').eq('tournament_id', tournamentId).eq('status', 'approved').order('created_at');
   if (!teams || teams.length < 2) throw new Error('승인된 팀이 2팀 이상이어야 대진을 짤 수 있어요');
-  // 시드 = 승인 순서(1..n). (추후 티어 시드로 교체 가능)
-  const seeded = teams.map((t, i) => ({ id: t.id, seed: i + 1 }));
+  // 티어 시드용 팀 전력 계산(멤버 티어 평균). order/random은 불필요.
+  let strengthById = {};
+  if (seeding === 'tier') {
+    const { data: mem } = await db().from('tournament_team_members').select('team_id, tier').in('team_id', teams.map((t) => t.id));
+    const byTeam = {};
+    (mem || []).forEach((m) => { (byTeam[m.team_id] = byTeam[m.team_id] || []).push(m.tier); });
+    strengthById = Object.fromEntries(teams.map((t) => [t.id, teamStrength(byTeam[t.id])]));
+  }
+  const seeded = seedTeams(teams.map((t) => ({ id: t.id, created_at: t.created_at, strength: strengthById[t.id] })), seeding);
   await db().from('tournament_teams').update({ seed: null }).eq('tournament_id', tournamentId); // 초기화
   for (const s of seeded) await db().from('tournament_teams').update({ seed: s.seed }).eq('id', s.id);
   await db().from('tournament_matches').delete().eq('tournament_id', tournamentId); // 재생성 대비

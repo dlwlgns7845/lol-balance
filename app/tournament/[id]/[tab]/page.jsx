@@ -3,12 +3,16 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { useGroup } from '../../../../components/GroupProvider.jsx';
 import { apiFetch } from '../../../../components/api.js';
+import { normalizeSettings } from '../../../../src/tournament-settings.js';
+import { TIER_ORDER, TIER_LABEL } from '../../../../src/table.js';
 
 const LANES = ['top', 'jungle', 'mid', 'adc', 'sup'];
 const STLABEL = { recruiting: '🟢 팀 모집중', running: '🔵 진행중', done: '🏁 종료' };
 const TST = { pending: '⏳대기', approved: '✅승인', rejected: '❌거절', eliminated: '💀탈락' };
 const inp = { background: '#26262e', color: '#ddd', border: '1px solid #33333c', borderRadius: 6, padding: '6px 10px', fontSize: 13 };
 const emptyRoster = (n) => Array.from({ length: n }, () => ({ name: '', tier: '', role: '' }));
+const FORMAT_LABEL = { single_elim: '싱글 엘리미네이션', double_elim: '더블 엘리미네이션', group_stage: '그룹 스테이지(예선)' };
+const SEED_LABEL = { order: '신청 순서', tier: '티어 시드(강팀 분산)', random: '랜덤 추첨' };
 
 export default function TournamentTab() {
   const { id, tab } = useParams();
@@ -33,12 +37,13 @@ export default function TournamentTab() {
 
   if (!t) return <div className="panel center muted">{err || '불러오는 중…'}</div>;
 
-  const shared = { t, teams, matches, nameOf, canManage, admin, id, reload: load };
+  const S = normalizeSettings(t.settings);
+  const shared = { t, teams, matches, nameOf, canManage, admin, id, reload: load, S };
   return (
     <>
       <div className="page-head"><div className="title">
         <h1>🏆 {t.name} <span className="muted" style={{ fontSize: 14, fontWeight: 400 }}>{STLABEL[t.status]}</span></h1>
-        <p className="sub" style={{ margin: 0 }}>싱글 엘리 · 최대 {t.max_teams}팀{t.tier_cap ? ` · ${t.tier_cap} 이하` : ''}</p>
+        <p className="sub" style={{ margin: 0 }}>{FORMAT_LABEL[S.format]} · 최대 {t.max_teams}팀 · 시드 {SEED_LABEL[S.seeding]}{S.bestOf > 1 ? ` · BO${S.bestOf}` : ''}</p>
       </div></div>
       {tab === 'notice' && <Notice {...shared} />}
       {tab === 'apply' && <Apply {...shared} />}
@@ -50,20 +55,23 @@ export default function TournamentTab() {
 }
 
 // ─── 📢 공지 ───
-function Notice({ t, teams, matches, nameOf, canManage, admin }) {
+function Notice({ t, teams, matches, nameOf, canManage, admin, S }) {
   const [txt, setTxt] = useState(t.notice || '');
   const [editing, setEditing] = useState(false);
   const totalRounds = matches.length ? Math.max(...matches.map((m) => m.round)) : 0;
   const champion = t.status === 'done' ? matches.find((m) => m.round === totalRounds)?.winner : null;
   const approved = teams.filter((x) => x.status === 'approved').length;
+  const el = S.eligibility;
+  const tierRange = el.tierCap || el.tierFloor ? `${el.tierCap ? TIER_LABEL[el.tierCap] : '무제한'} ~ ${el.tierFloor ? TIER_LABEL[el.tierFloor] : '무제한'}` : '없음';
   return (
     <>
       {champion && <div className="panel center" style={{ fontSize: 18, borderColor: '#e8c07d' }}>🏆 우승 — <b>{nameOf(champion)}</b></div>}
       <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
         <div className="stat-card"><div className="label">상태</div><div className="value" style={{ fontSize: 18 }}>{STLABEL[t.status]}</div></div>
         <div className="stat-card"><div className="label">참가팀</div><div className="value">{approved}<span className="muted" style={{ fontSize: 14 }}>/{t.max_teams}</span></div></div>
-        <div className="stat-card"><div className="label">티어 제한</div><div className="value" style={{ fontSize: 18 }}>{t.tier_cap || '없음'}</div></div>
+        <div className="stat-card"><div className="label">티어 제한</div><div className="value" style={{ fontSize: 15 }}>{tierRange}</div></div>
       </div>
+      {canManage && t.status === 'recruiting' && <SettingsEditor t={t} S={S} admin={admin} />}
       <div className="panel">
         <div style={{ display: 'flex', alignItems: 'center' }}><h2 style={{ margin: 0 }}>📢 공지</h2>
           {canManage && <button className="mini" style={{ marginLeft: 'auto' }} onClick={() => { setEditing(!editing); setTxt(t.notice || ''); }}>{editing ? '취소' : '✏️ 편집'}</button>}
@@ -81,8 +89,80 @@ function Notice({ t, teams, matches, nameOf, canManage, admin }) {
   );
 }
 
+// ─── ⚙️ 대회 설정 (주최자) ───
+function SettingsEditor({ S, admin }) {
+  const [open, setOpen] = useState(false);
+  const [d, setD] = useState(S);
+  const [busy, setBusy] = useState(false);
+  const el = d.eligibility;
+  const setEl = (k, v) => setD((x) => ({ ...x, eligibility: { ...x.eligibility, [k]: v } }));
+  const tierOpts = [<option key="" value="">무제한</option>, ...TIER_ORDER.map((k) => <option key={k} value={k}>{TIER_LABEL[k]}</option>)];
+  const lbl = { fontSize: 11.5, color: '#999', fontWeight: 700, display: 'block', marginBottom: 3 };
+  const cell = { display: 'flex', flexDirection: 'column', gap: 0 };
+  async function save() {
+    setBusy(true);
+    try { await admin({ settings: d }, '', 'PATCH'); setOpen(false); } finally { setBusy(false); }
+  }
+  return (
+    <div className="panel">
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <h2 style={{ margin: 0 }}>⚙️ 대회 설정 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>주최자만 보여요</span></h2>
+        <button className="mini" style={{ marginLeft: 'auto' }} onClick={() => { setD(S); setOpen(!open); }}>{open ? '취소' : '✏️ 편집'}</button>
+      </div>
+      {!open ? (
+        <div className="muted" style={{ fontSize: 13, marginTop: 8, lineHeight: 1.8 }}>
+          로스터 {el.rosterMin}~{el.rosterMax}명 · 티어 {el.tierCap ? TIER_LABEL[el.tierCap] : '무제한'}~{el.tierFloor ? TIER_LABEL[el.tierFloor] : '무제한'}
+          {el.minLevel > 0 ? ` · 최소 ${el.minLevel}레벨` : ''} · {FORMAT_LABEL[d.format]} · 시드 {SEED_LABEL[d.seeding]}{d.bestOf > 1 ? ` · BO${d.bestOf}` : ''}
+        </div>
+      ) : (
+        <div style={{ marginTop: 12, display: 'grid', gap: 14 }}>
+          <div>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: '#cfae6f', marginBottom: 7 }}>📋 참가 자격</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
+              <div style={cell}><label style={lbl}>로스터 최소</label><input type="number" min={1} max={10} value={el.rosterMin} onChange={(e) => setEl('rosterMin', +e.target.value)} style={inp} /></div>
+              <div style={cell}><label style={lbl}>로스터 최대</label><input type="number" min={1} max={10} value={el.rosterMax} onChange={(e) => setEl('rosterMax', +e.target.value)} style={inp} /></div>
+              <div style={cell}><label style={lbl}>최소 레벨</label><input type="number" min={0} value={el.minLevel} onChange={(e) => setEl('minLevel', +e.target.value)} style={inp} placeholder="0=제한없음" /></div>
+              <div style={cell}><label style={lbl}>티어 상한(이하)</label><select value={el.tierCap || ''} onChange={(e) => setEl('tierCap', e.target.value || null)} style={inp}>{tierOpts}</select></div>
+              <div style={cell}><label style={lbl}>티어 하한(이상)</label><select value={el.tierFloor || ''} onChange={(e) => setEl('tierFloor', e.target.value || null)} style={inp}>{tierOpts}</select></div>
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: '#cfae6f', marginBottom: 7 }}>🏆 대회 방식</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
+              <div style={cell}><label style={lbl}>대진 방식</label>
+                <select value={d.format} onChange={(e) => setD((x) => ({ ...x, format: e.target.value }))} style={inp}>
+                  <option value="single_elim">싱글 엘리미네이션</option>
+                  <option value="double_elim" disabled>더블 엘리 (준비 중)</option>
+                  <option value="group_stage" disabled>그룹 스테이지 (준비 중)</option>
+                </select>
+              </div>
+              <div style={cell}><label style={lbl}>시드 배정</label>
+                <select value={d.seeding} onChange={(e) => setD((x) => ({ ...x, seeding: e.target.value }))} style={inp}>
+                  <option value="order">신청 순서</option><option value="tier">티어 시드(강팀 분산)</option><option value="random">랜덤 추첨</option>
+                </select>
+              </div>
+              <div style={cell}><label style={lbl}>경기 방식</label>
+                <select value={d.bestOf} onChange={(e) => setD((x) => ({ ...x, bestOf: +e.target.value }))} style={inp}>
+                  <option value={1}>단판 (BO1)</option><option value={3}>3판2선 (BO3)</option><option value={5}>5판3선 (BO5)</option>
+                </select>
+              </div>
+              <div style={cell}><label style={lbl}>팀 구성</label>
+                <select value={d.teamFormation} onChange={(e) => setD((x) => ({ ...x, teamFormation: e.target.value }))} style={inp}>
+                  <option value="roster">직접 로스터 신청</option>
+                  <option value="auction" disabled>경매 드래프트 (준비 중)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <button className="btn" disabled={busy} onClick={save} style={{ justifySelf: 'start' }}>저장</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── 📝 신청 ───
-function Apply({ t, teams, canManage, admin, id, reload }) {
+function Apply({ t, teams, canManage, admin, id, reload, S }) {
   const [teamName, setTeamName] = useState('');
   const [captain, setCaptain] = useState('');
   const [roster, setRoster] = useState(emptyRoster(5));
@@ -112,6 +192,11 @@ function Apply({ t, teams, canManage, admin, id, reload }) {
       {t.status === 'recruiting' && (
         <div className="panel">
           <h2>📝 팀 신청</h2>
+          <div style={{ background: 'rgba(207,174,111,.08)', border: '1px solid rgba(207,174,111,.25)', borderRadius: 8, padding: '8px 12px', fontSize: 12.5, color: '#d8c48f', marginBottom: 12 }}>
+            📋 참가 자격 — 로스터 <b>{S.eligibility.rosterMin}~{S.eligibility.rosterMax}명</b>
+            {(S.eligibility.tierCap || S.eligibility.tierFloor) ? <> · 티어 <b>{S.eligibility.tierCap ? TIER_LABEL[S.eligibility.tierCap] : '무제한'} ~ {S.eligibility.tierFloor ? TIER_LABEL[S.eligibility.tierFloor] : '무제한'}</b></> : ' · 티어 제한 없음'}
+            {S.eligibility.minLevel > 0 ? <> · 최소 <b>{S.eligibility.minLevel}레벨</b></> : ''}
+          </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
             <input placeholder="팀 이름" value={teamName} onChange={(e) => setTeamName(e.target.value)} style={{ ...inp, flex: 1, minWidth: 140 }} />
             <input placeholder="주장 (디코 등)" value={captain} onChange={(e) => setCaptain(e.target.value)} style={inp} />
