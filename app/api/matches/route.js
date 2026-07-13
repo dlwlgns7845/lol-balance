@@ -8,7 +8,7 @@ export async function POST(request) {
     await requireEditor(request, body.group_id);
     const match = await saveMatch(body.group_id, {
       winner: body.winner, totalWeight: body.totalWeight, participants: body.participants,
-      force: body.force, durationMin: body.durationMin,
+      force: body.force, durationMin: body.durationMin, durationSec: body.durationSec,
       objectives: body.objectives, source: body.source, // 리플 상세(있을 때만)
     });
     if (match?.duplicate) return NextResponse.json({ ok: true, duplicate: true, matchId: match.matchId });

@@ -598,9 +598,9 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mho-dur { font-size: 11px; }
 .mho-date { display: flex; flex-direction: column; gap: 2px; font-size: 11.5px; line-height: 1.35; }
 .mho-teams { display: flex; align-items: center; gap: 10px; justify-content: center; min-width: 0; }
-.mho-side { display: flex; gap: 4px; }
-.mho-champ { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 38px; }
-.mho-cn { font-size: 9px; color: var(--muted); max-width: 38px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mho-side { display: flex; gap: 5px; }
+.mho-champ { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 50px; }
+.mho-cn { font-size: 9.5px; color: var(--muted); max-width: 50px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mho-vslabel { font-size: 10px; font-weight: 700; }
 .mho-score { display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .mho-vs { font-size: 19px; font-weight: 800; letter-spacing: .5px; }

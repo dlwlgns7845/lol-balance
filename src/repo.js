@@ -439,7 +439,7 @@ async function findDuplicateMatch(groupId, resolved, winner) {
 }
 
 // participants: [{ name, tier, primary, secondary, team:'A'|'B', position, points }]
-export async function saveMatch(groupId, { winner, totalWeight, participants, force, durationMin, objectives, source }) {
+export async function saveMatch(groupId, { winner, totalWeight, participants, force, durationMin, durationSec, objectives, source }) {
   if (!groupId) throw new Error('groupId 필요');
   if (winner !== 'A' && winner !== 'B') throw new Error('winner는 A/B');
   if (!participants || participants.length !== 10) throw new Error('참가자 10명 필요');
@@ -454,11 +454,15 @@ export async function saveMatch(groupId, { winner, totalWeight, participants, fo
     const dupId = await findDuplicateMatch(groupId, resolved, winner);
     if (dupId) return { duplicate: true, matchId: dupId };
   }
-  const dur = durationMin ? Math.round(durationMin) : null;
+  const durSec = durationSec != null ? Math.round(durationSec) : (durationMin ? Math.round(durationMin * 60) : null);
+  const dur = durSec != null ? Math.round(durSec / 60) : null;
   const baseIns = { group_id: groupId, winner, total_weight: totalWeight ?? null };
-  // 리플 상세(objectives·source)·duration은 추가 컬럼 — 있으면 저장, 스키마 미반영이면 빼고 재시도(기존 저장 항상 되게)
+  // 리플 상세(objectives·source)·duration은 추가 컬럼 — 있으면 저장, 스키마 미반영이면 단계적으로 빼고 재시도(기존 저장 항상 되게)
   let ins = await db().from('matches')
-    .insert({ ...baseIns, duration_min: dur, source: source ?? null, objectives: objectives ?? null }).select().single();
+    .insert({ ...baseIns, duration_min: dur, duration_sec: durSec, source: source ?? null, objectives: objectives ?? null }).select().single();
+  if (ins.error && /duration_sec/i.test(ins.error.message || '')) { // duration_sec 컬럼만 없음 → objectives/source 유지
+    ins = await db().from('matches').insert({ ...baseIns, duration_min: dur, source: source ?? null, objectives: objectives ?? null }).select().single();
+  }
   if (ins.error && /(duration_min|source|objectives)/i.test(ins.error.message || '')) {
     ins = await db().from('matches').insert({ ...baseIns, duration_min: dur }).select().single();
     if (ins.error && /duration_min/i.test(ins.error.message || '')) ins = await db().from('matches').insert(baseIns).select().single();
@@ -525,11 +529,12 @@ export async function getMatchForEdit(matchId) {
       champion: p.champion || '', k: p.kills || 0, d: p.deaths || 0, a: p.assists || 0,
       damage: p.damage || 0, cs: p.cs || 0,
     }));
-  return { id: match.id, group_id: match.group_id, winner: match.winner, durationMin: match.duration_min || 0, participants };
+  return { id: match.id, group_id: match.group_id, winner: match.winner, durationMin: match.duration_min || 0,
+    durationSec: match.duration_sec ?? (match.duration_min != null ? match.duration_min * 60 : 0), participants };
 }
 
 // 경기 1건 수정: 참가자 교체 + 승리팀/시간 갱신 (중복검사 없음, rating_games는 그대로)
-export async function updateMatch(groupId, matchId, { winner, participants, durationMin }) {
+export async function updateMatch(groupId, matchId, { winner, participants, durationMin, durationSec }) {
   if (!matchId) throw new Error('matchId 필요');
   if (winner !== 'A' && winner !== 'B') throw new Error('winner는 A/B');
   if (!participants || participants.length !== 10) throw new Error('참가자 10명 필요');
@@ -541,9 +546,12 @@ export async function updateMatch(groupId, matchId, { winner, participants, dura
   // 삭제 전 기존 참가자 백업 — 새 참가자 insert가 실패하면 복원 (삭제→삽입 사이 유실 방지)
   const { data: backup } = await db().from('match_participants').select('*').eq('match_id', matchId);
   await db().from('match_participants').delete().eq('match_id', matchId);
+  // durationSec 우선, 없으면 durationMin. 둘 다 없으면 시간 컬럼 건드리지 않음.
+  const durSec = durationSec != null ? Math.round(durationSec) : (durationMin != null ? (durationMin ? Math.round(durationMin * 60) : null) : undefined);
   const upd = { winner };
-  if (durationMin != null) upd.duration_min = durationMin ? Math.round(durationMin) : null;
+  if (durSec !== undefined) { upd.duration_sec = durSec; upd.duration_min = durSec != null ? Math.round(durSec / 60) : null; }
   let e = (await db().from('matches').update(upd).eq('id', matchId)).error;
+  if (e && /duration_sec/i.test(e.message || '')) { const { duration_sec, ...u2 } = upd; e = (await db().from('matches').update(u2).eq('id', matchId)).error; }
   if (e && /duration_min/i.test(e.message || '')) e = (await db().from('matches').update({ winner }).eq('id', matchId)).error;
   if (e) throw e;
   const rows = resolved.map((p, idx) => ({
@@ -1088,12 +1096,11 @@ export async function getMatchHistory(groupId, limit = 30) {
   // 리플 상세(objectives/source/duration) 포함 시도 → 컬럼 미반영이면 기본 필드로 폴백
   let matches;
   {
-    const res = await db().from('matches').select('id, played_at, winner, objectives, source, duration_min')
-      .eq('group_id', groupId).order('played_at', { ascending: false }).limit(limit);
-    if (res.error && /(objectives|source|duration_min)/i.test(res.error.message || '')) {
-      const r2 = await db().from('matches').select('id, played_at, winner').eq('group_id', groupId).order('played_at', { ascending: false }).limit(limit);
-      if (r2.error) throw r2.error; matches = r2.data;
-    } else { if (res.error) throw res.error; matches = res.data; }
+    const qy = (cols) => db().from('matches').select(cols).eq('group_id', groupId).order('played_at', { ascending: false }).limit(limit);
+    let res = await qy('id, played_at, winner, objectives, source, duration_min, duration_sec');
+    if (res.error && /duration_sec/i.test(res.error.message || '')) res = await qy('id, played_at, winner, objectives, source, duration_min'); // sec 컬럼 미반영
+    if (res.error && /(objectives|source|duration_min)/i.test(res.error.message || '')) res = await qy('id, played_at, winner');
+    if (res.error) throw res.error; matches = res.data;
   }
   if (!matches || !matches.length) return { matches: [] };
   const mids = matches.map((m) => m.id);
@@ -1144,6 +1151,7 @@ export async function getMatchHistory(groupId, limit = 30) {
     return {
       id: match.id, played_at: match.played_at, winner: win, mvpScore: mvpId ? Math.round((scoreById[mvpId] || 0) * 10) / 10 : 0,
       objectives: match.objectives || null, source: match.source || null, durationMin: match.duration_min || null,
+      durationSec: match.duration_sec ?? (match.duration_min != null ? match.duration_min * 60 : null),
       A: ps.filter((x) => x.team === 'A').map(row), B: ps.filter((x) => x.team === 'B').map(row),
       killsA: tot.A.k, killsB: tot.B.k, csA: tot.A.cs, csB: tot.B.cs, goldA: tot.A.g, goldB: tot.B.g,
     };

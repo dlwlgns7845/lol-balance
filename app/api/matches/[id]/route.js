@@ -23,7 +23,7 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ ok: true, match });
     }
     const match = await updateMatch(body.group_id, params.id, {
-      winner: body.winner, participants: body.participants, durationMin: body.durationMin,
+      winner: body.winner, participants: body.participants, durationMin: body.durationMin, durationSec: body.durationSec,
     });
     return NextResponse.json({ ok: true, match });
   } catch (e) {

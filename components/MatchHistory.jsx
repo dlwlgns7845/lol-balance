@@ -22,7 +22,7 @@ function fmtDateTime(s) {
   const p2 = (n) => String(n).padStart(2, '0');
   return { date: `${p2(d.getMonth() + 1)}-${p2(d.getDate())} (${WD[d.getDay()]})`, time: `${p2(d.getHours())}:${p2(d.getMinutes())}` };
 }
-const fmtDur = (min) => (min ? `${Math.round(min)}분` : '');
+const fmtDur = (sec) => { if (!sec) return ''; const s = Math.round(sec); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 const k = (n) => (n >= 1000 ? (n / 1000).toFixed(1) + 'k' : n);
 const kdaRatio = (p) => (p.d ? ((p.k + p.a) / p.d) : (p.k + p.a)).toFixed(2);
 const rClass = (r) => (r >= 5 ? 'kv-5' : r >= 4 ? 'kv-4' : r >= 3 ? 'kv-3' : '');
@@ -196,7 +196,7 @@ function MatchCard({ m, dd, open, onToggle, onDelete, onSwap, byName, highlight,
       );
     }
     const dt = fmtDateTime(m.played_at);
-    const dur = fmtDur(m.durationMin);
+    const dur = fmtDur(m.durationSec);
     const side = (players) => (
       <div className="mho-side">
         {players.map((p, i) => (
@@ -252,7 +252,7 @@ function MatchCard({ m, dd, open, onToggle, onDelete, onSwap, byName, highlight,
           <span className={`mh-win-tag ${aWin ? 'blue' : 'r'}`}>{aWin ? '블루 승리' : '레드 승리'}</span>
           <div className="mh-bigscore"><b className="t-blue-c">{m.killsA}</b><span className="muted"> · </span><b className="t-red-c">{m.killsB}</b></div>
           <div className="muted" style={{ fontSize: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <span>📅 {fmtDate(m.played_at)}</span>{m.durationMin ? <span>⏱ {fmtDur(m.durationMin)}</span> : null}
+            <span>📅 {fmtDate(m.played_at)}</span>{m.durationSec ? <span>⏱ {fmtDur(m.durationSec)}</span> : null}
           </div>
         </div>
         {mvp && (

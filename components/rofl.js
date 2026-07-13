@@ -86,6 +86,7 @@ export async function parseRofl(file) {
   return {
     players, winner,
     objectives: { A: teamObj('A'), B: teamObj('B') },
+    durationSec: Math.round((meta.gameLength || 0) / 1000),
     durationMin: Math.round((meta.gameLength || 0) / 60000),
   };
 }

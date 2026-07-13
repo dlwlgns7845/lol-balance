@@ -41,7 +41,7 @@ export default function RecordPage() {
   const roflRef = useRef();
   const [rows, setRows] = useState([]);
   const [winner, setWinner] = useState('A');
-  const [durationMin, setDurationMin] = useState(0);
+  const [durationSec, setDurationSec] = useState(0); // 게임 시간(초) — 단일 소스, 표시·저장
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
@@ -67,7 +67,7 @@ export default function RecordPage() {
         position: p.position || posByIdx(i), // 저장된 포지션 우선, 없으면 순서 기본값
         k: p.k, d: p.d, a: p.a, damage: p.damage, cs: p.cs, personId: p.person_id || '__new__',
       })));
-      setWinner(mm.winner); setDurationMin(mm.durationMin || 0); setEditing(true);
+      setWinner(mm.winner); setDurationSec(mm.durationSec ?? (mm.durationMin || 0) * 60); setEditing(true);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gid, editId]);
@@ -138,7 +138,7 @@ export default function RecordPage() {
     const file = e.target.files?.[0]; if (!file) return;
     setErr(null); setMsg(null); setEditing(false); setDataUrl(null); setLoading(true);
     try {
-      const { players, winner: w, objectives: obj, durationMin: dur } = await parseRofl(file);
+      const { players, winner: w, objectives: obj, durationSec: dsec } = await parseRofl(file);
       const ord = { top: 0, jungle: 1, mid: 2, adc: 3, sup: 4 };
       const sorted = [...players].sort((a, b) => (a.team === b.team ? (ord[a.position] ?? 9) - (ord[b.position] ?? 9) : (a.team === 'A' ? -1 : 1)));
       setRows(sorted.map((p) => ({
@@ -146,7 +146,7 @@ export default function RecordPage() {
         k: p.k, d: p.d, a: p.a, damage: p.damage, cs: p.cs, gold: p.gold,
         personId: matchByRiot(p.gameName, p.tag), detail: p.detail,
       })));
-      setObjectives(obj); setSource('replay'); setWinner(w); setDurationMin(dur);
+      setObjectives(obj); setSource('replay'); setWinner(w); setDurationSec(dsec);
       setMsg('리플 분석 완료 — 사람·포지션 확인하고 저장하세요.');
     } catch (er) { setErr('리플 분석 실패: ' + er.message); }
     setLoading(false);
@@ -189,7 +189,7 @@ export default function RecordPage() {
       if (flat.length !== 10) throw new Error(`10명이 아니라 ${flat.length}명 추출됨 — 스샷 다시 확인`);
       setRows(flat);
       setWinner(winTeam === 2 ? 'B' : 'A');
-      setDurationMin(r.data.durationMin || 0);
+      setDurationSec((r.data.durationMin || 0) * 60);
       setSource('screenshot'); setObjectives(null);
     } catch (e) { setErr('분석 실패: ' + e.message); }
     setLoading(false);
@@ -217,7 +217,7 @@ export default function RecordPage() {
       if (editing) {
         const res = await apiFetch(`/api/matches/${editId}`, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ group_id: gid, winner, participants, durationMin }),
+          body: JSON.stringify({ group_id: gid, winner, participants, durationSec }),
         }).then((x) => x.json());
         if (!res.ok) throw new Error(res.error);
         setMsg('수정 완료 — 통계·전적 반영됨.');
@@ -227,7 +227,7 @@ export default function RecordPage() {
       }
       const res = await apiFetch('/api/matches', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ group_id: gid, winner, participants, force, durationMin, objectives, source }),
+        body: JSON.stringify({ group_id: gid, winner, participants, force, durationSec, objectives, source }),
       }).then((x) => x.json());
       if (!res.ok) throw new Error(res.error);
       if (res.duplicate) {
@@ -293,10 +293,14 @@ export default function RecordPage() {
             <span>승리 팀 <span className="muted" style={{ fontSize: 11 }}>(눌러서 선택)</span>:</span>
             <button className={`mini ${winner === 'A' ? 'on' : ''}`} onClick={() => setWinner('A')}>1팀(A) 승</button>
             <button className={`mini ${winner === 'B' ? 'on' : ''}`} onClick={() => setWinner('B')}>2팀(B) 승</button>
-            <span className="muted" style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+            <span className="muted" style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
               게임 시간
-              <input type="number" value={durationMin} onChange={(e) => setDurationMin(Number(e.target.value))}
-                style={{ width: 56 }} title="분당 CS 계산용 — 틀리면 수정" />분
+              <input type="number" min={0} value={Math.floor(durationSec / 60)}
+                onChange={(e) => setDurationSec(Math.max(0, Number(e.target.value)) * 60 + (durationSec % 60))}
+                style={{ width: 48 }} title="분" />분
+              <input type="number" min={0} max={59} value={durationSec % 60}
+                onChange={(e) => setDurationSec(Math.floor(durationSec / 60) * 60 + Math.min(59, Math.max(0, Number(e.target.value))))}
+                style={{ width: 44 }} title="초" />초
             </span>
             <button className="btn" onClick={() => save()} disabled={saving}>{saving ? (editing ? '수정 중…' : '저장 중…') : (editing ? '수정 저장' : '저장')}</button>
           </div>
