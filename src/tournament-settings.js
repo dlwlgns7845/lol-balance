@@ -14,6 +14,7 @@ export const DEFAULT_SETTINGS = {
   scoring: { win: 3, draw: 1, loss: 0 },
   teamFormation: 'roster',
   groups: { count: 2, advance: 2 },
+  auction: { budget: 1000 }, // 경매 드래프트 팀별 포인트 예산
 };
 
 const clampInt = (v, d, lo, hi) => {
@@ -42,6 +43,7 @@ export function normalizeSettings(raw) {
     scoring: { win: clampInt(sc.win, 3, 0, 10), draw: clampInt(sc.draw, 1, 0, 10), loss: clampInt(sc.loss, 0, 0, 10) },
     teamFormation: FORMATIONS.includes(s.teamFormation) ? s.teamFormation : 'roster',
     groups: { count: clampInt(gr.count, 2, 1, 8), advance: clampInt(gr.advance, 2, 1, 8) },
+    auction: { budget: clampInt((s.auction || {}).budget, 1000, 1, 1000000) },
   };
 }
 

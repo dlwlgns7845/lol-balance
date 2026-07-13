@@ -27,6 +27,7 @@ export default function TournamentTab() {
   const t = data?.tournament;
   const teams = data?.teams || [];
   const matches = data?.matches || [];
+  const pool = data?.pool || [];
   const nameOf = (tid) => teams.find((x) => x.id === tid)?.name || '?';
   const canManage = !!user && !!t && (user.id === t.owner_id || isAdmin);
 
@@ -39,7 +40,7 @@ export default function TournamentTab() {
   if (!t) return <div className="panel center muted">{err || '불러오는 중…'}</div>;
 
   const S = normalizeSettings(t.settings);
-  const shared = { t, teams, matches, nameOf, canManage, admin, id, reload: load, S };
+  const shared = { t, teams, matches, pool, nameOf, canManage, admin, id, reload: load, S };
   return (
     <>
       <div className="page-head"><div className="title">
@@ -156,9 +157,12 @@ function SettingsEditor({ S, admin }) {
               <div style={cell}><label style={lbl}>팀 구성</label>
                 <select value={d.teamFormation} onChange={(e) => setD((x) => ({ ...x, teamFormation: e.target.value }))} style={inp}>
                   <option value="roster">직접 로스터 신청</option>
-                  <option value="auction" disabled>경매 드래프트 (준비 중)</option>
+                  <option value="auction">경매 드래프트</option>
                 </select>
               </div>
+              {d.teamFormation === 'auction' && (
+                <div style={cell}><label style={lbl}>팀별 예산(포인트)</label><input type="number" min={1} value={d.auction.budget} onChange={(e) => setD((x) => ({ ...x, auction: { ...x.auction, budget: +e.target.value } }))} style={inp} /></div>
+              )}
             </div>
           </div>
           <button className="btn" disabled={busy} onClick={save} style={{ justifySelf: 'start' }}>저장</button>
@@ -168,8 +172,101 @@ function SettingsEditor({ S, admin }) {
   );
 }
 
+// ─── 💰 경매 드래프트 ───
+function Auction({ t, teams, pool, canManage, id, reload, S }) {
+  const [tName, setTName] = useState(''); const [tCap, setTCap] = useState('');
+  const [pName, setPName] = useState(''); const [pTier, setPTier] = useState(''); const [pRole, setPRole] = useState('');
+  const [bidTeam, setBidTeam] = useState({}); const [bidPrice, setBidPrice] = useState({});
+  const [busy, setBusy] = useState(false);
+  const unsold = pool.filter((p) => !p.sold_to);
+  const sold = pool.filter((p) => p.sold_to);
+  const teamById = Object.fromEntries(teams.map((x) => [x.id, x]));
+
+  async function call(path, body, method = 'POST') {
+    setBusy(true);
+    try {
+      const r = await apiFetch(`/api/tournaments/${id}${path}`, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((x) => x.json());
+      if (!r.ok) { alert('실패: ' + r.error); return false; }
+      reload(); return true;
+    } finally { setBusy(false); }
+  }
+  const regTeam = async () => { if (await call('/teams', { name: tName, captain: tCap })) { setTName(''); setTCap(''); } };
+  const regPlayer = async () => {
+    const [gn, tg] = (pName || '').split('#');
+    if (await call('/auction', { game_name: (gn || '').trim(), tag_line: (tg || '').trim(), tier: pTier || null, role: pRole || null })) { setPName(''); setPTier(''); setPRole(''); }
+  };
+  const sell = (poolId) => call('/auction', { action: 'sell', poolId, teamId: bidTeam[poolId], price: Number(bidPrice[poolId] || 0) }, 'PATCH');
+  const undo = (poolId) => call('/auction', { action: 'undo', poolId }, 'PATCH');
+  const remove = (poolId) => call('/auction', { action: 'remove', poolId }, 'PATCH');
+
+  return (
+    <>
+      {t.status === 'recruiting' && (
+        <div className="panel">
+          <h2>💰 경매 드래프트 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>팀별 예산 {S.auction.budget}p</span></h2>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 10 }}>
+            <div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#cfae6f', marginBottom: 6 }}>🧑‍✈️ 주장 팀 등록</div>
+              <input placeholder="팀 이름" value={tName} onChange={(e) => setTName(e.target.value)} style={{ ...inp, width: '100%', marginBottom: 5 }} />
+              <input placeholder="주장 (디코 등)" value={tCap} onChange={(e) => setTCap(e.target.value)} style={{ ...inp, width: '100%', marginBottom: 5 }} />
+              <button className="btn" disabled={busy || !tName.trim()} onClick={regTeam} style={{ width: '100%' }}>팀 등록</button>
+            </div>
+            <div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#cfae6f', marginBottom: 6 }}>🎯 선수 풀 등록</div>
+              <input placeholder="게임닉#태그" value={pName} onChange={(e) => setPName(e.target.value)} style={{ ...inp, width: '100%', marginBottom: 5 }} />
+              <div style={{ display: 'flex', gap: 5, marginBottom: 5 }}>
+                <select value={pTier} onChange={(e) => setPTier(e.target.value)} style={{ ...inp, flex: 1 }}><option value="">티어</option>{TIER_ORDER.map((kk) => <option key={kk} value={kk}>{TIER_LABEL[kk]}</option>)}</select>
+                <select value={pRole} onChange={(e) => setPRole(e.target.value)} style={{ ...inp, width: 80 }}><option value="">라인</option>{LANES.map((l) => <option key={l} value={l}>{l}</option>)}</select>
+              </div>
+              <button className="btn" disabled={busy || !pName.trim()} onClick={regPlayer} style={{ width: '100%' }}>선수 등록</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {canManage && t.status === 'recruiting' && (
+        <div className="panel">
+          <h2>🔨 경매 콘솔 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 미낙찰 {unsold.length} / 낙찰 {sold.length}</span></h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, margin: '10px 0' }}>
+            {teams.map((tm) => (
+              <div key={tm.id} className="tg-group" style={{ padding: '8px 10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><b>{tm.name}</b><span className="accent">{tm.budget ?? 0}p</span></div>
+                <div className="muted" style={{ fontSize: 11, marginTop: 3 }}>{(tm.members || []).map((m) => m.game_name).join(', ') || '로스터 없음'}</div>
+              </div>
+            ))}
+            {teams.length === 0 && <div className="muted">먼저 주장 팀을 등록하세요.</div>}
+          </div>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: '#cfae6f', margin: '6px 0' }}>미낙찰 선수</div>
+          {unsold.length === 0 && <div className="muted" style={{ fontSize: 12 }}>등록된 선수가 없어요.</div>}
+          {unsold.map((p) => (
+            <div key={p.id} style={{ display: 'flex', gap: 6, alignItems: 'center', borderTop: '1px solid #23232b', padding: '6px 0', flexWrap: 'wrap' }}>
+              <b style={{ minWidth: 110 }}>{p.game_name}</b>
+              <span className="muted" style={{ fontSize: 11 }}>{p.tier ? (TIER_LABEL[p.tier] || p.tier) : ''}{p.role ? ` · ${p.role}` : ''}</span>
+              <span style={{ marginLeft: 'auto', display: 'flex', gap: 5, alignItems: 'center' }}>
+                <select value={bidTeam[p.id] || ''} onChange={(e) => setBidTeam((s) => ({ ...s, [p.id]: e.target.value }))} style={{ ...inp, width: 110 }}><option value="">낙찰 팀</option>{teams.map((tm) => <option key={tm.id} value={tm.id}>{tm.name}</option>)}</select>
+                <input type="number" min={0} placeholder="가격" value={bidPrice[p.id] ?? ''} onChange={(e) => setBidPrice((s) => ({ ...s, [p.id]: e.target.value }))} style={{ ...inp, width: 64 }} />
+                <button className="mini" disabled={busy || !bidTeam[p.id]} onClick={() => sell(p.id)}>낙찰</button>
+                <button className="mini" disabled={busy} onClick={() => { if (confirm('선수 삭제?')) remove(p.id); }}>🗑</button>
+              </span>
+            </div>
+          ))}
+          {sold.length > 0 && <div style={{ fontSize: 12.5, fontWeight: 700, color: '#cfae6f', margin: '12px 0 6px' }}>낙찰 결과</div>}
+          {sold.map((p) => (
+            <div key={p.id} style={{ display: 'flex', gap: 8, alignItems: 'center', borderTop: '1px solid #23232b', padding: '5px 0', fontSize: 12.5 }}>
+              <b style={{ minWidth: 110 }}>{p.game_name}</b>
+              <span>→ {teamById[p.sold_to]?.name || '?'} <span className="accent">{p.price}p</span></span>
+              <button className="mini" style={{ marginLeft: 'auto' }} disabled={busy} onClick={() => undo(p.id)}>낙찰취소</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 // ─── 📝 신청 ───
-function Apply({ t, teams, canManage, admin, id, reload, S }) {
+function Apply({ t, teams, pool, canManage, admin, id, reload, S }) {
+  const isAuction = S.teamFormation === 'auction';
   const [teamName, setTeamName] = useState('');
   const [captain, setCaptain] = useState('');
   const [roster, setRoster] = useState(emptyRoster(5));
@@ -196,7 +293,8 @@ function Apply({ t, teams, canManage, admin, id, reload, S }) {
 
   return (
     <>
-      {t.status === 'recruiting' && (
+      {isAuction && <Auction t={t} teams={teams} pool={pool} canManage={canManage} id={id} reload={reload} S={S} />}
+      {t.status === 'recruiting' && !isAuction && (
         <div className="panel">
           <h2>📝 팀 신청</h2>
           <div style={{ background: 'rgba(207,174,111,.08)', border: '1px solid rgba(207,174,111,.25)', borderRadius: 8, padding: '8px 12px', fontSize: 12.5, color: '#d8c48f', marginBottom: 12 }}>

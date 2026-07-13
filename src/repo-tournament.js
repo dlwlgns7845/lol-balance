@@ -61,7 +61,9 @@ export async function getTournament(id) {
   if (teamIds.length) { const r = await db().from('tournament_team_members').select('*').in('team_id', teamIds); members = r.data || []; }
   const { data: matches } = await db().from('tournament_matches').select('*').eq('tournament_id', id).order('round').order('pos');
   const teamsWithMembers = (teams || []).map((t) => ({ ...t, members: members.filter((m) => m.team_id === t.id) }));
-  return { tournament, teams: teamsWithMembers, matches: matches || [] };
+  const poolRes = await db().from('tournament_pool').select('*').eq('tournament_id', id).order('created_at');
+  const pool = poolRes.error ? [] : (poolRes.data || []); // 테이블 미생성(경매 SQL 전) → 빈 풀
+  return { tournament, teams: teamsWithMembers, matches: matches || [], pool };
 }
 
 export async function applyTeam(tournamentId, b) {
@@ -70,6 +72,17 @@ export async function applyTeam(tournamentId, b) {
   if (t.status !== 'recruiting') throw new Error('신청이 마감된 대회예요');
   const name = (b.name || '').trim();
   if (!name) throw new Error('팀 이름을 입력하세요');
+  const settings = normalizeSettings(t.settings);
+  // 경매 모드: 주장 팀만 등록(로스터는 경매로 채움), 예산 부여
+  if (settings.teamFormation === 'auction') {
+    const ins = { tournament_id: tournamentId, name, captain: b.captain || null, budget: settings.auction.budget };
+    let { data: team, error } = await db().from('tournament_teams').insert(ins).select().single();
+    if (error && /budget/i.test(error.message || '')) { // budget 컬럼 미생성 → 경매 마이그레이션 필요
+      throw new Error('경매 드래프트를 쓰려면 마이그레이션(tournament-auction-schema.sql)을 먼저 실행하세요');
+    }
+    if (error) throw error;
+    return team;
+  }
   const members = (b.members || []).filter((m) => (m.game_name || '').trim());
   if (!members.length) throw new Error('로스터를 1명 이상 입력하세요');
   const chk = validateEligibility(t.settings, members); // 주최자 참가자격 규칙
@@ -80,6 +93,60 @@ export async function applyTeam(tournamentId, b) {
   const rows = members.map((m) => ({ team_id: team.id, game_name: (m.game_name || '').trim(), tag_line: m.tag_line || null, tier: m.tier || null, role: m.role || null }));
   await db().from('tournament_team_members').insert(rows);
   return team;
+}
+
+// ── 경매 드래프트 ──
+
+// 선수 풀에 추가 (누구나 신청 or 주최자 추가)
+export async function addPoolPlayer(tournamentId, b) {
+  const { data: t } = await db().from('tournaments').select('status').eq('id', tournamentId).maybeSingle();
+  if (!t) throw new Error('대회를 찾을 수 없어요');
+  if (t.status !== 'recruiting') throw new Error('모집이 마감된 대회예요');
+  const game_name = (b.game_name || '').trim();
+  if (!game_name) throw new Error('게임 닉네임을 입력하세요');
+  const row = { tournament_id: tournamentId, game_name, tag_line: b.tag_line || null, tier: b.tier || null, role: b.role || null };
+  const { data, error } = await db().from('tournament_pool').insert(row).select().single();
+  if (error) { if (/tournament_pool|does not exist/i.test(error.message || '')) throw new Error('경매 마이그레이션(tournament-auction-schema.sql)을 먼저 실행하세요'); throw error; }
+  return data;
+}
+
+export async function removePoolPlayer(poolId) {
+  const { data: p } = await db().from('tournament_pool').select('sold_to').eq('id', poolId).maybeSingle();
+  if (p?.sold_to) throw new Error('이미 낙찰된 선수예요. 먼저 낙찰을 취소하세요');
+  const { error } = await db().from('tournament_pool').delete().eq('id', poolId);
+  if (error) throw error;
+}
+
+// 낙찰: 선수 → 팀 배정, 예산 차감, 로스터(members) 추가. 원자적 검증.
+export async function sellPlayer(tournamentId, b) {
+  const price = Math.round(Number(b.price));
+  if (!Number.isFinite(price) || price < 0) throw new Error('낙찰가가 올바르지 않아요');
+  const { data: p } = await db().from('tournament_pool').select('*').eq('id', b.poolId).maybeSingle();
+  if (!p) throw new Error('선수를 찾을 수 없어요');
+  if (p.sold_to) throw new Error('이미 낙찰된 선수예요');
+  const { data: team } = await db().from('tournament_teams').select('*').eq('id', b.teamId).maybeSingle();
+  if (!team || team.tournament_id !== tournamentId) throw new Error('팀을 찾을 수 없어요');
+  if ((team.budget ?? 0) < price) throw new Error(`예산 부족 (남은 ${team.budget ?? 0} < ${price})`);
+  const { data: mem, error: me } = await db().from('tournament_team_members')
+    .insert({ team_id: team.id, game_name: p.game_name, tag_line: p.tag_line, tier: p.tier, role: p.role }).select().single();
+  if (me) throw me;
+  const { error: pe } = await db().from('tournament_pool').update({ sold_to: team.id, price }).eq('id', p.id);
+  if (pe) { await db().from('tournament_team_members').delete().eq('id', mem.id); throw pe; } // 롤백
+  await db().from('tournament_teams').update({ budget: (team.budget ?? 0) - price }).eq('id', team.id);
+  return getTournament(tournamentId);
+}
+
+// 낙찰 취소: 예산 환급, 로스터에서 제거, 풀로 복귀.
+export async function undoSale(tournamentId, poolId) {
+  const { data: p } = await db().from('tournament_pool').select('*').eq('id', poolId).maybeSingle();
+  if (!p || !p.sold_to) throw new Error('취소할 낙찰이 없어요');
+  const { data: team } = await db().from('tournament_teams').select('*').eq('id', p.sold_to).maybeSingle();
+  // 로스터에서 이 선수 1건 제거 (동일 닉 중 하나)
+  const { data: mem } = await db().from('tournament_team_members').select('id').eq('team_id', p.sold_to).eq('game_name', p.game_name).limit(1);
+  if (mem && mem[0]) await db().from('tournament_team_members').delete().eq('id', mem[0].id);
+  if (team) await db().from('tournament_teams').update({ budget: (team.budget ?? 0) + (p.price || 0) }).eq('id', team.id);
+  await db().from('tournament_pool').update({ sold_to: null, price: null }).eq('id', poolId);
+  return getTournament(tournamentId);
 }
 
 export async function setTeamStatus(teamId, status) {
