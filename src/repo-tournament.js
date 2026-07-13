@@ -3,6 +3,8 @@ import { db } from './supabase.js';
 import { generateSingleElim, nextSlot, generateGroups, groupStandings, knockoutSeeds, groupsComplete,
   generateDoubleElim, deParamsFromMatches, wbWinTo, wbLoseTo, lbWinTo } from './bracket.js';
 import { normalizeSettings, validateEligibility, seedTeams, teamStrength } from './tournament-settings.js';
+import { tierPts } from './engine.js';
+import { POS, TABLE } from './table.js';
 
 const isMissingCol = (e) => e && (e.code === '42703' || e.code === 'PGRST204' || /column .* does not exist|settings/.test(e.message || ''));
 
@@ -160,6 +162,35 @@ export async function addPoolPlayer(tournamentId, b) {
   const { data, error } = await db().from('tournament_pool').insert(row).select().single();
   if (error) { if (/tournament_pool|does not exist/i.test(error.message || '')) throw new Error('경매 마이그레이션(tournament-auction-schema.sql)을 먼저 실행하세요'); throw error; }
   return data;
+}
+
+// 점수제 팀 제출: 신청자 5명(라인별)을 골라 합계 점수 ≤ 상한이면 팀 등록 + 풀에서 소비.
+export async function submitScoreTeam(tournamentId, b) {
+  const { data: t } = await db().from('tournaments').select('status, settings').eq('id', tournamentId).maybeSingle();
+  if (!t) throw new Error('대회를 찾을 수 없어요');
+  if (t.status !== 'recruiting') throw new Error('모집이 마감된 대회예요');
+  const cap = normalizeSettings(t.settings).scoreCap;
+  const name = (b.name || '').trim();
+  if (!name) throw new Error('팀 이름을 입력하세요');
+  const members = (b.members || []).filter((m) => m.poolId && m.role);
+  if (members.length !== 5) throw new Error('5개 라인을 모두 채워야 해요');
+  const lanes = members.map((m) => m.role);
+  if (new Set(lanes).size !== 5 || !lanes.every((l) => POS.includes(l))) throw new Error('탑/정글/미드/원딜/서폿 각 1명씩이어야 해요');
+  const ids = members.map((m) => m.poolId);
+  const { data: ps } = await db().from('tournament_pool').select('*').in('id', ids);
+  if (!ps || ps.length !== 5) throw new Error('선수를 찾을 수 없어요');
+  if (ps.some((p) => p.sold_to)) throw new Error('이미 다른 팀에 속한 선수가 있어요');
+  const byId = Object.fromEntries(ps.map((p) => [p.id, p]));
+  let total = 0;
+  for (const m of members) { const p = byId[m.poolId]; if (!TABLE[p.tier]) throw new Error(`${p.game_name}: 티어 미확인 — 배정 후 가능`); total += tierPts(p.tier, POS.indexOf(m.role)); }
+  total = Math.round(total * 10) / 10;
+  if (total > cap) throw new Error(`팀 합계 ${total}점이 상한 ${cap}점을 초과해요`);
+  const { data: team, error } = await db().from('tournament_teams').insert({ tournament_id: tournamentId, name, status: 'approved' }).select().single();
+  if (error) throw error;
+  const rows = members.map((m) => { const p = byId[m.poolId]; return { team_id: team.id, game_name: p.game_name, tag_line: p.tag_line, tier: p.tier, role: m.role }; });
+  await db().from('tournament_team_members').insert(rows);
+  await db().from('tournament_pool').update({ sold_to: team.id }).in('id', ids); // 풀에서 소비(중복 배정 방지)
+  return getTournament(tournamentId);
 }
 
 export async function removePoolPlayer(poolId) {

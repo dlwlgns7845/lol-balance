@@ -20,6 +20,7 @@ export const DEFAULT_SETTINGS = {
   teamFormation: 'roster',
   groups: { count: 2, advance: 2 },
   auction: { budget: 1000 }, // 경매 드래프트 팀별 포인트 예산
+  scoreCap: 185, // 점수제: 팀 합계 점수 상한 (이 안에서 신청자들이 팀 맞춰 제출)
 };
 
 const clampInt = (v, d, lo, hi) => {
@@ -53,6 +54,7 @@ export function normalizeSettings(raw) {
     teamFormation: FORMATIONS.includes(s.teamFormation) ? s.teamFormation : 'auction',
     groups: { count: clampInt(gr.count, 2, 1, 8), advance: clampInt(gr.advance, 2, 1, 8) },
     auction: { budget: clampInt((s.auction || {}).budget, 1000, 1, 1000000) },
+    scoreCap: clampInt(s.scoreCap, 185, 1, 100000),
   };
 }
 

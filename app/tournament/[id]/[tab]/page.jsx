@@ -6,7 +6,7 @@ import { apiFetch } from '../../../../components/api.js';
 import { normalizeSettings, REGIONS, TIER_BASES, TIER_BASIS_LABEL } from '../../../../src/tournament-settings.js';
 import { groupStandings } from '../../../../src/bracket.js';
 import { TIER_ORDER, TIER_LABEL, POS_KR, POS, TABLE, tierClass } from '../../../../src/table.js';
-import { balance, tierPts, light } from '../../../../src/engine.js';
+import { tierPts } from '../../../../src/engine.js';
 
 const LANES = ['top', 'jungle', 'mid', 'adc', 'sup'];
 const STLABEL = { recruiting: '🟢 팀 모집중', running: '🔵 진행중', done: '🏁 종료' };
@@ -253,6 +253,9 @@ function SettingsEditor({ S, admin }) {
               {d.teamFormation === 'auction' && (
                 <div style={cell}><label style={lbl}>팀별 예산(포인트)</label><input type="number" min={1} value={d.auction.budget} onChange={(e) => setD((x) => ({ ...x, auction: { ...x.auction, budget: +e.target.value } }))} style={inp} /></div>
               )}
+              {d.teamFormation === 'score' && (
+                <div style={cell}><label style={lbl}>팀 점수 상한</label><input type="number" min={1} value={d.scoreCap} onChange={(e) => setD((x) => ({ ...x, scoreCap: +e.target.value }))} style={inp} /></div>
+              )}
             </div>
           </div>
           <button className="btn" disabled={busy} onClick={save} style={{ justifySelf: 'start' }}>저장</button>
@@ -278,42 +281,36 @@ function ScoreTableRef() {
   );
 }
 
-function ScoreFormation({ pool }) {
+function ScoreFormation({ pool, S, id, reload, user, login }) {
+  const cap = S.scoreCap;
   const byId = Object.fromEntries(pool.map((p) => [p.id, p]));
-  const [slots, setSlots] = useState({ A: [null, null, null, null, null], B: [null, null, null, null, null] });
-  const [sel, setSel] = useState(null);   // 클릭 선택된 pid (터치·클릭 배치)
+  const [slots, setSlots] = useState([null, null, null, null, null]); // 라인별 poolId (탑~서폿)
+  const [teamName, setTeamName] = useState('');
+  const [sel, setSel] = useState(null);
   const [showTable, setShowTable] = useState(false);
-  const placed = new Set([...slots.A, ...slots.B].filter(Boolean));
-  const unassigned = pool.filter((p) => !placed.has(p.id));
-  const laneScore = (pid, lane) => { const p = byId[pid]; return (p && TABLE[p.tier]) ? tierPts(p.tier, lane) : null; };
-  const teamTotal = (team) => slots[team].reduce((s, pid, lane) => s + (pid ? (laneScore(pid, lane) || 0) : 0), 0);
+  const [busy, setBusy] = useState(false);
   const r1 = (n) => Math.round(n * 10) / 10;
-  const totalA = r1(teamTotal('A')), totalB = r1(teamTotal('B'));
-  const gap = r1(Math.abs(totalA - totalB));
-  const full = slots.A.every(Boolean) && slots.B.every(Boolean);
+  const placed = new Set(slots.filter(Boolean));
+  const unassigned = pool.filter((p) => !p.sold_to && !placed.has(p.id)); // 이미 팀 배정된(sold_to) 선수 제외
+  const laneScore = (pid, lane) => { const p = byId[pid]; return (p && TABLE[p.tier]) ? tierPts(p.tier, lane) : null; };
+  const total = r1(slots.reduce((s, pid, lane) => s + (pid ? (laneScore(pid, lane) || 0) : 0), 0));
+  const full = slots.every(Boolean);
+  const over = total > cap;
 
-  const place = (pid, team, lane) => { setSel(null); setSlots((s) => {
-    const A = [...s.A], B = [...s.B];
-    const i1 = A.indexOf(pid); if (i1 >= 0) A[i1] = null;
-    const i2 = B.indexOf(pid); if (i2 >= 0) B[i2] = null;
-    (team === 'A' ? A : B)[lane] = pid;
-    return { A, B };
-  }); };
-  const unassign = (pid) => setSlots((s) => ({ A: s.A.map((x) => (x === pid ? null : x)), B: s.B.map((x) => (x === pid ? null : x)) }));
-  const reset = () => { setSlots({ A: [null, null, null, null, null], B: [null, null, null, null, null] }); setSel(null); };
-
-  function autoBalance() {
-    const inSlots = [...slots.A, ...slots.B].filter(Boolean);
-    const ten = inSlots.length === 10 ? inSlots : (pool.length === 10 ? pool.map((p) => p.id) : null);
-    if (!ten) { alert(`자동 밸런싱은 10명일 때 가능해요 (배치 ${inSlots.length}명 / 전체 ${pool.length}명)`); return; }
-    if (ten.some((pid) => !TABLE[byId[pid]?.tier])) { alert('티어 미확인 신청자가 있어요 — 티어 배정 후 가능'); return; }
-    const mk = (constrained) => ten.map((pid) => { const p = byId[pid]; return { name: pid, tier: p.tier, positions: (constrained && p.role) ? [p.role] : POS.slice() }; });
-    let res;
-    try { res = balance(mk(true)); } catch { try { res = balance(mk(false)); } catch (e) { alert('자동 밸런싱 실패: ' + e.message); return; } }
-    const cand = res.candidates?.[0]; if (!cand) { alert('밸런싱 결과 없음'); return; }
-    const A = [null, null, null, null, null], B = [null, null, null, null, null];
-    cand.lanes.forEach((l, i) => { A[i] = l.a.name; B[i] = l.b.name; }); // name = pid
-    setSlots({ A, B }); setSel(null);
+  const place = (pid, lane) => { setSel(null); setSlots((s) => { const a = [...s]; const i = a.indexOf(pid); if (i >= 0) a[i] = null; a[lane] = pid; return a; }); };
+  const unassign = (pid) => setSlots((s) => s.map((x) => (x === pid ? null : x)));
+  const reset = () => { setSlots([null, null, null, null, null]); setSel(null); setTeamName(''); };
+  async function submit() {
+    if (!full) { alert('5개 라인을 모두 채우세요'); return; }
+    if (over) { alert(`팀 합계 ${total}점이 상한 ${cap}점을 초과해요`); return; }
+    if (!teamName.trim()) { alert('팀 이름을 입력하세요'); return; }
+    setBusy(true);
+    try {
+      const members = slots.map((pid, lane) => ({ poolId: pid, role: POS[lane] }));
+      const r = await apiFetch(`/api/tournaments/${id}/score`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: teamName, members }) }).then((x) => x.json());
+      if (!r.ok) throw new Error(r.error);
+      reset(); reload();
+    } catch (e) { alert('제출 실패: ' + e.message); } finally { setBusy(false); }
   }
 
   const Card = ({ pid, lane }) => {
@@ -330,12 +327,12 @@ function ScoreFormation({ pool }) {
       </div>
     );
   };
-  const Slot = ({ team, lane }) => {
-    const pid = slots[team][lane];
+  const Slot = ({ lane }) => {
+    const pid = slots[lane];
     return (
       <div className="sf-slot" onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => { e.preventDefault(); const d = e.dataTransfer.getData('pid'); if (d) place(d, team, lane); }}
-        onClick={() => { if (sel) place(sel, team, lane); }}>
+        onDrop={(e) => { e.preventDefault(); const d = e.dataTransfer.getData('pid'); if (d) place(d, lane); }}
+        onClick={() => { if (sel) place(sel, lane); }}>
         <span className="sf-lane">{POS_KR[POS[lane]]}</span>
         {pid ? <Card pid={pid} lane={lane} /> : <span className="sf-empty">{sel ? '여기 배치' : '비어있음'}</span>}
       </div>
@@ -344,26 +341,29 @@ function ScoreFormation({ pool }) {
 
   return (
     <div className="panel">
-      <h2>📊 점수제 팀 빌더 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 드래그(또는 클릭)로 팀 짜고 실시간 밸런스</span></h2>
+      <h2>📊 점수제 팀 짜기 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 합계 <b>{cap}점 이내</b>로 팀을 맞춰 제출</span></h2>
       <div style={{ display: 'flex', gap: 8, margin: '8px 0', flexWrap: 'wrap' }}>
         <button className="mini" onClick={() => setShowTable((v) => !v)}>{showTable ? '점수표 접기' : '📋 점수표'}</button>
-        <button className="mini" onClick={autoBalance}>🎲 자동 밸런싱</button>
         <button className="mini" onClick={reset}>초기화</button>
       </div>
       {showTable && <ScoreTableRef />}
       <div className="sf-summary">
-        <span className="t-blue-c">블루 {totalA}</span>
-        <span className={`sf-light ${light(gap)}`}>{full ? `밸런스 차 ${gap}` : `차 ${gap} · 배치중`}</span>
-        <span className="t-red-c">레드 {totalB}</span>
+        <span>합계 <b className={over ? 'sf-over' : 'sf-ok'}>{total}</b> <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>/ 상한 {cap}</span></span>
+        <span className={`sf-light ${over ? 'red' : full ? 'green' : 'yellow'}`}>{over ? `⚠ ${r1(total - cap)}점 초과` : full ? `✅ 통과 (여유 ${r1(cap - total)})` : `${5 - slots.filter(Boolean).length}자리 남음`}</span>
       </div>
-      <div className="sf-teams">
-        <div className="sf-team t-blue">{POS.map((_, i) => <Slot key={i} team="A" lane={i} />)}</div>
-        <div className="sf-team t-red">{POS.map((_, i) => <Slot key={i} team="B" lane={i} />)}</div>
+      <div className="sf-teams" style={{ gridTemplateColumns: '1fr' }}>
+        <div className="sf-team t-blue">{POS.map((_, i) => <Slot key={i} lane={i} />)}</div>
       </div>
-      <div className="sf-pooltitle muted">미배치 신청자 ({unassigned.length}){sel ? ' · 선수 선택됨 → 슬롯 클릭' : ''}</div>
+      <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+        <input placeholder="우리 팀 이름" value={teamName} onChange={(e) => setTeamName(e.target.value)} style={{ ...inp, flex: 1, minWidth: 160 }} />
+        {user
+          ? <button className="btn" disabled={busy || !full || over || !teamName.trim()} onClick={submit}>{busy ? '제출 중…' : '팀 제출'}</button>
+          : <button className="btn" onClick={login}><span className="gg">G</span> 로그인 후 제출</button>}
+      </div>
+      <div className="sf-pooltitle muted">신청자 풀 ({unassigned.length}){sel ? ' · 선수 선택됨 → 라인 클릭' : ''}</div>
       <div className="sf-pool" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { const d = e.dataTransfer.getData('pid'); if (d) unassign(d); }}>
         {unassigned.map((p) => <Card key={p.id} pid={p.id} lane={null} />)}
-        {unassigned.length === 0 && <span className="muted" style={{ fontSize: 12 }}>모두 배치됨</span>}
+        {unassigned.length === 0 && <span className="muted" style={{ fontSize: 12 }}>남은 신청자가 없어요.</span>}
       </div>
     </div>
   );
@@ -431,7 +431,7 @@ function PoolList({ pool, canManage, id, reload }) {
           <b style={{ minWidth: 130 }}>{p.game_name}{p.tag_line ? <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>#{p.tag_line}</span> : ''}</b>
           <span className={tierClass(p.tier)} style={{ fontSize: 12.5, fontWeight: 700 }}>{p.tier ? (TIER_LABEL[p.tier] || p.tier) : '티어 미확인'}</span>
           {p.role && <span className="muted" style={{ fontSize: 11.5 }}>{POS_KR[p.role] || p.role}</span>}
-          {p.sold_to && <span className="accent" style={{ fontSize: 11 }}>낙찰 {p.price}p</span>}
+          {p.sold_to && <span className="accent" style={{ fontSize: 11 }}>{p.price != null ? `낙찰 ${p.price}p` : '팀 배정됨'}</span>}
           {canManage && !p.sold_to && <button className="mini" style={{ marginLeft: 'auto' }} disabled={busy} onClick={() => remove(p.id)}>🗑</button>}
         </div>
       ))}
@@ -519,7 +519,7 @@ function Apply({ t, teams, pool, canManage, admin, id, reload, S, user, login })
       <PoolList pool={pool} canManage={canManage} id={id} reload={reload} />
       {/* ③ 팀 짜기 — 경매 콘솔(관리자) 또는 점수제 드래그 밸런싱(누구나) */}
       {isAuction && canManage && t.status === 'recruiting' && <AuctionConsole t={t} teams={teams} pool={pool} id={id} reload={reload} S={S} />}
-      {S.teamFormation === 'score' && <ScoreFormation pool={pool} />}
+      {S.teamFormation === 'score' && <ScoreFormation pool={pool} S={S} id={id} reload={reload} user={user} login={login} />}
       {/* ④ 짜인 팀 + 대진 생성 */}
       <div className="panel">
         <h2>참가팀 ({approved.length}{t.status === 'recruiting' ? ` · 대기 ${teams.filter((x) => x.status === 'pending').length}` : ''})</h2>
