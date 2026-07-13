@@ -1139,3 +1139,26 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 .tg-m > span:nth-child(3) { flex: 1; text-align: left; }
 .tg-m .tg-win { color: var(--blue); font-weight: 700; }
 .tg-btns { display: flex; gap: 3px; }
+
+/* 점수제 팀 빌더 */
+.sf-summary { display: flex; justify-content: space-between; align-items: center; padding: 8px 14px; background: #16161c; border-radius: 8px; margin: 8px 0; font-weight: 800; font-size: 15px; }
+.sf-light { font-size: 12px; font-weight: 700; padding: 3px 12px; border-radius: 6px; }
+.sf-light.green { color: var(--green); background: rgba(78,201,138,.15); }
+.sf-light.yellow { color: #e8c07d; background: rgba(232,192,125,.15); }
+.sf-light.red { color: var(--red); background: rgba(224,106,120,.15); }
+.sf-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.sf-team { display: flex; flex-direction: column; gap: 5px; padding: 8px; border-radius: 8px; }
+.sf-team.t-blue { background: rgba(77,125,232,.08); }
+.sf-team.t-red { background: rgba(224,77,77,.07); }
+.sf-slot { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 3px 8px; background: #1c1c22; border: 1px solid #2a2a33; border-radius: 6px; }
+.sf-lane { font-size: 11px; color: #888; width: 32px; flex-shrink: 0; font-weight: 700; }
+.sf-empty { font-size: 11px; color: #555; }
+.sf-card { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; background: #26262e; border: 1px solid #35353f; border-radius: 6px; cursor: grab; font-size: 12px; user-select: none; }
+.sf-card:active { cursor: grabbing; }
+.sf-card.sel { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue); }
+.sf-nm { font-weight: 700; }
+.sf-sc { color: #6fb0e0; font-weight: 800; font-size: 11px; }
+.sf-x { border: 0; background: transparent; color: #999; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; }
+.sf-pooltitle { font-size: 12px; margin: 12px 0 6px; font-weight: 700; }
+.sf-pool { display: flex; flex-wrap: wrap; gap: 6px; min-height: 46px; padding: 8px; background: #141419; border: 1px dashed #33333c; border-radius: 8px; }
+@media (max-width: 640px) { .sf-teams { grid-template-columns: 1fr; } }

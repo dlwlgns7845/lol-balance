@@ -4,7 +4,7 @@ import { TIER_ORDER } from './table.js';
 
 export const FORMATS = ['single_elim', 'double_elim', 'group_stage'];
 export const SEEDINGS = ['order', 'tier', 'random'];
-export const FORMATIONS = ['roster', 'auction'];
+export const FORMATIONS = ['auction', 'score', 'roster']; // 팀 구성: 경매 / 점수제(드래그 밸런싱) / (구)로스터
 
 // 티어 선정 기준: 현재 시즌 / 현재 시즌 최고 / 지난 시즌 / 역대 최고
 export const TIER_BASES = ['current', 'currentPeak', 'lastSeason', 'peak'];
@@ -50,7 +50,7 @@ export function normalizeSettings(raw) {
     bestOf: [1, 3, 5].includes(Number(s.bestOf)) ? Number(s.bestOf) : 1,
     seeding: SEEDINGS.includes(s.seeding) ? s.seeding : 'order',
     scoring: { win: clampInt(sc.win, 3, 0, 10), draw: clampInt(sc.draw, 1, 0, 10), loss: clampInt(sc.loss, 0, 0, 10) },
-    teamFormation: FORMATIONS.includes(s.teamFormation) ? s.teamFormation : 'roster',
+    teamFormation: FORMATIONS.includes(s.teamFormation) ? s.teamFormation : 'auction',
     groups: { count: clampInt(gr.count, 2, 1, 8), advance: clampInt(gr.advance, 2, 1, 8) },
     auction: { budget: clampInt((s.auction || {}).budget, 1000, 1, 1000000) },
   };

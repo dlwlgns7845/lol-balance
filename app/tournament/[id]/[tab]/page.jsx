@@ -5,7 +5,8 @@ import { useGroup } from '../../../../components/GroupProvider.jsx';
 import { apiFetch } from '../../../../components/api.js';
 import { normalizeSettings, REGIONS, TIER_BASES, TIER_BASIS_LABEL } from '../../../../src/tournament-settings.js';
 import { groupStandings } from '../../../../src/bracket.js';
-import { TIER_ORDER, TIER_LABEL, POS_KR, tierClass } from '../../../../src/table.js';
+import { TIER_ORDER, TIER_LABEL, POS_KR, POS, TABLE, tierClass } from '../../../../src/table.js';
+import { balance, tierPts, light } from '../../../../src/engine.js';
 
 const LANES = ['top', 'jungle', 'mid', 'adc', 'sup'];
 const STLABEL = { recruiting: '🟢 팀 모집중', running: '🔵 진행중', done: '🏁 종료' };
@@ -243,10 +244,10 @@ function SettingsEditor({ S, admin }) {
                   <option value={1}>단판 (BO1)</option><option value={3}>3판2선 (BO3)</option><option value={5}>5판3선 (BO5)</option>
                 </select>
               </div>
-              <div style={cell}><label style={lbl}>팀 구성</label>
+              <div style={cell}><label style={lbl}>팀 구성 방식</label>
                 <select value={d.teamFormation} onChange={(e) => setD((x) => ({ ...x, teamFormation: e.target.value }))} style={inp}>
-                  <option value="roster">직접 로스터 신청</option>
                   <option value="auction">경매 드래프트</option>
+                  <option value="score">점수제 (드래그 밸런싱)</option>
                 </select>
               </div>
               {d.teamFormation === 'auction' && (
@@ -257,6 +258,113 @@ function SettingsEditor({ S, admin }) {
           <button className="btn" disabled={busy} onClick={save} style={{ justifySelf: 'start' }}>저장</button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── 📊 점수제 팀 빌더 (드래그/클릭 배치 · 실시간 밸런스) — 누구나 개인 화면에서 시뮬 ───
+function ScoreTableRef() {
+  return (
+    <div style={{ overflowX: 'auto', margin: '8px 0' }}>
+      <table className="tg-table" style={{ fontSize: 11 }}>
+        <thead><tr><th style={{ textAlign: 'left' }}>티어</th>{POS.map((p) => <th key={p}>{POS_KR[p]}</th>)}</tr></thead>
+        <tbody>
+          {TIER_ORDER.map((kk) => (
+            <tr key={kk}><td style={{ textAlign: 'left' }} className={tierClass(kk)}>{TIER_LABEL[kk]}</td>{TABLE[kk].map((v, i) => <td key={i}>{v}</td>)}</tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ScoreFormation({ pool }) {
+  const byId = Object.fromEntries(pool.map((p) => [p.id, p]));
+  const [slots, setSlots] = useState({ A: [null, null, null, null, null], B: [null, null, null, null, null] });
+  const [sel, setSel] = useState(null);   // 클릭 선택된 pid (터치·클릭 배치)
+  const [showTable, setShowTable] = useState(false);
+  const placed = new Set([...slots.A, ...slots.B].filter(Boolean));
+  const unassigned = pool.filter((p) => !placed.has(p.id));
+  const laneScore = (pid, lane) => { const p = byId[pid]; return (p && TABLE[p.tier]) ? tierPts(p.tier, lane) : null; };
+  const teamTotal = (team) => slots[team].reduce((s, pid, lane) => s + (pid ? (laneScore(pid, lane) || 0) : 0), 0);
+  const r1 = (n) => Math.round(n * 10) / 10;
+  const totalA = r1(teamTotal('A')), totalB = r1(teamTotal('B'));
+  const gap = r1(Math.abs(totalA - totalB));
+  const full = slots.A.every(Boolean) && slots.B.every(Boolean);
+
+  const place = (pid, team, lane) => { setSel(null); setSlots((s) => {
+    const A = [...s.A], B = [...s.B];
+    const i1 = A.indexOf(pid); if (i1 >= 0) A[i1] = null;
+    const i2 = B.indexOf(pid); if (i2 >= 0) B[i2] = null;
+    (team === 'A' ? A : B)[lane] = pid;
+    return { A, B };
+  }); };
+  const unassign = (pid) => setSlots((s) => ({ A: s.A.map((x) => (x === pid ? null : x)), B: s.B.map((x) => (x === pid ? null : x)) }));
+  const reset = () => { setSlots({ A: [null, null, null, null, null], B: [null, null, null, null, null] }); setSel(null); };
+
+  function autoBalance() {
+    const inSlots = [...slots.A, ...slots.B].filter(Boolean);
+    const ten = inSlots.length === 10 ? inSlots : (pool.length === 10 ? pool.map((p) => p.id) : null);
+    if (!ten) { alert(`자동 밸런싱은 10명일 때 가능해요 (배치 ${inSlots.length}명 / 전체 ${pool.length}명)`); return; }
+    if (ten.some((pid) => !TABLE[byId[pid]?.tier])) { alert('티어 미확인 신청자가 있어요 — 티어 배정 후 가능'); return; }
+    const mk = (constrained) => ten.map((pid) => { const p = byId[pid]; return { name: pid, tier: p.tier, positions: (constrained && p.role) ? [p.role] : POS.slice() }; });
+    let res;
+    try { res = balance(mk(true)); } catch { try { res = balance(mk(false)); } catch (e) { alert('자동 밸런싱 실패: ' + e.message); return; } }
+    const cand = res.candidates?.[0]; if (!cand) { alert('밸런싱 결과 없음'); return; }
+    const A = [null, null, null, null, null], B = [null, null, null, null, null];
+    cand.lanes.forEach((l, i) => { A[i] = l.a.name; B[i] = l.b.name; }); // name = pid
+    setSlots({ A, B }); setSel(null);
+  }
+
+  const Card = ({ pid, lane }) => {
+    const p = byId[pid]; if (!p) return null;
+    const sc = lane != null ? laneScore(pid, lane) : (TABLE[p.tier] ? Math.max(...POS.map((_, i) => tierPts(p.tier, i))) : null);
+    return (
+      <div className={`sf-card ${sel === pid ? 'sel' : ''}`} draggable
+        onDragStart={(e) => e.dataTransfer.setData('pid', pid)}
+        onClick={(e) => { e.stopPropagation(); setSel(sel === pid ? null : pid); }}>
+        <span className="sf-nm">{p.game_name}</span>
+        <span className={tierClass(p.tier)} style={{ fontSize: 10.5 }}>{p.tier ? (TIER_LABEL[p.tier] || p.tier) : '미확인'}</span>
+        {sc != null && <span className="sf-sc">{r1(sc)}</span>}
+        {lane != null && <button className="sf-x" onClick={(e) => { e.stopPropagation(); unassign(pid); }}>×</button>}
+      </div>
+    );
+  };
+  const Slot = ({ team, lane }) => {
+    const pid = slots[team][lane];
+    return (
+      <div className="sf-slot" onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => { e.preventDefault(); const d = e.dataTransfer.getData('pid'); if (d) place(d, team, lane); }}
+        onClick={() => { if (sel) place(sel, team, lane); }}>
+        <span className="sf-lane">{POS_KR[POS[lane]]}</span>
+        {pid ? <Card pid={pid} lane={lane} /> : <span className="sf-empty">{sel ? '여기 배치' : '비어있음'}</span>}
+      </div>
+    );
+  };
+
+  return (
+    <div className="panel">
+      <h2>📊 점수제 팀 빌더 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 드래그(또는 클릭)로 팀 짜고 실시간 밸런스</span></h2>
+      <div style={{ display: 'flex', gap: 8, margin: '8px 0', flexWrap: 'wrap' }}>
+        <button className="mini" onClick={() => setShowTable((v) => !v)}>{showTable ? '점수표 접기' : '📋 점수표'}</button>
+        <button className="mini" onClick={autoBalance}>🎲 자동 밸런싱</button>
+        <button className="mini" onClick={reset}>초기화</button>
+      </div>
+      {showTable && <ScoreTableRef />}
+      <div className="sf-summary">
+        <span className="t-blue-c">블루 {totalA}</span>
+        <span className={`sf-light ${light(gap)}`}>{full ? `밸런스 차 ${gap}` : `차 ${gap} · 배치중`}</span>
+        <span className="t-red-c">레드 {totalB}</span>
+      </div>
+      <div className="sf-teams">
+        <div className="sf-team t-blue">{POS.map((_, i) => <Slot key={i} team="A" lane={i} />)}</div>
+        <div className="sf-team t-red">{POS.map((_, i) => <Slot key={i} team="B" lane={i} />)}</div>
+      </div>
+      <div className="sf-pooltitle muted">미배치 신청자 ({unassigned.length}){sel ? ' · 선수 선택됨 → 슬롯 클릭' : ''}</div>
+      <div className="sf-pool" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { const d = e.dataTransfer.getData('pid'); if (d) unassign(d); }}>
+        {unassigned.map((p) => <Card key={p.id} pid={p.id} lane={null} />)}
+        {unassigned.length === 0 && <span className="muted" style={{ fontSize: 12 }}>모두 배치됨</span>}
+      </div>
     </div>
   );
 }
@@ -409,8 +517,9 @@ function Apply({ t, teams, pool, canManage, admin, id, reload, S, user, login })
       {t.status === 'recruiting' && (user ? <ApplyPlayer t={t} id={id} reload={reload} S={S} /> : loginGate)}
       {/* ② 신청자 목록 (티어 배정됨) */}
       <PoolList pool={pool} canManage={canManage} id={id} reload={reload} />
-      {/* ③ 팀 짜기 — 경매 콘솔 (관리자) */}
+      {/* ③ 팀 짜기 — 경매 콘솔(관리자) 또는 점수제 드래그 밸런싱(누구나) */}
       {isAuction && canManage && t.status === 'recruiting' && <AuctionConsole t={t} teams={teams} pool={pool} id={id} reload={reload} S={S} />}
+      {S.teamFormation === 'score' && <ScoreFormation pool={pool} />}
       {/* ④ 짜인 팀 + 대진 생성 */}
       <div className="panel">
         <h2>참가팀 ({approved.length}{t.status === 'recruiting' ? ` · 대기 ${teams.filter((x) => x.status === 'pending').length}` : ''})</h2>
