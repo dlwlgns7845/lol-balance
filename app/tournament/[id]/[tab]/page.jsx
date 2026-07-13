@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { useGroup } from '../../../../components/GroupProvider.jsx';
 import { apiFetch } from '../../../../components/api.js';
@@ -256,7 +256,10 @@ function SettingsEditor({ S, admin }) {
                 </select>
               </div>
               {d.teamFormation === 'auction' && (
-                <div style={cell}><label style={lbl}>팀별 예산(포인트)</label><input type="number" min={1} value={d.auction.budget} onChange={(e) => setD((x) => ({ ...x, auction: { ...x.auction, budget: +e.target.value } }))} style={inp} /></div>
+                <>
+                  <div style={cell}><label style={lbl}>팀별 예산(포인트)</label><input type="number" min={1} value={d.auction.budget} onChange={(e) => setD((x) => ({ ...x, auction: { ...x.auction, budget: +e.target.value } }))} style={inp} /></div>
+                  <div style={cell}><label style={lbl}>입찰 제한시간(초)</label><input type="number" min={5} max={600} value={d.auction.bidSeconds} onChange={(e) => setD((x) => ({ ...x, auction: { ...x.auction, bidSeconds: +e.target.value } }))} style={inp} /></div>
+                </>
               )}
               {d.teamFormation === 'score' && (
                 <div style={cell}><label style={lbl}>팀 점수 상한</label><input type="number" min={1} value={d.scoreCap} onChange={(e) => setD((x) => ({ ...x, scoreCap: +e.target.value }))} style={inp} /></div>
@@ -450,10 +453,11 @@ function PoolList({ pool, canManage, id, reload }) {
   );
 }
 
-// ─── ⚡ 실시간 경매 (관리자가 팀장 지정 → 입찰 → 낙찰) ───
+// ─── ⚡ 실시간 경매 (관리자가 팀장 지정 → 팀장 입찰 → 낙찰) ───
 function LiveAuction({ teams, pool, auction, canManage, id, reload, user, S }) {
-  const [candidates, setCandidates] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [now, setNow] = useState(0);
+  const firedRef = useRef(null);
   const auc = auction || { status: 'idle', current_bid: 0, increment: 5 };
   const inc = auc.increment || 5;
   const captainTeams = teams.filter((tm) => tm.is_captain_team);
@@ -464,15 +468,19 @@ function LiveAuction({ teams, pool, auction, canManage, id, reload, user, S }) {
   const nominated = auc.current_pool_id ? byId[auc.current_pool_id] : null;
   const bidderTeam = auc.current_bidder ? teams.find((x) => x.id === auc.current_bidder) : null;
   const active = hasCaptains && auc.status !== 'done';
+  const deadlineMs = auc.bid_deadline ? new Date(auc.bid_deadline).getTime() : null;
+  const remainSec = (deadlineMs && now) ? Math.max(0, Math.ceil((deadlineMs - now) / 1000)) : null;
 
   useEffect(() => { // 진행 중 1.3s 폴링
     if (!active) return undefined;
     const iv = setInterval(reload, 1300);
     return () => clearInterval(iv);
   }, [active, reload]);
-  useEffect(() => {
-    if (canManage) apiFetch(`/api/tournaments/${id}/members`).then((x) => x.json()).then((r) => { if (r.ok) setCandidates(r.candidates || []); });
-  }, [canManage, id]);
+  useEffect(() => { // 카운트다운용 로컬 틱
+    setNow(Date.now());
+    const iv = setInterval(() => setNow(Date.now()), 400);
+    return () => clearInterval(iv);
+  }, []);
 
   async function act(body, base = '/live', method = 'POST') {
     setBusy(true);
@@ -482,6 +490,15 @@ function LiveAuction({ teams, pool, auction, canManage, id, reload, user, S }) {
       reload();
     } finally { setBusy(false); }
   }
+  // 시간 종료 → 관리자 클라이언트가 자동 마감(낙찰/유찰). 선수당 1회만.
+  useEffect(() => {
+    if (!canManage || auc.status !== 'bidding' || !auc.current_pool_id || remainSec == null) return;
+    if (remainSec <= 0 && firedRef.current !== auc.current_pool_id) {
+      firedRef.current = auc.current_pool_id;
+      act(auc.current_bidder ? { action: 'sell' } : { action: 'pass' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remainSec, canManage, auc.status, auc.current_pool_id, auc.current_bidder]);
   const canBid = (tm) => auc.status === 'bidding' && (canManage || tm.captain_user_id === user?.id) && auc.current_bidder !== tm.id && (tm.budget ?? 0) >= (auc.current_bid || 0) + inc;
 
   return (
@@ -498,15 +515,7 @@ function LiveAuction({ teams, pool, auction, canManage, id, reload, user, S }) {
               <div key={tm.id} className={`la-team ${bidderTeam?.id === tm.id ? 'high' : ''} ${tm.captain_user_id === user?.id ? 'mine' : ''}`}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><b>{tm.name}</b><span className="accent">{tm.budget ?? 0}p</span></div>
                 <div className="muted" style={{ fontSize: 11, marginTop: 3 }}>{(tm.members || []).map((m) => m.game_name).join(', ')}</div>
-                {canManage && (
-                  <>
-                    <select value={tm.captain_user_id || ''} onChange={(e) => act({ action: 'assignCaptain', teamId: tm.id, userId: e.target.value || null })} style={{ ...inp, width: '100%', marginTop: 6, fontSize: 11.5 }}>
-                      <option value="">팀장 유저 지정(입찰권)</option>
-                      {candidates.map((c) => <option key={c.user_id} value={c.user_id}>{c.name || c.email || c.user_id.slice(0, 8)}</option>)}
-                    </select>
-                    {(tm.members || []).length <= 1 && auc.status === 'idle' && <button className="mini" style={{ marginTop: 5 }} disabled={busy} onClick={() => { if (confirm('팀장 해제?')) act({ action: 'removeCaptain', teamId: tm.id }); }}>팀장 해제</button>}
-                  </>
-                )}
+                {canManage && (tm.members || []).length <= 1 && auc.status === 'idle' && <button className="mini" style={{ marginTop: 6 }} disabled={busy} onClick={() => { if (confirm('팀장 해제?')) act({ action: 'removeCaptain', teamId: tm.id }); }}>팀장 해제</button>}
               </div>
             ))}
           </div>
@@ -536,7 +545,10 @@ function LiveAuction({ teams, pool, auction, canManage, id, reload, user, S }) {
             <>
               <div className="la-nom">
                 <div className="la-nomname"><b>{nominated.game_name}</b> <span className={tierClass(nominated.tier)}>{nominated.tier ? (TIER_LABEL[nominated.tier] || nominated.tier) : ''}</span>{nominated.role ? <span className="muted"> · {POS_KR[nominated.role] || nominated.role}</span> : ''}</div>
-                <div className="la-bidnow">현재가 <b className="accent">{auc.current_bid}p</b> {bidderTeam ? <>— <b>{bidderTeam.name}</b></> : <span className="muted">입찰 없음</span>}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {remainSec != null && <span className={`la-timer ${remainSec <= 5 ? 'urgent' : ''}`}>⏱ {remainSec}s</span>}
+                  <div className="la-bidnow">현재가 <b className="accent">{auc.current_bid}p</b> {bidderTeam ? <>— <b>{bidderTeam.name}</b></> : <span className="muted">입찰 없음</span>}</div>
+                </div>
               </div>
               <div className="la-bidbtns">
                 {captainTeams.map((tm) => (

@@ -160,10 +160,11 @@ export async function addPoolPlayer(tournamentId, b) {
   const chk = validateEligibility(t.settings, [{ game_name, tier: b.tier || null, games: b.games ?? null }]);
   const relevant = chk.errors.filter((e) => !e.includes('로스터'));
   if (relevant.length) throw new Error(relevant.join('\n'));
-  const row = { tournament_id: tournamentId, game_name, tag_line: b.tag_line || null, tier: b.tier || null, role: b.role || null };
-  const { data, error } = await db().from('tournament_pool').insert(row).select().single();
-  if (error) { if (/tournament_pool|does not exist/i.test(error.message || '')) throw new Error('경매 마이그레이션(tournament-auction-schema.sql)을 먼저 실행하세요'); throw error; }
-  return data;
+  const row = { tournament_id: tournamentId, game_name, tag_line: b.tag_line || null, tier: b.tier || null, role: b.role || null, user_id: b.user_id ?? null };
+  let ins = await db().from('tournament_pool').insert(row).select().single();
+  if (ins.error && /user_id/i.test(ins.error.message || '')) { const { user_id, ...r } = row; ins = await db().from('tournament_pool').insert(r).select().single(); } // user_id 컬럼 미생성 폴백
+  if (ins.error) { if (/tournament_pool|does not exist/i.test(ins.error.message || '')) throw new Error('경매 마이그레이션(tournament-auction-schema.sql)을 먼저 실행하세요'); throw ins.error; }
+  return ins.data;
 }
 
 // 점수제 팀 제출: 신청자 5명(라인별)을 골라 합계 점수 ≤ 상한이면 팀 등록 + 풀에서 소비.
@@ -225,7 +226,8 @@ export async function sellPlayer(tournamentId, b) {
 
 async function upsertAuction(tournamentId, patch) {
   const row = { tournament_id: tournamentId, updated_at: new Date().toISOString(), ...patch };
-  const { error } = await db().from('tournament_auction').upsert(row, { onConflict: 'tournament_id' });
+  let { error } = await db().from('tournament_auction').upsert(row, { onConflict: 'tournament_id' });
+  if (error && /bid_deadline/i.test(error.message || '')) { const { bid_deadline, ...r } = row; ({ error } = await db().from('tournament_auction').upsert(r, { onConflict: 'tournament_id' })); } // 타이머 컬럼 미생성 폴백
   if (error) { if (/tournament_auction|does not exist/i.test(error.message || '')) throw new Error('실시간 경매 마이그레이션(tournament-auction-live-schema.sql)을 먼저 실행하세요'); throw error; }
 }
 
@@ -261,7 +263,7 @@ export async function makeCaptain(tournamentId, poolId) {
   const { data: p } = await db().from('tournament_pool').select('*').eq('id', poolId).maybeSingle();
   if (!p || p.sold_to) throw new Error('이미 배정된 선수예요');
   const { data: team, error } = await db().from('tournament_teams')
-    .insert({ tournament_id: tournamentId, name: `${p.game_name} 팀`, is_captain_team: true, budget, status: 'approved' }).select().single();
+    .insert({ tournament_id: tournamentId, name: `${p.game_name} 팀`, is_captain_team: true, budget, status: 'approved', captain_user_id: p.user_id ?? null }).select().single();
   if (error) { if (/budget|is_captain|captain_user/i.test(error.message || '')) throw new Error('실시간 경매 마이그레이션(tournament-auction-live-schema.sql)을 먼저 실행하세요'); throw error; }
   await db().from('tournament_team_members').insert({ team_id: team.id, game_name: p.game_name, tag_line: p.tag_line, tier: p.tier, role: p.role });
   await db().from('tournament_pool').update({ sold_to: team.id, price: 0 }).eq('id', p.id);
@@ -290,12 +292,15 @@ export async function assignCaptainUser(tournamentId, teamId, userId) {
 
 // 다음 선수 지명 (poolId 지정 없으면 랜덤). 남은 선수 없으면 종료.
 export async function nominateNext(tournamentId, poolId = null) {
+  const { data: t } = await db().from('tournaments').select('settings').eq('id', tournamentId).maybeSingle();
+  const bidSeconds = normalizeSettings(t?.settings).auction.bidSeconds;
   const { data: pool } = await db().from('tournament_pool').select('*').eq('tournament_id', tournamentId);
   const avail = (pool || []).filter((p) => !p.sold_to);
-  if (!avail.length) { await upsertAuction(tournamentId, { status: 'done', current_pool_id: null, current_bid: 0, current_bidder: null }); return getTournament(tournamentId); }
+  if (!avail.length) { await upsertAuction(tournamentId, { status: 'done', current_pool_id: null, current_bid: 0, current_bidder: null, bid_deadline: null }); return getTournament(tournamentId); }
   let pick = poolId ? avail.find((p) => p.id === poolId) : null;
   if (!pick) pick = avail[Math.floor(Math.random() * avail.length)];
-  await upsertAuction(tournamentId, { status: 'bidding', current_pool_id: pick.id, current_bid: 0, current_bidder: null });
+  const deadline = new Date(Date.now() + bidSeconds * 1000).toISOString();
+  await upsertAuction(tournamentId, { status: 'bidding', current_pool_id: pick.id, current_bid: 0, current_bidder: null, bid_deadline: deadline });
   return getTournament(tournamentId);
 }
 
@@ -310,7 +315,9 @@ export async function placeBid(tournamentId, teamId, user, isAdmin) {
   const inc = a.increment || 5;
   const newBid = (a.current_bid || 0) + inc;
   if ((team.budget ?? 0) < newBid) throw new Error(`예산 부족 (남은 ${team.budget ?? 0} < ${newBid})`);
-  await upsertAuction(tournamentId, { status: 'bidding', current_pool_id: a.current_pool_id, current_bid: newBid, current_bidder: teamId, increment: inc });
+  const { data: tt } = await db().from('tournaments').select('settings').eq('id', tournamentId).maybeSingle();
+  const deadline = new Date(Date.now() + normalizeSettings(tt?.settings).auction.bidSeconds * 1000).toISOString(); // 입찰 시 타이머 연장
+  await upsertAuction(tournamentId, { status: 'bidding', current_pool_id: a.current_pool_id, current_bid: newBid, current_bidder: teamId, increment: inc, bid_deadline: deadline });
   return getTournament(tournamentId);
 }
 
@@ -326,16 +333,16 @@ export async function sellCurrent(tournamentId) {
   await db().from('tournament_team_members').insert({ team_id: team.id, game_name: p.game_name, tag_line: p.tag_line, tier: p.tier, role: p.role });
   await db().from('tournament_pool').update({ sold_to: team.id, price }).eq('id', p.id);
   await db().from('tournament_teams').update({ budget: (team.budget ?? 0) - price }).eq('id', team.id);
-  await upsertAuction(tournamentId, { status: 'idle', current_pool_id: null, current_bid: 0, current_bidder: null });
+  await upsertAuction(tournamentId, { status: 'idle', current_pool_id: null, current_bid: 0, current_bidder: null, bid_deadline: null });
   return getTournament(tournamentId);
 }
 
 export async function passCurrent(tournamentId) { // 유찰
-  await upsertAuction(tournamentId, { status: 'idle', current_pool_id: null, current_bid: 0, current_bidder: null });
+  await upsertAuction(tournamentId, { status: 'idle', current_pool_id: null, current_bid: 0, current_bidder: null, bid_deadline: null });
   return getTournament(tournamentId);
 }
 export async function endAuction(tournamentId) {
-  await upsertAuction(tournamentId, { status: 'done', current_pool_id: null, current_bid: 0, current_bidder: null });
+  await upsertAuction(tournamentId, { status: 'done', current_pool_id: null, current_bid: 0, current_bidder: null, bid_deadline: null });
   return getTournament(tournamentId);
 }
 

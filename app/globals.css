@@ -1180,6 +1180,9 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 .la-applicants { display: flex; flex-direction: column; gap: 5px; max-height: 320px; overflow-y: auto; }
 .la-app { display: flex; align-items: center; gap: 8px; padding: 5px 9px; background: #1a1a20; border: 1px solid #2a2a33; border-radius: 6px; }
 .la-app.nom { border-color: #e8c07d; box-shadow: 0 0 0 1px rgba(232,192,125,.4); }
+.la-timer { font-size: 18px; font-weight: 800; color: #7fd4a8; min-width: 52px; }
+.la-timer.urgent { color: var(--red); animation: pulse 1s infinite; }
+@keyframes pulse { 50% { opacity: .5; } }
 @media (max-width: 760px) { .la-lists { grid-template-columns: 1fr; } }
 .sf-x { border: 0; background: transparent; color: #999; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; }
 .sf-pooltitle { font-size: 12px; margin: 12px 0 6px; font-weight: 700; }

@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { addPoolPlayer, removePoolPlayer, sellPlayer, undoSale } from '../../../../../src/repo-tournament.js';
-import { requireTournamentOwner, errStatus } from '../../../../../src/auth.js';
+import { requireTournamentOwner, getUser, errStatus } from '../../../../../src/auth.js';
 
-// 선수 풀 등록 (공개 — 누구나 참가 신청)
+// 선수 풀 등록 (로그인 필요 — 신청자 user_id 저장 → 팀장 자동 입찰권)
 export async function POST(request, { params }) {
   try {
+    const user = await getUser(request);
     const body = await request.json();
-    return NextResponse.json({ ok: true, player: await addPoolPlayer(params.id, body) });
+    return NextResponse.json({ ok: true, player: await addPoolPlayer(params.id, { ...body, user_id: user?.id ?? null }) });
   } catch (e) { return NextResponse.json({ ok: false, error: e.message }, { status: 400 }); }
 }
 
