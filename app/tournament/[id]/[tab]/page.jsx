@@ -110,42 +110,55 @@ function AdminTab({ t, S, admin, canManage, id, reload, user, login }) {
 // ─── 👥 공동운영자 관리 ───
 function AdminsManager({ id, t, reload, user }) {
   const [members, setMembers] = useState([]);
+  const [candidates, setCandidates] = useState([]);
+  const [pick, setPick] = useState('');
   const [busy, setBusy] = useState(false);
   const isHost = !!user && user.id === t.owner_id;
   const loadMembers = useCallback(() => {
-    apiFetch(`/api/tournaments/${id}/members`).then((x) => x.json()).then((r) => { if (r.ok) setMembers(r.members || []); });
+    apiFetch(`/api/tournaments/${id}/members`).then((x) => x.json()).then((r) => { if (r.ok) { setMembers(r.members || []); setCandidates(r.candidates || []); } });
   }, [id]);
   useEffect(loadMembers, [loadMembers]);
-  async function setRole(uid, role) {
+  async function setRole(uid, role, info = {}) {
     setBusy(true);
     try {
-      const r = await apiFetch(`/api/tournaments/${id}/members`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: uid, role }) }).then((x) => x.json());
+      const r = await apiFetch(`/api/tournaments/${id}/members`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: uid, role, ...info }) }).then((x) => x.json());
       if (!r.ok) { alert('실패: ' + r.error); return; }
       loadMembers(); reload();
     } finally { setBusy(false); }
   }
+  const admins = members.filter((m) => m.role === 'admin');
+  const adminIds = new Set(admins.map((m) => m.user_id));
+  const addable = candidates.filter((c) => c.user_id !== t.owner_id && !adminIds.has(c.user_id));
+  const picked = addable.find((c) => c.user_id === pick);
+  const ownerName = members.find((m) => m.user_id === t.owner_id)?.name;
+  const label = (c) => c.name || c.email || (c.user_id || '').slice(0, 8);
+
   return (
     <div className="panel">
-      <h2>👥 공동운영자 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 내전방과 같은 방식</span></h2>
-      <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>공동운영자에게 이 대회 링크를 주고 <b>로그인해서 한 번 들어오면</b> 아래 목록에 떠요. 그 사람을 "공동운영 지정"하면 됩니다.</div>
-      {!isHost && <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>공동운영자 지정·해제는 대회장만 할 수 있어요.</div>}
-      {members.length === 0 && <div className="muted" style={{ marginTop: 10 }}>아직 이 대회를 방문한 로그인 유저가 없어요.</div>}
-      {members.map((m) => {
-        const isOwner = m.user_id === t.owner_id;
-        return (
+      <h2>👥 공동운영자</h2>
+      <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>사이트에 로그인한 적 있는 유저 중에서 골라 권한을 줄 수 있어요. (상대가 이 대회에 미리 들어올 필요 없음)</div>
+      {isHost ? (
+        <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+          <select value={pick} onChange={(e) => setPick(e.target.value)} style={{ ...inp, minWidth: 220 }}>
+            <option value="">로그인 유저 선택…</option>
+            {addable.map((c) => <option key={c.user_id} value={c.user_id}>{label(c)}</option>)}
+          </select>
+          <button className="btn" disabled={busy || !picked} onClick={() => { if (picked) { setRole(picked.user_id, 'admin', { name: picked.name, email: picked.email }); setPick(''); } }}>공동운영 지정</button>
+        </div>
+      ) : <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>공동운영자 지정·해제는 대회장만 할 수 있어요.</div>}
+
+      <div style={{ marginTop: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderTop: '1px solid #2a2a33' }}>
+          <b>{ownerName || '대회장'}</b><span className="muted" style={{ fontSize: 11 }}>👑 대회장</span>
+        </div>
+        {admins.length === 0 && <div className="muted" style={{ fontSize: 12, padding: '6px 0' }}>아직 공동운영자가 없어요.</div>}
+        {admins.map((m) => (
           <div key={m.user_id} style={{ display: 'flex', alignItems: 'center', gap: 8, borderTop: '1px solid #2a2a33', padding: '8px 0' }}>
-            <b>{m.name || m.email || '유저'}</b>
-            <span className="muted" style={{ fontSize: 11 }}>{isOwner ? '👑 대회장' : m.role === 'admin' ? '🛠 공동운영' : '관람'}</span>
-            {isHost && !isOwner && (
-              <span style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
-                {m.role !== 'admin'
-                  ? <button className="mini" disabled={busy} onClick={() => setRole(m.user_id, 'admin')}>공동운영 지정</button>
-                  : <button className="mini" disabled={busy} onClick={() => setRole(m.user_id, 'viewer')}>해제</button>}
-              </span>
-            )}
+            <b>{m.name || m.email || '유저'}</b><span className="muted" style={{ fontSize: 11 }}>🛠 공동운영</span>
+            {isHost && <button className="mini" style={{ marginLeft: 'auto' }} disabled={busy} onClick={() => setRole(m.user_id, 'viewer')}>해제</button>}
           </div>
-        );
-      })}
+        ))}
+      </div>
     </div>
   );
 }

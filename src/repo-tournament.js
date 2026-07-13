@@ -69,12 +69,28 @@ export async function listTournamentMembers(tournamentId) {
   return r.error ? [] : (r.data || []);
 }
 
-export async function setTournamentMemberRole(tournamentId, userId, role) {
+export async function setTournamentMemberRole(tournamentId, userId, role, info = {}) {
   if (!['admin', 'viewer'].includes(role)) throw new Error('role은 admin/viewer');
+  if (!userId) throw new Error('user_id 필요');
   const { data: t } = await db().from('tournaments').select('owner_id').eq('id', tournamentId).maybeSingle();
   if (t?.owner_id === userId) throw new Error('대회장 역할은 바꿀 수 없어요');
-  const { error } = await db().from('tournament_members').update({ role }).eq('tournament_id', tournamentId).eq('user_id', userId);
-  if (error) throw error;
+  // 방문 없이 바로 지정: 이미 있으면 역할만, 없으면 새로 등록(이름/이메일은 유저 목록에서).
+  const { data: exist } = await db().from('tournament_members').select('user_id').eq('tournament_id', tournamentId).eq('user_id', userId).maybeSingle();
+  if (exist) {
+    const { error } = await db().from('tournament_members').update({ role }).eq('tournament_id', tournamentId).eq('user_id', userId);
+    if (error) throw error;
+  } else {
+    const { error } = await db().from('tournament_members').insert({ tournament_id: tournamentId, user_id: userId, role, email: info.email ?? null, name: info.name ?? null });
+    if (error) throw error;
+  }
+}
+
+// 사이트에 로그인한 적 있는 유저 목록(방 입장자 취합) — 대회장이 공동운영자로 지정할 후보.
+export async function listKnownUsers() {
+  const { data } = await db().from('room_members').select('user_id, name, email').order('name');
+  const map = new Map();
+  (data || []).forEach((m) => { if (m.user_id && !map.has(m.user_id)) map.set(m.user_id, { user_id: m.user_id, name: m.name || null, email: m.email || null }); });
+  return [...map.values()];
 }
 
 export async function tournamentOwnerId(id) {
