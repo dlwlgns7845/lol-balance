@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { useGroup } from '../../../../components/GroupProvider.jsx';
 import { apiFetch } from '../../../../components/api.js';
-import { normalizeSettings, REGIONS } from '../../../../src/tournament-settings.js';
+import { normalizeSettings, REGIONS, TIER_BASES, TIER_BASIS_LABEL } from '../../../../src/tournament-settings.js';
 import { groupStandings } from '../../../../src/bracket.js';
 import { TIER_ORDER, TIER_LABEL, POS_KR, tierClass } from '../../../../src/table.js';
 
@@ -184,7 +184,7 @@ function SettingsEditor({ S, admin }) {
       </div>
       {!open ? (
         <div className="muted" style={{ fontSize: 13, marginTop: 8, lineHeight: 1.8 }}>
-          로스터 {el.rosterMin}~{el.rosterMax}명 · {el.tierBasis === 'peak' ? '최고티어' : '현재티어'} {el.tierCap ? TIER_LABEL[el.tierCap] : '무제한'}~{el.tierFloor ? TIER_LABEL[el.tierFloor] : '무제한'}
+          로스터 {el.rosterMin}~{el.rosterMax}명 · {TIER_BASIS_LABEL[el.tierBasis]} {el.tierCap ? TIER_LABEL[el.tierCap] : '무제한'}~{el.tierFloor ? TIER_LABEL[el.tierFloor] : '무제한'}
           {el.minGames > 0 ? ` · ${el.minGames}판+` : ''}{el.minLevel > 0 ? ` · 최소 ${el.minLevel}레벨` : ''} · {FORMAT_LABEL[d.format]} · 시드 {SEED_LABEL[d.seeding]}{d.bestOf > 1 ? ` · BO${d.bestOf}` : ''}
         </div>
       ) : (
@@ -195,10 +195,9 @@ function SettingsEditor({ S, admin }) {
               <div style={cell}><label style={lbl}>로스터 최소</label><input type="number" min={1} max={10} value={el.rosterMin} onChange={(e) => setEl('rosterMin', +e.target.value)} style={inp} /></div>
               <div style={cell}><label style={lbl}>로스터 최대</label><input type="number" min={1} max={10} value={el.rosterMax} onChange={(e) => setEl('rosterMax', +e.target.value)} style={inp} /></div>
               <div style={cell}><label style={lbl}>최소 레벨</label><input type="number" min={0} value={el.minLevel} onChange={(e) => setEl('minLevel', +e.target.value)} style={inp} placeholder="0=제한없음" /></div>
-              <div style={cell}><label style={lbl}>티어 기준</label>
+              <div style={cell}><label style={lbl}>티어 선정 기준</label>
                 <select value={el.tierBasis} onChange={(e) => setEl('tierBasis', e.target.value)} style={inp}>
-                  <option value="current">현재 시즌 티어</option>
-                  <option value="peak">역대 최고 티어</option>
+                  {TIER_BASES.map((b) => <option key={b} value={b}>{TIER_BASIS_LABEL[b]}</option>)}
                 </select>
               </div>
               <div style={cell}><label style={lbl}>티어 상한(이하)</label><select value={el.tierCap || ''} onChange={(e) => setEl('tierCap', e.target.value || null)} style={inp}>{tierOpts}</select></div>
@@ -274,8 +273,9 @@ function ApplyPlayer({ t, id, reload, S }) {
     try {
       // 인게임 티어 자동 배정 (개최자 기준: 지역·기준·큐)
       const prof = await fetch(`/api/seed?name=${encodeURIComponent(gn.trim())}&tag=${encodeURIComponent(tg.trim())}&region=${el.region}`).then((x) => x.json()).catch(() => ({}));
-      const usable = el.allowFlex || el.tierBasis === 'peak' || prof.basis === '현재 솔랭'; // 솔로만 요구 시 자유랭 티어 배제
-      const tier = prof.found && usable ? ((el.tierBasis === 'peak' ? prof.peakTier : prof.suggestedTier) || null) : null;
+      const usable = el.allowFlex || el.tierBasis !== 'current' || prof.basis === '현재 솔랭'; // 솔로만 요구 시 현재 자유랭 티어 배제
+      const pickBasis = { current: prof.suggestedTier, currentPeak: prof.curHighTier, lastSeason: prof.lastSeasonTier, peak: prof.peakTier };
+      const tier = prof.found && usable ? (pickBasis[el.tierBasis] || prof.suggestedTier || null) : null;
       const games = prof.games ?? null;
       const r = await apiFetch(`/api/tournaments/${id}/auction`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ game_name: gn.trim(), tag_line: tg.trim(), tier, role: role || null, games }) }).then((x) => x.json());
       if (!r.ok) throw new Error(r.error);
@@ -287,7 +287,7 @@ function ApplyPlayer({ t, id, reload, S }) {
     <div className="panel">
       <h2>📝 선수 신청 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 인게임 티어 자동 배정</span></h2>
       <div style={{ background: 'rgba(207,174,111,.08)', border: '1px solid rgba(207,174,111,.25)', borderRadius: 8, padding: '8px 12px', fontSize: 12.5, color: '#d8c48f', margin: '8px 0' }}>
-        📋 기준 <b>{el.tierBasis === 'peak' ? '역대 최고 티어' : '현재 시즌 티어'}</b> · <b>{el.region}</b> · {el.allowFlex ? '솔로+자유랭' : '솔로랭크만'}
+        📋 기준 <b>{TIER_BASIS_LABEL[el.tierBasis]}</b> · <b>{el.region}</b> · {el.allowFlex ? '솔로+자유랭' : '솔로랭크만'}
         {(el.tierCap || el.tierFloor) ? <> · {el.tierCap ? TIER_LABEL[el.tierCap] : '무제한'} ~ {el.tierFloor ? TIER_LABEL[el.tierFloor] : '무제한'}</> : ' · 티어 제한 없음'}
         {el.minGames > 0 ? <> · 현재시즌 <b>{el.minGames}판+</b></> : ''}
       </div>

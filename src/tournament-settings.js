@@ -6,7 +6,9 @@ export const FORMATS = ['single_elim', 'double_elim', 'group_stage'];
 export const SEEDINGS = ['order', 'tier', 'random'];
 export const FORMATIONS = ['roster', 'auction'];
 
-export const TIER_BASES = ['current', 'peak']; // 티어 판정 기준: 현재 시즌 / 역대 최고
+// 티어 선정 기준: 현재 시즌 / 현재 시즌 최고 / 지난 시즌 / 역대 최고
+export const TIER_BASES = ['current', 'currentPeak', 'lastSeason', 'peak'];
+export const TIER_BASIS_LABEL = { current: '현재 시즌 티어', currentPeak: '현재 시즌 최고', lastSeason: '지난 시즌 티어', peak: '역대 최고 티어' };
 export const REGIONS = ['NA', 'KR', 'EUW', 'EUNE', 'JP', 'OCE', 'BR', 'LAN', 'LAS', 'TR', 'RU', 'VN']; // 조회 지역
 
 export const DEFAULT_SETTINGS = {
@@ -73,7 +75,7 @@ export function validateEligibility(settings, members) {
   if (n > el.rosterMax) errors.push(`로스터는 최대 ${el.rosterMax}명까지예요 (현재 ${n}명)`);
   const capR = tierRank(el.tierCap);     // 이보다 강하면(rank < capR) 탈락
   const floorR = tierRank(el.tierFloor); // 이보다 약하면(rank > floorR) 탈락
-  const basisKr = el.tierBasis === 'peak' ? '최고티어' : '현재티어';
+  const basisKr = TIER_BASIS_LABEL[el.tierBasis] || '티어';
   (members || []).forEach((m) => {
     const r = tierRank(m.tier);
     if (r != null) {

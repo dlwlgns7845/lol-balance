@@ -124,6 +124,9 @@ export function parseProfile(text) {
     curHigh ? mapTierApexAware(curHigh.tier, curHigh.division, curHigh.lp) : null,
     ...seasons.map((s) => mapTierApexAware(s.tier, s.division, s.lp))].filter(Boolean);
   const peakTier = peakCands.sort((a, b) => keyStrength(b) - keyStrength(a))[0] || suggestedTier;
+  // 선정 기준별 키: 현재시즌 최고 / 지난 시즌
+  const curHighTier = curHigh ? mapTierApexAware(curHigh.tier, curHigh.division, curHigh.lp) : (suggestedTier || null);
+  const lastSeasonTier = seasons[0] ? mapTierApexAware(seasons[0].tier, seasons[0].division, seasons[0].lp) : null;
   return {
     gameName: head ? head[1] : null,
     tag: head ? head[2] : null,
@@ -131,7 +134,7 @@ export function parseProfile(text) {
     peak: peak ? { tier: peak.tier, division: peak.division } : null,
     curHigh,
     seasons,
-    suggestedTier, peakTier, basis, games, confidence,
+    suggestedTier, peakTier, curHighTier, lastSeasonTier, basis, games, confidence,
   };
 }
 
