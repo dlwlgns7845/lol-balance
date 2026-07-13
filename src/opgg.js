@@ -118,6 +118,12 @@ export function parseProfile(text) {
     confidence = games >= 100 ? 'high' : games >= 30 ? 'medium' : 'low';
   }
 
+  // 역대 최고 티어 키 — 현재티어·전시즌최고·현시즌최고·시즌별 중 가장 강한 키
+  const peakCands = [suggestedTier,
+    peak ? mapTierApexAware(peak.tier, peak.division, null) : null,
+    curHigh ? mapTierApexAware(curHigh.tier, curHigh.division, curHigh.lp) : null,
+    ...seasons.map((s) => mapTierApexAware(s.tier, s.division, s.lp))].filter(Boolean);
+  const peakTier = peakCands.sort((a, b) => keyStrength(b) - keyStrength(a))[0] || suggestedTier;
   return {
     gameName: head ? head[1] : null,
     tag: head ? head[2] : null,
@@ -125,7 +131,7 @@ export function parseProfile(text) {
     peak: peak ? { tier: peak.tier, division: peak.division } : null,
     curHigh,
     seasons,
-    suggestedTier, basis, games, confidence,
+    suggestedTier, peakTier, basis, games, confidence,
   };
 }
 

@@ -6,8 +6,10 @@ export const FORMATS = ['single_elim', 'double_elim', 'group_stage'];
 export const SEEDINGS = ['order', 'tier', 'random'];
 export const FORMATIONS = ['roster', 'auction'];
 
+export const TIER_BASES = ['current', 'peak']; // 티어 판정 기준: 현재 시즌 / 역대 최고
+
 export const DEFAULT_SETTINGS = {
-  eligibility: { minLevel: 0, tierCap: null, tierFloor: null, rosterMin: 5, rosterMax: 7 },
+  eligibility: { minLevel: 0, tierCap: null, tierFloor: null, rosterMin: 5, rosterMax: 7, tierBasis: 'current', minGames: 0 },
   format: 'single_elim',
   bestOf: 1,
   seeding: 'order',
@@ -36,6 +38,8 @@ export function normalizeSettings(raw) {
       tierFloor: tierKey(el.tierFloor),
       rosterMin: clampInt(el.rosterMin, 5, 1, 10),
       rosterMax: clampInt(el.rosterMax, 7, 1, 10),
+      tierBasis: TIER_BASES.includes(el.tierBasis) ? el.tierBasis : 'current',
+      minGames: clampInt(el.minGames, 0, 0, 10000),
     },
     format: FORMATS.includes(s.format) ? s.format : 'single_elim',
     bestOf: [1, 3, 5].includes(Number(s.bestOf)) ? Number(s.bestOf) : 1,
@@ -66,11 +70,16 @@ export function validateEligibility(settings, members) {
   if (n > el.rosterMax) errors.push(`로스터는 최대 ${el.rosterMax}명까지예요 (현재 ${n}명)`);
   const capR = tierRank(el.tierCap);     // 이보다 강하면(rank < capR) 탈락
   const floorR = tierRank(el.tierFloor); // 이보다 약하면(rank > floorR) 탈락
+  const basisKr = el.tierBasis === 'peak' ? '최고티어' : '현재티어';
   (members || []).forEach((m) => {
     const r = tierRank(m.tier);
-    if (r == null) return; // 티어 미인식 → 검증 skip
-    if (capR != null && r < capR) errors.push(`${m.game_name || '팀원'}: 티어 상한(${el.tierCap}) 초과 (${m.tier})`);
-    if (floorR != null && r > floorR) errors.push(`${m.game_name || '팀원'}: 티어 하한(${el.tierFloor}) 미달 (${m.tier})`);
+    if (r != null) {
+      if (capR != null && r < capR) errors.push(`${m.game_name || '팀원'}: ${basisKr} 상한(${el.tierCap}) 초과 (${m.tier})`);
+      if (floorR != null && r > floorR) errors.push(`${m.game_name || '팀원'}: ${basisKr} 하한(${el.tierFloor}) 미달 (${m.tier})`);
+    }
+    if (el.minGames > 0 && m.games != null && Number(m.games) < el.minGames) {
+      errors.push(`${m.game_name || '팀원'}: 현재 시즌 판수 부족 (${m.games} < ${el.minGames})`);
+    }
   });
   return { ok: errors.length === 0, errors };
 }

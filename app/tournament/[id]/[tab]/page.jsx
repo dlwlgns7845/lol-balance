@@ -172,8 +172,8 @@ function SettingsEditor({ S, admin }) {
       </div>
       {!open ? (
         <div className="muted" style={{ fontSize: 13, marginTop: 8, lineHeight: 1.8 }}>
-          로스터 {el.rosterMin}~{el.rosterMax}명 · 티어 {el.tierCap ? TIER_LABEL[el.tierCap] : '무제한'}~{el.tierFloor ? TIER_LABEL[el.tierFloor] : '무제한'}
-          {el.minLevel > 0 ? ` · 최소 ${el.minLevel}레벨` : ''} · {FORMAT_LABEL[d.format]} · 시드 {SEED_LABEL[d.seeding]}{d.bestOf > 1 ? ` · BO${d.bestOf}` : ''}
+          로스터 {el.rosterMin}~{el.rosterMax}명 · {el.tierBasis === 'peak' ? '최고티어' : '현재티어'} {el.tierCap ? TIER_LABEL[el.tierCap] : '무제한'}~{el.tierFloor ? TIER_LABEL[el.tierFloor] : '무제한'}
+          {el.minGames > 0 ? ` · ${el.minGames}판+` : ''}{el.minLevel > 0 ? ` · 최소 ${el.minLevel}레벨` : ''} · {FORMAT_LABEL[d.format]} · 시드 {SEED_LABEL[d.seeding]}{d.bestOf > 1 ? ` · BO${d.bestOf}` : ''}
         </div>
       ) : (
         <div style={{ marginTop: 12, display: 'grid', gap: 14 }}>
@@ -183,8 +183,15 @@ function SettingsEditor({ S, admin }) {
               <div style={cell}><label style={lbl}>로스터 최소</label><input type="number" min={1} max={10} value={el.rosterMin} onChange={(e) => setEl('rosterMin', +e.target.value)} style={inp} /></div>
               <div style={cell}><label style={lbl}>로스터 최대</label><input type="number" min={1} max={10} value={el.rosterMax} onChange={(e) => setEl('rosterMax', +e.target.value)} style={inp} /></div>
               <div style={cell}><label style={lbl}>최소 레벨</label><input type="number" min={0} value={el.minLevel} onChange={(e) => setEl('minLevel', +e.target.value)} style={inp} placeholder="0=제한없음" /></div>
+              <div style={cell}><label style={lbl}>티어 기준</label>
+                <select value={el.tierBasis} onChange={(e) => setEl('tierBasis', e.target.value)} style={inp}>
+                  <option value="current">현재 시즌 티어</option>
+                  <option value="peak">역대 최고 티어</option>
+                </select>
+              </div>
               <div style={cell}><label style={lbl}>티어 상한(이하)</label><select value={el.tierCap || ''} onChange={(e) => setEl('tierCap', e.target.value || null)} style={inp}>{tierOpts}</select></div>
               <div style={cell}><label style={lbl}>티어 하한(이상)</label><select value={el.tierFloor || ''} onChange={(e) => setEl('tierFloor', e.target.value || null)} style={inp}>{tierOpts}</select></div>
+              <div style={cell}><label style={lbl}>현재 시즌 최소 판수</label><input type="number" min={0} value={el.minGames} onChange={(e) => setEl('minGames', +e.target.value)} style={inp} placeholder="0=제한없음" /></div>
             </div>
           </div>
           <div>
@@ -350,12 +357,13 @@ function Apply({ t, teams, pool, canManage, admin, id, reload, S, user, login })
     if (!tg) { setRoster((r) => r.map((x, idx) => idx === i ? { ...x, tier: '#태그 필요' } : x)); return; }
     setRoster((r) => r.map((x, idx) => idx === i ? { ...x, tier: '…' } : x));
     const prof = await fetch(`/api/seed?name=${encodeURIComponent(gn.trim())}&tag=${encodeURIComponent(tg.trim())}&region=NA`).then((x) => x.json()).catch(() => ({}));
-    setRoster((r) => r.map((x, idx) => idx === i ? { ...x, tier: prof.found ? (prof.suggestedTier || '?') : '못찾음' } : x));
+    const tierVal = prof.found ? ((S.eligibility.tierBasis === 'peak' ? prof.peakTier : prof.suggestedTier) || '?') : '못찾음';
+    setRoster((r) => r.map((x, idx) => idx === i ? { ...x, tier: tierVal, games: prof.games ?? null } : x));
   }
   async function apply() {
     setBusy(true); setErr(null);
     try {
-      const members = roster.filter((m) => m.name.trim()).map((m) => { const [gn, tg] = m.name.split('#'); return { game_name: (gn || '').trim(), tag_line: (tg || '').trim(), tier: m.tier, role: m.role || null }; });
+      const members = roster.filter((m) => m.name.trim()).map((m) => { const [gn, tg] = m.name.split('#'); return { game_name: (gn || '').trim(), tag_line: (tg || '').trim(), tier: m.tier, role: m.role || null, games: m.games ?? null }; });
       const r = await fetch('/api/tournaments/' + id + '/teams', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: teamName, captain, members }) }).then((x) => x.json());
       if (!r.ok) throw new Error(r.error);
       setTeamName(''); setCaptain(''); setRoster(emptyRoster(5)); reload();
@@ -371,7 +379,8 @@ function Apply({ t, teams, pool, canManage, admin, id, reload, S, user, login })
           <h2>📝 팀 신청</h2>
           <div style={{ background: 'rgba(207,174,111,.08)', border: '1px solid rgba(207,174,111,.25)', borderRadius: 8, padding: '8px 12px', fontSize: 12.5, color: '#d8c48f', marginBottom: 12 }}>
             📋 참가 자격 — 로스터 <b>{S.eligibility.rosterMin}~{S.eligibility.rosterMax}명</b>
-            {(S.eligibility.tierCap || S.eligibility.tierFloor) ? <> · 티어 <b>{S.eligibility.tierCap ? TIER_LABEL[S.eligibility.tierCap] : '무제한'} ~ {S.eligibility.tierFloor ? TIER_LABEL[S.eligibility.tierFloor] : '무제한'}</b></> : ' · 티어 제한 없음'}
+            {(S.eligibility.tierCap || S.eligibility.tierFloor) ? <> · <b>{S.eligibility.tierBasis === 'peak' ? '최고티어' : '현재티어'}</b> {S.eligibility.tierCap ? TIER_LABEL[S.eligibility.tierCap] : '무제한'} ~ {S.eligibility.tierFloor ? TIER_LABEL[S.eligibility.tierFloor] : '무제한'}</> : ' · 티어 제한 없음'}
+            {S.eligibility.minGames > 0 ? <> · 현재시즌 <b>{S.eligibility.minGames}판+</b></> : ''}
             {S.eligibility.minLevel > 0 ? <> · 최소 <b>{S.eligibility.minLevel}레벨</b></> : ''}
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
