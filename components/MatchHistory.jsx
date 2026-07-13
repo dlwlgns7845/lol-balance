@@ -153,7 +153,7 @@ function RosterRich({ label, players, win, color, dd, maxDmg, maxTaken, duration
 function MatchCard({ m, dd, open, onToggle, onDelete, byName, highlight, carryThreshold = 20, onPlayer }) {
   const aWin = m.winner === 'A';
   const mvp = [...m.A, ...m.B].find((p) => p.mvp);
-  const svp = [...m.A, ...m.B].find((p) => p.ace); // 패배팀 에이스 = SVP
+  const ace = [...m.A, ...m.B].find((p) => p.ace); // 패배팀 에이스
   const mvpCarry = mvp && (mvp.score || 0) >= carryThreshold;
   const splash = mvp && dd.splash(mvp.champion); // 로딩아트(저해상 세로) 대신 스플래시(고해상 가로) → 선명
   const maxDmg = Math.max(1, ...[...m.A, ...m.B].map((p) => p.damage || 0));
@@ -232,7 +232,7 @@ function MatchCard({ m, dd, open, onToggle, onDelete, byName, highlight, carryTh
         </div>
         <div className="mho-players">
           {keyP(mvp, 'mvp', 'MVP')}
-          {keyP(svp, 'svp', 'SVP')}
+          {keyP(ace, 'ace', 'ACE')}
         </div>
         <span className="mh-chev">›</span>
       </div>

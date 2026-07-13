@@ -35,6 +35,12 @@ export default function StatsPage() {
   const [data, setData] = useState(null);
   const [champs, setChamps] = useState(null);
   const [tab, setTab] = useState('lb');
+  // F5·공유 시 탭 유지: URL 해시(#lb/#champ/#hist) ↔ 탭 동기화
+  useEffect(() => {
+    const h = (window.location.hash || '').replace('#', '');
+    if (['lb', 'champ', 'hist'].includes(h)) setTab(h);
+  }, []);
+  const goTab = (t) => { setTab(t); if (typeof window !== 'undefined') window.history.replaceState(null, '', `#${t}`); };
   const [lane, setLane] = useState('all'); // 리더보드 라인 필터
   const [sort, setSort] = useState({ key: 'score', dir: 'desc' }); // 리더보드 정렬
   const [sel, setSel] = useState(null);
@@ -134,9 +140,9 @@ export default function StatsPage() {
           <Awards gid={gid} players={players} />
 
           <div className="tabs">
-            <button className={tab === 'lb' ? 'on' : ''} onClick={() => setTab('lb')}>리더보드</button>
-            <button className={tab === 'champ' ? 'on' : ''} onClick={() => setTab('champ')}>챔피언</button>
-            <button className={tab === 'hist' ? 'on' : ''} onClick={() => setTab('hist')}>기록</button>
+            <button className={tab === 'lb' ? 'on' : ''} onClick={() => goTab('lb')}>리더보드</button>
+            <button className={tab === 'champ' ? 'on' : ''} onClick={() => goTab('champ')}>챔피언</button>
+            <button className={tab === 'hist' ? 'on' : ''} onClick={() => goTab('hist')}>기록</button>
           </div>
 
           {tab === 'lb' && (
