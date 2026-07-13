@@ -76,7 +76,7 @@ export default function TournamentLayout({ children }) {
             </div>
           )}
         </aside>
-        <main className="main" style={{ flex: 1 }}><div className="content" style={{ maxWidth: 1000 }}>{children}</div></main>
+        <main className="main" style={{ flex: 1 }}><div className="content" style={{ maxWidth: 1320 }}>{children}</div></main>
       </div>
     </div>
   );

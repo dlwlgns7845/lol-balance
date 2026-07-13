@@ -287,7 +287,6 @@ function ScoreFormation({ pool, S, id, reload, user, login }) {
   const [slots, setSlots] = useState([null, null, null, null, null]); // 라인별 poolId (탑~서폿)
   const [teamName, setTeamName] = useState('');
   const [sel, setSel] = useState(null);
-  const [showTable, setShowTable] = useState(false);
   const [busy, setBusy] = useState(false);
   const r1 = (n) => Math.round(n * 10) / 10;
   const placed = new Set(slots.filter(Boolean));
@@ -341,29 +340,36 @@ function ScoreFormation({ pool, S, id, reload, user, login }) {
 
   return (
     <div className="panel">
-      <h2>📊 점수제 팀 짜기 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 합계 <b>{cap}점 이내</b>로 팀을 맞춰 제출</span></h2>
-      <div style={{ display: 'flex', gap: 8, margin: '8px 0', flexWrap: 'wrap' }}>
-        <button className="mini" onClick={() => setShowTable((v) => !v)}>{showTable ? '점수표 접기' : '📋 점수표'}</button>
-        <button className="mini" onClick={reset}>초기화</button>
-      </div>
-      {showTable && <ScoreTableRef />}
-      <div className="sf-summary">
-        <span>합계 <b className={over ? 'sf-over' : 'sf-ok'}>{total}</b> <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>/ 상한 {cap}</span></span>
-        <span className={`sf-light ${over ? 'red' : full ? 'green' : 'yellow'}`}>{over ? `⚠ ${r1(total - cap)}점 초과` : full ? `✅ 통과 (여유 ${r1(cap - total)})` : `${5 - slots.filter(Boolean).length}자리 남음`}</span>
-      </div>
-      <div className="sf-teams" style={{ gridTemplateColumns: '1fr' }}>
-        <div className="sf-team t-blue">{POS.map((_, i) => <Slot key={i} lane={i} />)}</div>
-      </div>
-      <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-        <input placeholder="우리 팀 이름" value={teamName} onChange={(e) => setTeamName(e.target.value)} style={{ ...inp, flex: 1, minWidth: 160 }} />
-        {user
-          ? <button className="btn" disabled={busy || !full || over || !teamName.trim()} onClick={submit}>{busy ? '제출 중…' : '팀 제출'}</button>
-          : <button className="btn" onClick={login}><span className="gg">G</span> 로그인 후 제출</button>}
-      </div>
-      <div className="sf-pooltitle muted">신청자 풀 ({unassigned.length}){sel ? ' · 선수 선택됨 → 라인 클릭' : ''}</div>
-      <div className="sf-pool" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { const d = e.dataTransfer.getData('pid'); if (d) unassign(d); }}>
-        {unassigned.map((p) => <Card key={p.id} pid={p.id} lane={null} />)}
-        {unassigned.length === 0 && <span className="muted" style={{ fontSize: 12 }}>남은 신청자가 없어요.</span>}
+      <h2>📊 점수제 팀 짜기 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 합계 <b>{cap}점 이내</b>로 드래그해서 팀을 맞춰 제출</span></h2>
+      <div className="sf-layout">
+        {/* 신청자 리스트 (드래그 소스) */}
+        <div className="sf-side">
+          <div className="sf-coltitle">신청자 ({unassigned.length}){sel ? ' · 라인 클릭' : ''}</div>
+          <div className="sf-poolcol" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { const d = e.dataTransfer.getData('pid'); if (d) unassign(d); }}>
+            {unassigned.map((p) => <Card key={p.id} pid={p.id} lane={null} />)}
+            {unassigned.length === 0 && <span className="muted" style={{ fontSize: 12 }}>모두 배치됨</span>}
+          </div>
+        </div>
+        {/* 시뮬레이션 툴 */}
+        <div className="sf-tool">
+          <div className="sf-summary">
+            <span>합계 <b className={over ? 'sf-over' : 'sf-ok'}>{total}</b> <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>/ 상한 {cap}</span></span>
+            <span className={`sf-light ${over ? 'red' : full ? 'green' : 'yellow'}`}>{over ? `⚠ ${r1(total - cap)}점 초과` : full ? `✅ 통과 (여유 ${r1(cap - total)})` : `${5 - slots.filter(Boolean).length}자리 남음`}</span>
+            <button className="mini" onClick={reset}>초기화</button>
+          </div>
+          <div className="sf-team t-blue">{POS.map((_, i) => <Slot key={i} lane={i} />)}</div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+            <input placeholder="우리 팀 이름" value={teamName} onChange={(e) => setTeamName(e.target.value)} style={{ ...inp, flex: 1, minWidth: 140 }} />
+            {user
+              ? <button className="btn" disabled={busy || !full || over || !teamName.trim()} onClick={submit}>{busy ? '제출 중…' : '팀 제출'}</button>
+              : <button className="btn" onClick={login}><span className="gg">G</span> 로그인 후 제출</button>}
+          </div>
+        </div>
+        {/* 점수표 (항상 표시) */}
+        <div className="sf-side">
+          <div className="sf-coltitle">📋 점수표</div>
+          <div className="sf-tablecol"><ScoreTableRef /></div>
+        </div>
       </div>
     </div>
   );
