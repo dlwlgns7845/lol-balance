@@ -43,7 +43,12 @@ export default function TournamentLayout({ children }) {
           </a>
         </div>
         <nav className="tb-nav">
-          {selId && TABS.map(([k, label]) => (
+          {selId && TABS.filter(([k]) => {
+            // 경매 셋업(모집중)일 땐 점수표(대진) 탭 숨김 — 대진 생성 후엔 표시
+            const st = list.find((x) => x.id === selId);
+            if (k === 'scoreboard' && st?.settings?.teamFormation === 'auction' && st?.status === 'recruiting') return false;
+            return true;
+          }).map(([k, label]) => (
             <Link key={k} href={`/tournament/${selId}/${k}`} className={tab === k ? 'active' : ''}>{label}</Link>
           ))}
           {selId && user && list.find((x) => x.id === selId)?.settings?.teamFormation === 'auction' && (
