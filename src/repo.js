@@ -1084,7 +1084,13 @@ export async function getMatchHistory(groupId, limit = 30) {
   }
   const persons = await listPersons(groupId);
   const nameById = Object.fromEntries(persons.map((p) => [p.id, p.nickname || p.display_name]));
-  const tierById = Object.fromEntries(persons.map((p) => [p.id, p.base_tier])); // 멤버관리 현재 티어
+  const personById = Object.fromEntries(persons.map((p) => [p.id, p]));
+  // 뛴 포지션 기준 유효 티어: 그 포지션이 '부포지션'이면 부라인티어, 아니면 메인티어 (밸런서 effTier와 동일)
+  const effTierOf = (pid, pos) => {
+    const p = personById[pid]; if (!p) return null;
+    if (pos && p.secondary_tier && (p.secondary_positions || []).includes(pos) && !(p.primary_positions || []).includes(pos)) return p.secondary_tier;
+    return p.base_tier || null;
+  };
   const econ = (m) => m.gold || m.cs || 0; // 골드/CS 토글 대응 — 있는 쪽 사용
   const opScore = (m, tK, tD, tG) => {
     // 통계 MVP와 동일 공식 (KDA 상한 10 + 딜·KP 비중 상향)
@@ -1106,7 +1112,7 @@ export async function getMatchHistory(groupId, limit = 30) {
     scored.forEach((z) => { scoreById[z.x.id] = z.s; });
     [...scored].sort((a, b) => b.s - a.s).forEach((z, i) => { rankById[z.x.id] = i + 1; });
     const row = (x) => ({ personId: x.person_id, name: nameById[x.person_id] || '?', champion: x.champion,
-      tier: tierById[x.person_id] || null, // 멤버관리 현재 티어 (닉 옆 표시)
+      tier: effTierOf(x.person_id, x.position), // 뛴 포지션 기준 티어 (부라인이면 부라인티어)
       k: x.kills, d: x.deaths, a: x.assists, cs: x.cs, damage: x.damage, gold: x.gold, position: x.position,
       detail: x.detail || null, // 리플 상세(아이템·비전 등) — 있을 때만
       mvp: x.id === mvpId, ace: x.id === aceId, rank: rankById[x.id],
