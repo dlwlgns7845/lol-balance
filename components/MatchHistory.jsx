@@ -102,7 +102,7 @@ function RichRow({ p, dd, color, maxDmg, maxTaken, durationMin, byName, onPlayer
       <ChampImg name={p.champion} iconUrl={dd.icon} size={32} />
       <div className="mhr-name">
         <span className="mhr-nm">{p.name}<TitleBadges titles={byName?.[normNm(p.name)]} max={2} />{p.mvp && <span className="mbadge mvp">MVP</span>}{p.ace && <span className="mbadge ace">ACE</span>}</span>
-        <span className={`mhr-tier ${p.tier ? tierClass(p.tier) : 'muted'}`}>{p.tier ? (TIER_LABEL[p.tier] || p.tier) : p.champion}</span>
+        <span className="mhr-sub"><span className="muted">{p.champion}</span>{p.tier && <span className={tierClass(p.tier)}> · {TIER_LABEL[p.tier] || p.tier}</span>}</span>
       </div>
       <div className="mhr-kda">
         <span>{p.k} / <span className="red">{p.d}</span> / {p.a}</span>

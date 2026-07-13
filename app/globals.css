@@ -611,24 +611,25 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mhr-team { background: var(--panel2); border-radius: 10px; overflow: hidden; }
 .mhr-team.t-blue { box-shadow: inset 3px 0 0 #4d7de8; background: rgba(77,125,232,.05); --tint: rgba(77,125,232,.12); }
 .mhr-team.t-red { box-shadow: inset 3px 0 0 #e84d4d; background: rgba(224,77,77,.05); --tint: rgba(224,77,77,.11); }
-.mhr-head { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font-size: 12.5px; background: rgba(255,255,255,.02); border-bottom: 1px solid var(--line); }
+.mhr-head { display: flex; align-items: center; gap: 10px; padding: 6px 12px; font-size: 12px; background: rgba(255,255,255,.02); border-bottom: 1px solid var(--line); }
 .mhr-head .mhf-label { font-weight: 700; }
-.mhr-row { display: grid; grid-template-columns: 32px minmax(88px,1.2fr) 68px minmax(104px,1.3fr) 44px 48px 158px 56px; align-items: center; gap: 8px; padding: 5px 12px; border-bottom: 1px solid rgba(255,255,255,.04); }
+.mhr-row { display: grid; grid-template-columns: 28px minmax(94px,1fr) 58px 118px 42px 46px 150px 52px; align-items: center; gap: 7px; padding: 3px 12px; border-bottom: 1px solid rgba(255,255,255,.04); }
 .mhr-row:last-child { border-bottom: none; }
 .mhr-row.mhr-alt { background: var(--tint); } /* 지브라: 팀 색 베이스로 한 줄씩 진하게 */
 .mhr-row.clk { cursor: pointer; }
 .mhr-row.clk:hover { background: rgba(79,182,214,.16); }
 .mhr-row.me { background: rgba(79,182,214,.2); }
 .mhr-name { min-width: 0; display: flex; flex-direction: column; }
-.mhr-nm { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 3px; }
-.mhr-kda { display: flex; flex-direction: column; font-size: 12px; }
+.mhr-nm { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 3px; }
+.mhr-sub { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mhr-kda { display: flex; flex-direction: column; font-size: 11.5px; }
 .mhr-ratio { font-size: 10.5px; font-weight: 700; }
 .mhr-dmg { display: flex; gap: 6px; font-size: 10px; }
 .mhr-dmg-c { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; text-align: center; }
 .mhr-dmg-c .dmg-bar { height: 5px; }
 .mhr-tier { font-size: 10.5px; font-weight: 600; }
 .dmg-bar .f.taken { background: linear-gradient(90deg, #6b7280, #9aa1ac); }
-.mhr-colhead { font-size: 10px; padding-top: 6px; padding-bottom: 6px; background: rgba(255,255,255,.015); border-bottom: 1px solid var(--line); cursor: default; }
+.mhr-colhead { font-size: 9.5px; padding-top: 4px; padding-bottom: 4px; background: rgba(255,255,255,.015); border-bottom: 1px solid var(--line); cursor: default; }
 .mhr-colhead:hover { background: rgba(255,255,255,.015); }
 .mhr-colhead small { font-size: 8.5px; opacity: .65; font-weight: 400; }
 .mhr-c { display: flex; flex-direction: column; align-items: center; line-height: 1.2; }
@@ -639,19 +640,19 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mhr-item img { border-radius: 4px; display: block; }
 .mhr-gold { font-size: 11.5px; text-align: right; }
 /* 두 팀 사이 중앙 바: 좌=블루 오브젝트 · 중앙 Total Kill/Gold · 우=레드 오브젝트 */
-.mhmid { display: grid; grid-template-columns: 1fr minmax(300px, 460px) 1fr; align-items: center; gap: 16px; padding: 2px 16px; }
-.mhmid-obj { display: flex; gap: 9px; font-size: 12px; align-items: center; white-space: nowrap; }
+.mhmid { display: grid; grid-template-columns: 1fr minmax(260px, 400px) 1fr; align-items: center; gap: 14px; padding: 5px 16px; }
+.mhmid-obj { display: flex; gap: 8px; font-size: 11.5px; align-items: center; white-space: nowrap; }
 .mhmid-obj:last-child { justify-content: flex-end; }
-.mhmid-center { display: flex; flex-direction: column; gap: 5px; }
+.mhmid-center { display: flex; flex-direction: column; gap: 3px; }
 .mhmid-bar { display: flex; align-items: center; gap: 8px; }
-.mhmid-v { font-size: 12.5px; font-weight: 700; min-width: 62px; }
+.mhmid-v { font-size: 11.5px; font-weight: 700; min-width: 52px; }
 .mhmid-v.b { text-align: right; color: #7aa8e8; }
 .mhmid-v.r { text-align: left; color: #f0808a; }
-.mhmid-track { flex: 1; display: flex; height: 20px; border-radius: 5px; overflow: hidden; background: #1b1b22; position: relative; }
+.mhmid-track { flex: 1; display: flex; height: 13px; border-radius: 4px; overflow: hidden; background: #1b1b22; position: relative; }
 .mhmid-f { height: 100%; }
 .mhmid-f.b { background: linear-gradient(90deg, #3a5fb0, #4d7de8); }
 .mhmid-f.r { background: linear-gradient(90deg, #e05a5a, #c53d3d); }
-.mhmid-lbl { position: absolute; inset: 0; display: grid; place-items: center; font-size: 10.5px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.55); }
+.mhmid-lbl { position: absolute; inset: 0; display: grid; place-items: center; font-size: 9.5px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.55); }
 
 .mhf-teams { display: grid; grid-template-columns: 1fr 1fr; background: var(--bg2); }
 .mhf-team { padding: 12px 16px; }
