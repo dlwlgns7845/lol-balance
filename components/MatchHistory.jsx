@@ -52,29 +52,51 @@ function RosterFull({ label, players, win, cs, dd, color, maxDmg, byName, highli
 }
 
 // ── op.gg식 리치 표시 (리플 경기 전용 — detail 있을 때) ──
-function ObjectivesBar({ obj }) {
-  if (!obj) return null;
-  const line = (o, ic, cls) => (
-    <div className={`mhobj-t ${cls}`}>
-      <span className="mhobj-ic">{ic}</span>
-      <span>🐉 {o.dragons || 0}{o.elder ? `+엘더${o.elder}` : ''}</span>
+// 두 팀 사이 중앙 바: 좌=블루 오브젝트, 중앙=Total Kill/Gold 비교바, 우=레드 오브젝트
+function MiddleBar({ objectives, killsA, killsB, goldA, goldB }) {
+  const oA = objectives?.A || {}, oB = objectives?.B || {};
+  const objs = (o) => (
+    <div className="mhmid-obj">
+      <span>🐉 {o.dragons || 0}{o.elder ? `+${o.elder}` : ''}</span>
       <span>🦗 {o.grubs || 0}</span>
       <span>🐦 {o.heralds || 0}</span>
       <span>👑 {o.barons || 0}</span>
       {o.atakhan ? <span>😈 {o.atakhan}</span> : null}
       <span>🗼 {o.towers || 0}</span>
-      <span className="muted">🌾 {k(o.gold || 0)}</span>
     </div>
   );
-  return <div className="mhobj">{line(obj.A, '🟦', 'b')}{line(obj.B, '🟥', 'r')}</div>;
+  const bar = (label, a, b, fmt) => {
+    const tot = Math.max(1, a + b);
+    return (
+      <div className="mhmid-bar">
+        <span className="mhmid-v b">{fmt ? a.toLocaleString() : a}</span>
+        <div className="mhmid-track">
+          <span className="mhmid-f b" style={{ width: (a / tot * 100) + '%' }} />
+          <span className="mhmid-f r" style={{ width: (b / tot * 100) + '%' }} />
+          <span className="mhmid-lbl">{label}</span>
+        </div>
+        <span className="mhmid-v r">{fmt ? b.toLocaleString() : b}</span>
+      </div>
+    );
+  };
+  return (
+    <div className="mhmid">
+      {objs(oA)}
+      <div className="mhmid-center">
+        {bar('Total Kill', killsA || 0, killsB || 0, false)}
+        {bar('Total Gold', goldA || 0, goldB || 0, true)}
+      </div>
+      {objs(oB)}
+    </div>
+  );
 }
 
-function RichRow({ p, dd, color, maxDmg, durationMin, byName, onPlayer, itemUrl, highlight }) {
+function RichRow({ p, dd, color, maxDmg, maxTaken, durationMin, byName, onPlayer, itemUrl, highlight, alt }) {
   const det = p.detail || {};
   const items = det.items || [];
   const csm = durationMin ? (p.cs / durationMin).toFixed(1) : null;
   return (
-    <div className={`mhr-row ${highlight && normNm(p.name) === highlight ? 'me' : ''} ${onPlayer && p.personId ? 'clk' : ''}`}
+    <div className={`mhr-row ${alt ? 'mhr-alt' : ''} ${highlight && normNm(p.name) === highlight ? 'me' : ''} ${onPlayer && p.personId ? 'clk' : ''}`}
       onClick={onPlayer && p.personId ? (e) => { e.stopPropagation(); onPlayer(p.personId); } : undefined}>
       <ChampImg name={p.champion} iconUrl={dd.icon} size={32} />
       <div className="mhr-name">
@@ -85,9 +107,9 @@ function RichRow({ p, dd, color, maxDmg, durationMin, byName, onPlayer, itemUrl,
         <span>{p.k} / <span className="red">{p.d}</span> / {p.a}</span>
         <span className={`muted mhr-ratio ${rClass(+kdaRatio(p))}`}>{kdaRatio(p)}</span>
       </div>
-      <div className="mhr-dmg">
-        <span>{k(p.damage || 0)}</span>
-        <div className="dmg-bar"><span className={`f ${color}`} style={{ width: Math.round((p.damage || 0) / maxDmg * 100) + '%' }} /></div>
+      <div className="mhr-dmg" title="가한 피해 / 받은 피해">
+        <div className="mhr-dmg-r"><span>{k(p.damage || 0)}</span><div className="dmg-bar"><span className={`f ${color}`} style={{ width: Math.round((p.damage || 0) / maxDmg * 100) + '%' }} /></div></div>
+        <div className="mhr-dmg-r"><span className="muted">{k(det.dmgTaken || 0)}</span><div className="dmg-bar"><span className="f taken" style={{ width: Math.round((det.dmgTaken || 0) / maxTaken * 100) + '%' }} /></div></div>
       </div>
       <div className="mhr-c muted"><b>{det.visionScore || 0}</b><span>👁 {det.wardsPlaced || 0}/{det.wardsKilled || 0}</span></div>
       <div className="mhr-c muted"><b>{p.cs || 0}</b><span>{csm ? csm + '/분' : 'CS'}</span></div>
@@ -97,14 +119,24 @@ function RichRow({ p, dd, color, maxDmg, durationMin, byName, onPlayer, itemUrl,
   );
 }
 
-function RosterRich({ label, players, win, color, dd, maxDmg, durationMin, byName, onPlayer, itemUrl, highlight }) {
+function RosterRich({ label, players, win, color, dd, maxDmg, maxTaken, durationMin, byName, onPlayer, itemUrl, highlight }) {
   return (
     <div className={`mhr-team t-${color}`}>
       <div className="mhr-head">
         <span className="mhf-label">{label} <span className={`mhf-res ${win ? 'g' : 'r'}`}>{win ? '승리' : '패배'}</span></span>
         <span className="muted">{sum(players, 'k')} / <span className="red">{sum(players, 'd')}</span> / {sum(players, 'a')} · 🌾 {k(sum(players, 'gold'))}</span>
       </div>
-      {players.map((p, i) => <RichRow key={i} p={p} dd={dd} color={color} maxDmg={maxDmg} durationMin={durationMin} byName={byName} onPlayer={onPlayer} itemUrl={itemUrl} highlight={highlight} />)}
+      <div className="mhr-row mhr-colhead muted">
+        <span />
+        <span>선수</span>
+        <span>KDA</span>
+        <span>피해량<br /><small>가함/받음</small></span>
+        <span>와드<br /><small>시야/설치·제거</small></span>
+        <span>CS<br /><small>·/분</small></span>
+        <span>아이템</span>
+        <span style={{ textAlign: 'right' }}>골드</span>
+      </div>
+      {players.map((p, i) => <RichRow key={i} p={p} dd={dd} color={color} maxDmg={maxDmg} maxTaken={maxTaken} durationMin={durationMin} byName={byName} onPlayer={onPlayer} itemUrl={itemUrl} highlight={highlight} alt={i % 2 === 1} />)}
     </div>
   );
 }
@@ -115,6 +147,7 @@ function MatchCard({ m, dd, open, onToggle, onDelete, byName, highlight, carryTh
   const mvpCarry = mvp && (mvp.score || 0) >= carryThreshold;
   const splash = mvp && dd.splash(mvp.champion); // 로딩아트(저해상 세로) 대신 스플래시(고해상 가로) → 선명
   const maxDmg = Math.max(1, ...[...m.A, ...m.B].map((p) => p.damage || 0));
+  const maxTaken = Math.max(1, ...[...m.A, ...m.B].map((p) => p.detail?.dmgTaken || 0));
   const itemUrl = (id) => (id && dd.version ? `https://ddragon.leagueoflegends.com/cdn/${dd.version}/img/item/${id}.png` : null);
 
   if (!open) {
@@ -181,13 +214,11 @@ function MatchCard({ m, dd, open, onToggle, onDelete, byName, highlight, carryTh
         </div>
       </div>
       {m.source === 'replay' && (m.A[0]?.detail || m.B[0]?.detail) ? (
-        <>
-          <ObjectivesBar obj={m.objectives} />
-          <div className="mhr-teams">
-            <RosterRich label="블루" players={m.A} win={aWin} color="blue" dd={dd} maxDmg={maxDmg} durationMin={m.durationMin} byName={byName} onPlayer={onPlayer} itemUrl={itemUrl} highlight={highlight} />
-            <RosterRich label="레드" players={m.B} win={!aWin} color="red" dd={dd} maxDmg={maxDmg} durationMin={m.durationMin} byName={byName} onPlayer={onPlayer} itemUrl={itemUrl} highlight={highlight} />
-          </div>
-        </>
+        <div className="mhr-teams">
+          <RosterRich label="블루" players={m.A} win={aWin} color="blue" dd={dd} maxDmg={maxDmg} maxTaken={maxTaken} durationMin={m.durationMin} byName={byName} onPlayer={onPlayer} itemUrl={itemUrl} highlight={highlight} />
+          <MiddleBar objectives={m.objectives} killsA={m.killsA} killsB={m.killsB} goldA={m.goldA} goldB={m.goldB} />
+          <RosterRich label="레드" players={m.B} win={!aWin} color="red" dd={dd} maxDmg={maxDmg} maxTaken={maxTaken} durationMin={m.durationMin} byName={byName} onPlayer={onPlayer} itemUrl={itemUrl} highlight={highlight} />
+        </div>
       ) : (
         <div className="mhf-teams">
           <RosterFull label="블루" players={m.A} win={aWin} cs={m.csA} dd={dd} color="blue" maxDmg={maxDmg} byName={byName} highlight={highlight} carryThreshold={carryThreshold} onPlayer={onPlayer} />
