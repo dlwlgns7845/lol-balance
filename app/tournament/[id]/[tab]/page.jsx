@@ -58,9 +58,11 @@ export default function TournamentTab() {
       {tab === 'stats' && <Stats {...shared} />}
       {tab === 'scrim' && <div className="panel center muted" style={{ padding: '40px 0' }}>🎯 스크림 기능은 준비 중이에요. (연습경기 매칭·일정 — 원하는 형태 알려주면 붙일게요)</div>}
       {tab === 'scoreboard' && <Scoreboard {...shared} />}
-      {tab === 'auction' && (S.teamFormation === 'auction'
-        ? <LiveAuction t={t} teams={teams} pool={pool} auction={auction} canManage={canManage} id={id} reload={load} user={user} S={S} />
-        : <div className="panel center muted" style={{ padding: '32px 0' }}>이 대회는 경매 방식이 아니에요. (팀 구성: {FORMATION_LABEL[S.teamFormation]})</div>)}
+      {tab === 'auction' && (!user
+        ? <div className="panel center muted" style={{ padding: '32px 0' }}>경매는 로그인 후 볼 수 있어요. <button className="btn" style={{ marginLeft: 8 }} onClick={login}><span className="gg">G</span> 로그인</button></div>
+        : S.teamFormation === 'auction'
+          ? <LiveAuction t={t} teams={teams} pool={pool} auction={auction} canManage={canManage} id={id} reload={load} user={user} S={S} />
+          : <div className="panel center muted" style={{ padding: '32px 0' }}>이 대회는 경매 방식이 아니에요. (팀 구성: {FORMATION_LABEL[S.teamFormation]})</div>)}
       {tab === 'admin' && <AdminTab {...shared} />}
     </>
   );
