@@ -129,8 +129,28 @@ export async function syncGuildNicks(gid) {
 }
 
 // 로그인 유저가 방에 들어오면 멤버로 등록(없을 때만 viewer). 기존 역할은 안 낮춤.
+// 명단 옵트아웃: 이 유저가 명단에서 숨김 처리됐는지 (테이블 없으면 false)
+export async function isOptedOut(userId) {
+  if (!userId) return false;
+  const r = await db().from('directory_optout').select('user_id').eq('user_id', userId).maybeSingle();
+  return r.error ? false : !!r.data;
+}
+// 옵트아웃 설정/해제. 켜면 기존 관람 흔적(viewer)도 삭제.
+export async function setDirectoryOptout(userId, hidden) {
+  if (!userId) throw new Error('user_id 필요');
+  if (hidden) {
+    const { error } = await db().from('directory_optout').upsert({ user_id: userId }, { onConflict: 'user_id' });
+    if (error) { if (/directory_optout|does not exist/i.test(error.message || '')) throw new Error('옵트아웃 마이그레이션(directory-optout-schema.sql)을 먼저 실행하세요'); throw error; }
+    await db().from('room_members').delete().eq('user_id', userId).eq('role', 'viewer');
+    await db().from('tournament_members').delete().eq('user_id', userId).eq('role', 'viewer'); // 테이블 없으면 무시
+  } else {
+    await db().from('directory_optout').delete().eq('user_id', userId);
+  }
+}
+
 export async function registerMembership(groupId, user) {
   if (!groupId || !user?.id) return;
+  if (await isOptedOut(user.id)) return; // 옵트아웃 유저는 흔적 남기지 않음
   const { data: cur } = await db().from('room_members')
     .select('role').eq('group_id', groupId).eq('user_id', user.id).maybeSingle();
   if (cur) {

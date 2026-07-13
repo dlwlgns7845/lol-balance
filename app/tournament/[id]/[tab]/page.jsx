@@ -117,12 +117,11 @@ function AdminTab({ t, S, admin, canManage, id, reload, user, login }) {
 // ─── 👥 공동운영자 관리 ───
 function AdminsManager({ id, t, reload, user }) {
   const [members, setMembers] = useState([]);
-  const [candidates, setCandidates] = useState([]);
   const [pick, setPick] = useState('');
   const [busy, setBusy] = useState(false);
   const isHost = !!user && user.id === t.owner_id;
   const loadMembers = useCallback(() => {
-    apiFetch(`/api/tournaments/${id}/members`).then((x) => x.json()).then((r) => { if (r.ok) { setMembers(r.members || []); setCandidates(r.candidates || []); } });
+    apiFetch(`/api/tournaments/${id}/members`).then((x) => x.json()).then((r) => { if (r.ok) setMembers(r.members || []); });
   }, [id]);
   useEffect(loadMembers, [loadMembers]);
   async function setRole(uid, role, info = {}) {
@@ -134,8 +133,8 @@ function AdminsManager({ id, t, reload, user }) {
     } finally { setBusy(false); }
   }
   const admins = members.filter((m) => m.role === 'admin');
-  const adminIds = new Set(admins.map((m) => m.user_id));
-  const addable = candidates.filter((c) => c.user_id !== t.owner_id && !adminIds.has(c.user_id));
+  // 후보 = 이 대회를 연 로그인 유저 중 대회장·공동운영 제외
+  const addable = members.filter((m) => m.user_id !== t.owner_id && m.role !== 'admin');
   const picked = addable.find((c) => c.user_id === pick);
   const ownerName = members.find((m) => m.user_id === t.owner_id)?.name;
   const label = (c) => c.name || c.email || (c.user_id || '').slice(0, 8);
@@ -143,7 +142,7 @@ function AdminsManager({ id, t, reload, user }) {
   return (
     <div className="panel">
       <h2>👥 공동운영자</h2>
-      <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>사이트에 로그인한 적 있는 유저 중에서 골라 권한을 줄 수 있어요. (상대가 이 대회에 미리 들어올 필요 없음)</div>
+      <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>공동운영할 사람에게 이 대회 링크를 주고 <b>로그인해서 한 번 들어오면</b> 아래 목록에 떠요. (사이트 전체가 아니라 이 대회에 들어온 사람만 · 명단 숨김 설정한 유저는 제외)</div>
       {isHost ? (
         <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
           <select value={pick} onChange={(e) => setPick(e.target.value)} style={{ ...inp, minWidth: 220 }}>

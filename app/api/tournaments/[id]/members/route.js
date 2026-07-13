@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server';
-import { listTournamentMembers, setTournamentMemberRole, listKnownUsers } from '../../../../../src/repo-tournament.js';
+import { listTournamentMembers, setTournamentMemberRole } from '../../../../../src/repo-tournament.js';
 import { requireTournamentOwner, requireTournamentHost, errStatus } from '../../../../../src/auth.js';
 
-// 멤버 목록 + 지정 후보(로그인 유저) — 운영자 열람. 후보는 대회장이 공동운영자로 지정할 대상.
+// 멤버 목록 (이 대회를 연 로그인 유저) — 운영자 열람. 이 중에서 공동운영자 지정.
 export async function GET(request, { params }) {
   try {
     await requireTournamentOwner(request, params.id);
-    const [members, candidates] = await Promise.all([listTournamentMembers(params.id), listKnownUsers()]);
-    return NextResponse.json({ ok: true, members, candidates });
+    return NextResponse.json({ ok: true, members: await listTournamentMembers(params.id) });
   } catch (e) { return NextResponse.json({ ok: false, error: e.message }, { status: errStatus(e) }); }
 }
 
