@@ -517,9 +517,9 @@ function Apply({ t, teams, pool, canManage, admin, id, reload, S, user, login })
       {t.status === 'recruiting' && (user ? <ApplyPlayer t={t} id={id} reload={reload} S={S} /> : loginGate)}
       {/* ② 신청자 목록 (티어 배정됨) */}
       <PoolList pool={pool} canManage={canManage} id={id} reload={reload} />
-      {/* ③ 팀 짜기 — 경매 콘솔(관리자) 또는 점수제 드래그 밸런싱(누구나) */}
+      {/* ③ 팀 짜기 — 경매는 콘솔(관리자), 점수제는 점수표 탭에서 드래그 시뮬 */}
       {isAuction && canManage && t.status === 'recruiting' && <AuctionConsole t={t} teams={teams} pool={pool} id={id} reload={reload} S={S} />}
-      {S.teamFormation === 'score' && <ScoreFormation pool={pool} S={S} id={id} reload={reload} user={user} login={login} />}
+      {S.teamFormation === 'score' && <div className="panel center muted" style={{ padding: '20px 0' }}>점수제 팀 짜기·시뮬레이션은 <b>🏅 점수표 탭</b>에서 하세요.</div>}
       {/* ④ 짜인 팀 + 대진 생성 */}
       <div className="panel">
         <h2>참가팀 ({approved.length}{t.status === 'recruiting' ? ` · 대기 ${teams.filter((x) => x.status === 'pending').length}` : ''})</h2>
@@ -606,22 +606,25 @@ function ScoreOverview({ teams, S }) {
 }
 
 // ─── 🏅 점수표 ───
-function Scoreboard({ t, matches, teams, nameOf, canManage, admin, S }) {
-  const overview = S.teamFormation === 'score' ? <ScoreOverview teams={teams} S={S} /> : null;
+function Scoreboard({ t, matches, teams, pool, nameOf, canManage, admin, S, id, reload, user, login }) {
+  const isScore = S.teamFormation === 'score';
+  // 점수제: 신청자 리스트 + 드래그 팀 시뮬레이터(제출) + 제출 팀 점수
+  const builder = isScore ? <ScoreFormation pool={pool} S={S} id={id} reload={reload} user={user} login={login} /> : null;
+  const overview = isScore ? <ScoreOverview teams={teams} S={S} /> : null;
   if (matches.length === 0) {
     return (
       <>
+        {builder}
         {overview}
-        {S.teamFormation === 'score' && <div className="panel"><h2>📋 점수표 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 티어별 라인 점수</span></h2><ScoreTableRef /></div>}
-        <div className="panel center muted" style={{ padding: '32px 0' }}>아직 대진이 생성되지 않았어요. (신청 탭에서 대진 생성)</div>
+        {!isScore && <div className="panel center muted" style={{ padding: '32px 0' }}>아직 대진이 생성되지 않았어요. (신청 탭에서 대진 생성)</div>}
       </>
     );
   }
   const groupM = matches.filter((m) => m.bracket === 'G');
   const kM = matches.filter((m) => m.bracket === 'K');
   const wM = matches.filter((m) => m.bracket === 'W');
-  if (wM.length > 0) return <>{overview}<DoubleElimBoard matches={matches} t={t} nameOf={nameOf} canManage={canManage} admin={admin} /></>;
-  if (groupM.length === 0) return <>{overview}<BracketView matches={matches} title="대진표" t={t} nameOf={nameOf} canManage={canManage} admin={admin} /></>;
+  if (wM.length > 0) return <>{builder}{overview}<DoubleElimBoard matches={matches} t={t} nameOf={nameOf} canManage={canManage} admin={admin} /></>;
+  if (groupM.length === 0) return <>{builder}{overview}<BracketView matches={matches} title="대진표" t={t} nameOf={nameOf} canManage={canManage} admin={admin} /></>;
 
   // 그룹 스테이지 모드
   const gmap = {};
@@ -631,7 +634,7 @@ function Scoreboard({ t, matches, teams, nameOf, canManage, admin, S }) {
   const advance = S.groups.advance;
   return (
     <>
-      {overview}
+      {builder}{overview}
       <div className="panel">
         <h2>조별 리그 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 조별 {advance}팀 진출</span></h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginTop: 10 }}>
