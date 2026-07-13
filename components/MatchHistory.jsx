@@ -58,12 +58,12 @@ function MiddleBar({ objectives, killsA, killsB, goldA, goldB }) {
   const oA = objectives?.A || {}, oB = objectives?.B || {};
   const objs = (o) => (
     <div className="mhmid-obj">
-      <span>🐉 {o.dragons || 0}{o.elder ? `+${o.elder}` : ''}</span>
-      <span>🦗 {o.grubs || 0}</span>
-      <span>🐦 {o.heralds || 0}</span>
-      <span>👑 {o.barons || 0}</span>
-      {o.atakhan ? <span>😈 {o.atakhan}</span> : null}
-      <span>🗼 {o.towers || 0}</span>
+      <span className="oc drag" title="드래곤">용<b>{o.dragons || 0}</b>{o.elder ? `+엘${o.elder}` : ''}</span>
+      <span className="oc grub" title="공허 유충">유충<b>{o.grubs || 0}</b></span>
+      <span className="oc her" title="전령">전령<b>{o.heralds || 0}</b></span>
+      <span className="oc bar" title="바론">바론<b>{o.barons || 0}</b></span>
+      {o.atakhan ? <span className="oc ata" title="아타칸">아타칸<b>{o.atakhan}</b></span> : null}
+      <span className="oc tow" title="포탑">타워<b>{o.towers || 0}</b></span>
     </div>
   );
   const bar = (label, a, b, fmt) => {
