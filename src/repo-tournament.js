@@ -46,6 +46,37 @@ export async function updateTournament(id, patch) {
   if (error) throw error;
 }
 
+// ── 공동운영(관리자) — 방(room_members)과 동일 매커니즘 ──
+// 로그인 유저가 대회를 열람하면 viewer로 자동 등록 → 대회장이 admin으로 승격.
+export async function registerTournamentMember(tournamentId, user) {
+  if (!tournamentId || !user?.id) return;
+  const r = await db().from('tournament_members').select('role').eq('tournament_id', tournamentId).eq('user_id', user.id).maybeSingle();
+  if (r.error) return; // 테이블 미생성(마이그레이션 전) → 무시
+  if (r.data) { await db().from('tournament_members').update({ email: user.email || null, name: user.name || null }).eq('tournament_id', tournamentId).eq('user_id', user.id); return; }
+  await db().from('tournament_members').insert({ tournament_id: tournamentId, user_id: user.id, email: user.email || null, name: user.name || null, role: 'viewer' });
+}
+
+export async function tournamentRole(tournamentId, userId) {
+  if (!userId) return null;
+  const { data: t } = await db().from('tournaments').select('owner_id').eq('id', tournamentId).maybeSingle();
+  if (t?.owner_id === userId) return 'owner';
+  const r = await db().from('tournament_members').select('role').eq('tournament_id', tournamentId).eq('user_id', userId).maybeSingle();
+  return r.error ? null : (r.data?.role || null);
+}
+
+export async function listTournamentMembers(tournamentId) {
+  const r = await db().from('tournament_members').select('user_id, email, name, role, created_at').eq('tournament_id', tournamentId).order('created_at');
+  return r.error ? [] : (r.data || []);
+}
+
+export async function setTournamentMemberRole(tournamentId, userId, role) {
+  if (!['admin', 'viewer'].includes(role)) throw new Error('role은 admin/viewer');
+  const { data: t } = await db().from('tournaments').select('owner_id').eq('id', tournamentId).maybeSingle();
+  if (t?.owner_id === userId) throw new Error('대회장 역할은 바꿀 수 없어요');
+  const { error } = await db().from('tournament_members').update({ role }).eq('tournament_id', tournamentId).eq('user_id', userId);
+  if (error) throw error;
+}
+
 export async function tournamentOwnerId(id) {
   const { data } = await db().from('tournaments').select('owner_id').eq('id', id).maybeSingle();
   return data?.owner_id ?? undefined; // undefined = 대회 없음

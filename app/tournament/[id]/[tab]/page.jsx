@@ -17,11 +17,15 @@ const SEED_LABEL = { order: '신청 순서', tier: '티어 시드(강팀 분산)
 
 export default function TournamentTab() {
   const { id, tab } = useParams();
-  const { user, isAdmin } = useGroup() || {};
+  const { user, isAdmin, login } = useGroup() || {};
   const [data, setData] = useState(null);
+  const [myRole, setMyRole] = useState(null); // 서버 판정 역할 (owner/admin/viewer)
   const [err, setErr] = useState(null);
 
-  const load = useCallback(() => { if (id) fetch('/api/tournaments/' + id).then((x) => x.json()).then((r) => { if (r.ok) setData(r); else setErr(r.error); }); }, [id]);
+  // 열람은 비로그인 OK. 로그인 상태면 apiFetch로 토큰 보내 자동 멤버등록 + 역할 수신.
+  const load = useCallback(() => {
+    if (id) apiFetch('/api/tournaments/' + id).then((x) => x.json()).then((r) => { if (r.ok) { setData(r); setMyRole(r.myRole || null); } else setErr(r.error); });
+  }, [id]);
   useEffect(load, [load]);
 
   const t = data?.tournament;
@@ -29,7 +33,7 @@ export default function TournamentTab() {
   const matches = data?.matches || [];
   const pool = data?.pool || [];
   const nameOf = (tid) => teams.find((x) => x.id === tid)?.name || '?';
-  const canManage = !!user && !!t && (user.id === t.owner_id || isAdmin);
+  const canManage = isAdmin || myRole === 'owner' || myRole === 'admin' || (!!user && !!t && user.id === t.owner_id);
 
   async function admin(body, path = '/teams', method = 'PATCH') {
     const r = await apiFetch('/api/tournaments/' + id + path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((x) => x.json());
@@ -40,7 +44,7 @@ export default function TournamentTab() {
   if (!t) return <div className="panel center muted">{err || '불러오는 중…'}</div>;
 
   const S = normalizeSettings(t.settings);
-  const shared = { t, teams, matches, pool, nameOf, canManage, admin, id, reload: load, S };
+  const shared = { t, teams, matches, pool, nameOf, canManage, admin, id, reload: load, S, user, login };
   return (
     <>
       <div className="page-head"><div className="title">
@@ -52,6 +56,7 @@ export default function TournamentTab() {
       {tab === 'stats' && <Stats {...shared} />}
       {tab === 'scrim' && <div className="panel center muted" style={{ padding: '40px 0' }}>🎯 스크림 기능은 준비 중이에요. (연습경기 매칭·일정 — 원하는 형태 알려주면 붙일게요)</div>}
       {tab === 'scoreboard' && <Scoreboard {...shared} />}
+      {tab === 'admin' && <AdminTab {...shared} />}
     </>
   );
 }
@@ -73,7 +78,6 @@ function Notice({ t, teams, matches, nameOf, canManage, admin, S }) {
         <div className="stat-card"><div className="label">참가팀</div><div className="value">{approved}<span className="muted" style={{ fontSize: 14 }}>/{t.max_teams}</span></div></div>
         <div className="stat-card"><div className="label">티어 제한</div><div className="value" style={{ fontSize: 15 }}>{tierRange}</div></div>
       </div>
-      {canManage && t.status === 'recruiting' && <SettingsEditor t={t} S={S} admin={admin} />}
       <div className="panel">
         <div style={{ display: 'flex', alignItems: 'center' }}><h2 style={{ margin: 0 }}>📢 공지</h2>
           {canManage && <button className="mini" style={{ marginLeft: 'auto' }} onClick={() => { setEditing(!editing); setTxt(t.notice || ''); }}>{editing ? '취소' : '✏️ 편집'}</button>}
@@ -88,6 +92,61 @@ function Notice({ t, teams, matches, nameOf, canManage, admin, S }) {
         )}
       </div>
     </>
+  );
+}
+
+// ─── ⚙️ 관리자 탭 ───
+function AdminTab({ t, S, admin, canManage, id, reload, user, login }) {
+  if (!user) return <div className="panel center muted" style={{ padding: '32px 0' }}>관리자 기능은 로그인이 필요해요. <button className="btn" style={{ marginLeft: 8 }} onClick={login}><span className="gg">G</span> 로그인</button></div>;
+  if (!canManage) return <div className="panel center muted" style={{ padding: '32px 0' }}>대회 운영자만 볼 수 있어요.</div>;
+  return (
+    <>
+      <SettingsEditor S={S} admin={admin} />
+      <AdminsManager id={id} t={t} reload={reload} user={user} />
+    </>
+  );
+}
+
+// ─── 👥 공동운영자 관리 ───
+function AdminsManager({ id, t, reload, user }) {
+  const [members, setMembers] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const isHost = !!user && user.id === t.owner_id;
+  const loadMembers = useCallback(() => {
+    apiFetch(`/api/tournaments/${id}/members`).then((x) => x.json()).then((r) => { if (r.ok) setMembers(r.members || []); });
+  }, [id]);
+  useEffect(loadMembers, [loadMembers]);
+  async function setRole(uid, role) {
+    setBusy(true);
+    try {
+      const r = await apiFetch(`/api/tournaments/${id}/members`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: uid, role }) }).then((x) => x.json());
+      if (!r.ok) { alert('실패: ' + r.error); return; }
+      loadMembers(); reload();
+    } finally { setBusy(false); }
+  }
+  return (
+    <div className="panel">
+      <h2>👥 공동운영자 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 내전방과 같은 방식</span></h2>
+      <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>공동운영자에게 이 대회 링크를 주고 <b>로그인해서 한 번 들어오면</b> 아래 목록에 떠요. 그 사람을 "공동운영 지정"하면 됩니다.</div>
+      {!isHost && <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>공동운영자 지정·해제는 대회장만 할 수 있어요.</div>}
+      {members.length === 0 && <div className="muted" style={{ marginTop: 10 }}>아직 이 대회를 방문한 로그인 유저가 없어요.</div>}
+      {members.map((m) => {
+        const isOwner = m.user_id === t.owner_id;
+        return (
+          <div key={m.user_id} style={{ display: 'flex', alignItems: 'center', gap: 8, borderTop: '1px solid #2a2a33', padding: '8px 0' }}>
+            <b>{m.name || m.email || '유저'}</b>
+            <span className="muted" style={{ fontSize: 11 }}>{isOwner ? '👑 대회장' : m.role === 'admin' ? '🛠 공동운영' : '관람'}</span>
+            {isHost && !isOwner && (
+              <span style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+                {m.role !== 'admin'
+                  ? <button className="mini" disabled={busy} onClick={() => setRole(m.user_id, 'admin')}>공동운영 지정</button>
+                  : <button className="mini" disabled={busy} onClick={() => setRole(m.user_id, 'viewer')}>해제</button>}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -173,7 +232,7 @@ function SettingsEditor({ S, admin }) {
 }
 
 // ─── 💰 경매 드래프트 ───
-function Auction({ t, teams, pool, canManage, id, reload, S }) {
+function Auction({ t, teams, pool, canManage, id, reload, S, user, login }) {
   const [tName, setTName] = useState(''); const [tCap, setTCap] = useState('');
   const [pName, setPName] = useState(''); const [pTier, setPTier] = useState(''); const [pRole, setPRole] = useState('');
   const [bidTeam, setBidTeam] = useState({}); const [bidPrice, setBidPrice] = useState({});
@@ -201,7 +260,13 @@ function Auction({ t, teams, pool, canManage, id, reload, S }) {
 
   return (
     <>
-      {t.status === 'recruiting' && (
+      {t.status === 'recruiting' && !user && (
+        <div className="panel center" style={{ padding: '28px 0' }}>
+          <div className="muted" style={{ marginBottom: 10 }}>둘러보기는 로그인 없이 되지만, <b>팀·선수 등록은 로그인이 필요해요.</b></div>
+          <button className="btn" onClick={login}><span className="gg">G</span> 로그인</button>
+        </div>
+      )}
+      {t.status === 'recruiting' && user && (
         <div className="panel">
           <h2>💰 경매 드래프트 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>팀별 예산 {S.auction.budget}p</span></h2>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 10 }}>
@@ -265,8 +330,14 @@ function Auction({ t, teams, pool, canManage, id, reload, S }) {
 }
 
 // ─── 📝 신청 ───
-function Apply({ t, teams, pool, canManage, admin, id, reload, S }) {
+function Apply({ t, teams, pool, canManage, admin, id, reload, S, user, login }) {
   const isAuction = S.teamFormation === 'auction';
+  const loginGate = (
+    <div className="panel center" style={{ padding: '28px 0' }}>
+      <div className="muted" style={{ marginBottom: 10 }}>둘러보기는 로그인 없이 되지만, <b>신청·등록은 로그인이 필요해요.</b></div>
+      <button className="btn" onClick={login}><span className="gg">G</span> 로그인</button>
+    </div>
+  );
   const [teamName, setTeamName] = useState('');
   const [captain, setCaptain] = useState('');
   const [roster, setRoster] = useState(emptyRoster(5));
@@ -293,8 +364,9 @@ function Apply({ t, teams, pool, canManage, admin, id, reload, S }) {
 
   return (
     <>
-      {isAuction && <Auction t={t} teams={teams} pool={pool} canManage={canManage} id={id} reload={reload} S={S} />}
-      {t.status === 'recruiting' && !isAuction && (
+      {isAuction && <Auction t={t} teams={teams} pool={pool} canManage={canManage} id={id} reload={reload} S={S} user={user} login={login} />}
+      {t.status === 'recruiting' && !isAuction && !user && loginGate}
+      {t.status === 'recruiting' && !isAuction && user && (
         <div className="panel">
           <h2>📝 팀 신청</h2>
           <div style={{ background: 'rgba(207,174,111,.08)', border: '1px solid rgba(207,174,111,.25)', borderRadius: 8, padding: '8px 12px', fontSize: 12.5, color: '#d8c48f', marginBottom: 12 }}>

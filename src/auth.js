@@ -66,14 +66,27 @@ export async function requireOwner(request, groupId) {
   return { user, role };
 }
 
-// 멸망전(대회) 운영자 전용 — 대회 만든 유저(owner_id) 또는 전역 관리자만.
+// 멸망전(대회) 운영자 — 대회장(owner_id) · 공동운영(멤버 role=admin) · 전역 관리자.
 export async function requireTournamentOwner(request, tournamentId) {
   const user = await getUser(request);
   if (isAdmin(user)) return user;
   const { data } = await db().from('tournaments').select('owner_id').eq('id', tournamentId).maybeSingle();
   if (!data) throw httpErr('대회를 찾을 수 없어요', 404);
   if (!user) throw httpErr('로그인이 필요합니다', 401);
-  if (user.id !== data.owner_id) throw httpErr('대회 운영자만 할 수 있어요', 403);
+  if (user.id === data.owner_id) return user;
+  const { data: mem } = await db().from('tournament_members').select('role').eq('tournament_id', tournamentId).eq('user_id', user.id).maybeSingle();
+  if (mem?.role === 'admin') return user; // 대회장이 지정한 공동운영자
+  throw httpErr('대회 운영자만 할 수 있어요', 403);
+}
+
+// 대회장 본인 전용 (공동운영 관리 등) — 전역 관리자 포함.
+export async function requireTournamentHost(request, tournamentId) {
+  const user = await getUser(request);
+  if (isAdmin(user)) return user;
+  const { data } = await db().from('tournaments').select('owner_id').eq('id', tournamentId).maybeSingle();
+  if (!data) throw httpErr('대회를 찾을 수 없어요', 404);
+  if (!user) throw httpErr('로그인이 필요합니다', 401);
+  if (user.id !== data.owner_id) throw httpErr('대회장만 할 수 있어요', 403);
   return user;
 }
 

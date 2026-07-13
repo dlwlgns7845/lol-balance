@@ -46,6 +46,9 @@ export default function TournamentLayout({ children }) {
           {selId && TABS.map(([k, label]) => (
             <Link key={k} href={`/tournament/${selId}/${k}`} className={tab === k ? 'active' : ''}>{label}</Link>
           ))}
+          {selId && user && (
+            <Link href={`/tournament/${selId}/admin`} className={tab === 'admin' ? 'active' : ''}>⚙️ 관리자</Link>
+          )}
         </nav>
         <div className="tb-actions">
           {user
