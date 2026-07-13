@@ -7,9 +7,10 @@ export const SEEDINGS = ['order', 'tier', 'random'];
 export const FORMATIONS = ['roster', 'auction'];
 
 export const TIER_BASES = ['current', 'peak']; // 티어 판정 기준: 현재 시즌 / 역대 최고
+export const REGIONS = ['NA', 'KR', 'EUW', 'EUNE', 'JP', 'OCE', 'BR', 'LAN', 'LAS', 'TR', 'RU', 'VN']; // 조회 지역
 
 export const DEFAULT_SETTINGS = {
-  eligibility: { minLevel: 0, tierCap: null, tierFloor: null, rosterMin: 5, rosterMax: 7, tierBasis: 'current', minGames: 0 },
+  eligibility: { minLevel: 0, tierCap: null, tierFloor: null, rosterMin: 5, rosterMax: 7, tierBasis: 'current', minGames: 0, region: 'NA', allowFlex: true },
   format: 'single_elim',
   bestOf: 1,
   seeding: 'order',
@@ -40,6 +41,8 @@ export function normalizeSettings(raw) {
       rosterMax: clampInt(el.rosterMax, 7, 1, 10),
       tierBasis: TIER_BASES.includes(el.tierBasis) ? el.tierBasis : 'current',
       minGames: clampInt(el.minGames, 0, 0, 10000),
+      region: REGIONS.includes((el.region || '').toUpperCase()) ? el.region.toUpperCase() : 'NA',
+      allowFlex: el.allowFlex !== false, // 기본 true (자유랭 포함)
     },
     format: FORMATS.includes(s.format) ? s.format : 'single_elim',
     bestOf: [1, 3, 5].includes(Number(s.bestOf)) ? Number(s.bestOf) : 1,

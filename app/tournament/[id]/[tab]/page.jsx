@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { useGroup } from '../../../../components/GroupProvider.jsx';
 import { apiFetch } from '../../../../components/api.js';
-import { normalizeSettings } from '../../../../src/tournament-settings.js';
+import { normalizeSettings, REGIONS } from '../../../../src/tournament-settings.js';
 import { groupStandings } from '../../../../src/bracket.js';
 import { TIER_ORDER, TIER_LABEL, POS_KR, tierClass } from '../../../../src/table.js';
 
@@ -204,6 +204,15 @@ function SettingsEditor({ S, admin }) {
               <div style={cell}><label style={lbl}>티어 상한(이하)</label><select value={el.tierCap || ''} onChange={(e) => setEl('tierCap', e.target.value || null)} style={inp}>{tierOpts}</select></div>
               <div style={cell}><label style={lbl}>티어 하한(이상)</label><select value={el.tierFloor || ''} onChange={(e) => setEl('tierFloor', e.target.value || null)} style={inp}>{tierOpts}</select></div>
               <div style={cell}><label style={lbl}>현재 시즌 최소 판수</label><input type="number" min={0} value={el.minGames} onChange={(e) => setEl('minGames', +e.target.value)} style={inp} placeholder="0=제한없음" /></div>
+              <div style={cell}><label style={lbl}>조회 지역</label>
+                <select value={el.region} onChange={(e) => setEl('region', e.target.value)} style={inp}>{REGIONS.map((rg) => <option key={rg} value={rg}>{rg}</option>)}</select>
+              </div>
+              <div style={cell}><label style={lbl}>랭크 큐</label>
+                <select value={el.allowFlex ? 'both' : 'solo'} onChange={(e) => setEl('allowFlex', e.target.value === 'both')} style={inp}>
+                  <option value="both">솔로+자유랭</option>
+                  <option value="solo">솔로랭크만</option>
+                </select>
+              </div>
             </div>
           </div>
           <div>
@@ -263,9 +272,10 @@ function ApplyPlayer({ t, id, reload, S }) {
     if (!gn || !tg) { setErr('게임닉#태그 형식으로 입력하세요 (예: Hide on bush#KR1)'); return; }
     setBusy(true); setErr(null); setMsg(null);
     try {
-      // 인게임 티어 자동 배정 (기준: 현재 시즌 / 역대 최고)
-      const prof = await fetch(`/api/seed?name=${encodeURIComponent(gn.trim())}&tag=${encodeURIComponent(tg.trim())}&region=NA`).then((x) => x.json()).catch(() => ({}));
-      const tier = prof.found ? ((el.tierBasis === 'peak' ? prof.peakTier : prof.suggestedTier) || null) : null;
+      // 인게임 티어 자동 배정 (개최자 기준: 지역·기준·큐)
+      const prof = await fetch(`/api/seed?name=${encodeURIComponent(gn.trim())}&tag=${encodeURIComponent(tg.trim())}&region=${el.region}`).then((x) => x.json()).catch(() => ({}));
+      const usable = el.allowFlex || el.tierBasis === 'peak' || prof.basis === '현재 솔랭'; // 솔로만 요구 시 자유랭 티어 배제
+      const tier = prof.found && usable ? ((el.tierBasis === 'peak' ? prof.peakTier : prof.suggestedTier) || null) : null;
       const games = prof.games ?? null;
       const r = await apiFetch(`/api/tournaments/${id}/auction`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ game_name: gn.trim(), tag_line: tg.trim(), tier, role: role || null, games }) }).then((x) => x.json());
       if (!r.ok) throw new Error(r.error);
@@ -277,7 +287,7 @@ function ApplyPlayer({ t, id, reload, S }) {
     <div className="panel">
       <h2>📝 선수 신청 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 인게임 티어 자동 배정</span></h2>
       <div style={{ background: 'rgba(207,174,111,.08)', border: '1px solid rgba(207,174,111,.25)', borderRadius: 8, padding: '8px 12px', fontSize: 12.5, color: '#d8c48f', margin: '8px 0' }}>
-        📋 기준 <b>{el.tierBasis === 'peak' ? '역대 최고 티어' : '현재 시즌 티어'}</b>
+        📋 기준 <b>{el.tierBasis === 'peak' ? '역대 최고 티어' : '현재 시즌 티어'}</b> · <b>{el.region}</b> · {el.allowFlex ? '솔로+자유랭' : '솔로랭크만'}
         {(el.tierCap || el.tierFloor) ? <> · {el.tierCap ? TIER_LABEL[el.tierCap] : '무제한'} ~ {el.tierFloor ? TIER_LABEL[el.tierFloor] : '무제한'}</> : ' · 티어 제한 없음'}
         {el.minGames > 0 ? <> · 현재시즌 <b>{el.minGames}판+</b></> : ''}
       </div>
