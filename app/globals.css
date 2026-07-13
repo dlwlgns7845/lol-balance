@@ -1169,6 +1169,9 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 .la-bidnow { font-size: 15px; }
 .la-bidbtns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 .la-bidbtns .btn.high { background: rgba(78,201,138,.2); border-color: var(--green); color: #9fe0bd; }
+.la-bidctrls { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.la-bidctrl { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.la-bidteam { font-weight: 700; min-width: 130px; }
 .la-admin { display: flex; gap: 8px; margin-top: 12px; align-items: center; }
 .la-idle { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .la-done { text-align: center; font-size: 18px; font-weight: 800; color: #e8c07d; }

@@ -12,7 +12,7 @@ export async function POST(request, { params }) {
       if (!user) return NextResponse.json({ ok: false, error: '로그인이 필요합니다' }, { status: 401 });
       let owner = isAdmin(user);
       if (!owner) { try { await requireTournamentOwner(request, id); owner = true; } catch { owner = false; } }
-      return NextResponse.json({ ok: true, ...(await placeBid(id, body.teamId, user, owner)) });
+      return NextResponse.json({ ok: true, ...(await placeBid(id, body.teamId, user, body.amount, owner)) });
     }
     await requireTournamentOwner(request, id);
     let res;

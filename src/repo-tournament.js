@@ -309,20 +309,23 @@ export async function nominateNext(tournamentId, poolId = null) {
   return getTournament(tournamentId);
 }
 
-// 입찰 (increment 단위 상승). 관리자 또는 그 팀 팀장만.
-export async function placeBid(tournamentId, teamId, user, isAdmin) {
+// 입찰 (금액 수동 입력). 그 팀 팀장만(팀장 유저 미지정이면 관리자 대리 허용).
+export async function placeBid(tournamentId, teamId, user, amount, isAdmin) {
   const { data: a } = await db().from('tournament_auction').select('*').eq('tournament_id', tournamentId).maybeSingle();
   if (!a || a.status !== 'bidding' || !a.current_pool_id) throw new Error('입찰 가능한 경매가 없어요');
   const { data: team } = await db().from('tournament_teams').select('*').eq('id', teamId).maybeSingle();
   if (!team || team.tournament_id !== tournamentId || !team.is_captain_team) throw new Error('팀장 팀이 아니에요');
-  if (!isAdmin && team.captain_user_id !== user?.id) throw new Error('본인 팀만 입찰할 수 있어요');
+  if (team.captain_user_id) { if (team.captain_user_id !== user?.id) throw new Error('본인 팀만 입찰할 수 있어요'); }
+  else if (!isAdmin) throw new Error('팀장만 입찰할 수 있어요'); // 팀장 유저 미지정 → 관리자만 대리
   if (a.current_bidder === teamId) throw new Error('이미 최고 입찰 중이에요');
-  const inc = a.increment || 5;
-  const newBid = (a.current_bid || 0) + inc;
-  if ((team.budget ?? 0) < newBid) throw new Error(`예산 부족 (남은 ${team.budget ?? 0} < ${newBid})`);
+  const bid = Math.round(Number(amount));
+  const cur = a.current_bid || 0;
+  if (!Number.isFinite(bid) || bid < 1) throw new Error('입찰가를 입력하세요');
+  if (bid <= cur) throw new Error(`현재가 ${cur}p보다 높게 입찰하세요`);
+  if ((team.budget ?? 0) < bid) throw new Error(`예산 부족 (남은 ${team.budget ?? 0} < ${bid})`);
   const { data: tt } = await db().from('tournaments').select('settings').eq('id', tournamentId).maybeSingle();
   const deadline = new Date(Date.now() + normalizeSettings(tt?.settings).auction.bidSeconds * 1000).toISOString(); // 입찰 시 타이머 연장
-  await upsertAuction(tournamentId, { status: 'bidding', current_pool_id: a.current_pool_id, current_bid: newBid, current_bidder: teamId, increment: inc, bid_deadline: deadline });
+  await upsertAuction(tournamentId, { status: 'bidding', current_pool_id: a.current_pool_id, current_bid: bid, current_bidder: teamId, increment: a.increment || 5, bid_deadline: deadline });
   return getTournament(tournamentId);
 }
 

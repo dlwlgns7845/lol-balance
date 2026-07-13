@@ -459,6 +459,7 @@ function PoolList({ pool, canManage, id, reload }) {
 function LiveAuction({ teams, pool, auction, canManage, id, reload, user, S }) {
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(0);
+  const [amt, setAmt] = useState(''); const [pTeam, setPTeam] = useState(''); const [pAmt, setPAmt] = useState('');
   const firedRef = useRef(null);
   const auc = auction || { status: 'idle', current_bid: 0, increment: 5 };
   const inc = auc.increment || 5;
@@ -503,7 +504,10 @@ function LiveAuction({ teams, pool, auction, canManage, id, reload, user, S }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remainSec, canManage, auc.status, auc.current_pool_id, auc.current_bidder]);
-  const canBid = (tm) => auc.status === 'bidding' && (canManage || tm.captain_user_id === user?.id) && auc.current_bidder !== tm.id && (tm.budget ?? 0) >= (auc.current_bid || 0) + inc;
+  const suggested = (auc.current_bid || 0) + inc;
+  const myTeam = captainTeams.find((tm) => tm.captain_user_id === user?.id);
+  const proxyTeams = captainTeams.filter((tm) => !tm.captain_user_id); // 팀장 유저 미지정 → 관리자 대리
+  const doBid = (teamId, amount) => act({ action: 'bid', teamId, amount });
 
   return (
     <div className="panel">
@@ -569,10 +573,23 @@ function LiveAuction({ teams, pool, auction, canManage, id, reload, user, S }) {
                   <div className="la-bidnow">현재가 <b className="accent">{auc.current_bid}p</b> {bidderTeam ? <>— <b>{bidderTeam.name}</b></> : <span className="muted">입찰 없음</span>}</div>
                 </div>
               </div>
-              <div className="la-bidbtns">
-                {captainTeams.map((tm) => (
-                  <button key={tm.id} className={`btn ${bidderTeam?.id === tm.id ? 'high' : ''}`} disabled={busy || !canBid(tm)} onClick={() => act({ action: 'bid', teamId: tm.id })}>{tm.name} <b>+{inc}</b></button>
-                ))}
+              <div className="la-bidctrls">
+                {myTeam && (
+                  <div className="la-bidctrl">
+                    <span className="la-bidteam">{myTeam.name} <span className="muted">잔여 {myTeam.budget ?? 0}p</span></span>
+                    <input type="number" min={suggested} placeholder={`${suggested}+`} value={amt} onChange={(e) => setAmt(e.target.value)} style={{ ...inp, width: 96 }} />
+                    <button className="btn" disabled={busy || bidderTeam?.id === myTeam.id} onClick={() => { doBid(myTeam.id, amt || suggested); setAmt(''); }}>입찰</button>
+                  </div>
+                )}
+                {canManage && proxyTeams.length > 0 && (
+                  <div className="la-bidctrl">
+                    <span className="muted" style={{ fontSize: 12 }}>대리:</span>
+                    <select value={pTeam} onChange={(e) => setPTeam(e.target.value)} style={{ ...inp, width: 130 }}><option value="">팀 선택</option>{proxyTeams.map((tm) => <option key={tm.id} value={tm.id}>{tm.name}</option>)}</select>
+                    <input type="number" min={suggested} placeholder={`${suggested}+`} value={pAmt} onChange={(e) => setPAmt(e.target.value)} style={{ ...inp, width: 80 }} />
+                    <button className="mini" disabled={busy || !pTeam} onClick={() => { doBid(pTeam, pAmt || suggested); setPAmt(''); }}>입찰</button>
+                  </div>
+                )}
+                {!myTeam && !(canManage && proxyTeams.length > 0) && <span className="muted" style={{ fontSize: 12.5 }}>입찰은 해당 팀 팀장만 가능해요.</span>}
               </div>
               {canManage && <div className="la-admin"><button className="btn" disabled={busy || !auc.current_bidder} onClick={() => act({ action: 'sell' })}>✅ 낙찰</button><button className="mini" disabled={busy} onClick={() => act({ action: 'pass' })}>유찰</button></div>}
             </>
