@@ -671,7 +671,7 @@ function Apply({ t, teams, pool, auction, canManage, admin, id, reload, S, user,
       {/* ③ 팀 짜기 — 점수제는 여기서 바로(신청·점수 통합), 경매는 경매 탭 */}
       {S.teamFormation === 'score' && (
         <>
-          {t.status === 'recruiting' && <ScoreFormation pool={pool} S={S} id={id} reload={reload} user={user} login={login} />}
+          <ScoreFormation pool={pool} S={S} id={id} reload={reload} user={user} login={login} />
           <ScoreOverview teams={teams} S={S} />
         </>
       )}
