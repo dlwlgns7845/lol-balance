@@ -54,7 +54,7 @@ export default function TournamentTab() {
     <>
       <div className="page-head"><div className="title">
         <h1>🏆 {t.name} <span className="muted" style={{ fontSize: 14, fontWeight: 400 }}>{STLABEL[t.status]}</span></h1>
-        <p className="sub" style={{ margin: 0 }}>{FORMAT_LABEL[S.format]} · 최대 {t.max_teams}팀 · 시드 {SEED_LABEL[S.seeding]}{S.bestOf > 1 ? ` · BO${S.bestOf}` : ''}</p>
+        <p className="sub" style={{ margin: 0 }}>{FORMAT_LABEL[S.format]} · 최대 {t.max_teams}팀 · 시드 {SEED_LABEL[S.seeding]}{S.bestOf > 1 ? ` · BO${S.bestOf}` : ''}{S.bestOfFinalRounds > 0 && S.bestOfFinal !== S.bestOf ? ` (후반 BO${S.bestOfFinal})` : ''}</p>
       </div></div>
       {tab === 'notice' && <Notice {...shared} />}
       {tab === 'apply' && <Apply {...shared} />}
@@ -196,7 +196,7 @@ function SettingsEditor({ S, admin }) {
       {!open ? (
         <div className="muted" style={{ fontSize: 13, marginTop: 8, lineHeight: 1.8 }}>
           로스터 {el.rosterMin}~{el.rosterMax}명 · {TIER_BASIS_LABEL[el.tierBasis]} {el.tierCap ? TIER_LABEL[el.tierCap] : '무제한'}~{el.tierFloor ? TIER_LABEL[el.tierFloor] : '무제한'}
-          {el.minGames > 0 ? ` · ${el.minGames}판+` : ''}{el.minLevel > 0 ? ` · 최소 ${el.minLevel}레벨` : ''} · {FORMAT_LABEL[d.format]} · 시드 {SEED_LABEL[d.seeding]}{d.bestOf > 1 ? ` · BO${d.bestOf}` : ''} · <b style={{ color: '#cfae6f' }}>{FORMATION_LABEL[d.teamFormation]}</b>
+          {el.minGames > 0 ? ` · ${el.minGames}판+` : ''}{el.minLevel > 0 ? ` · 최소 ${el.minLevel}레벨` : ''} · {FORMAT_LABEL[d.format]} · 시드 {SEED_LABEL[d.seeding]}{d.bestOf > 1 ? ` · BO${d.bestOf}` : ''}{d.bestOfFinalRounds > 0 && d.bestOfFinal !== d.bestOf ? ` (후반 BO${d.bestOfFinal})` : ''} · <b style={{ color: '#cfae6f' }}>{FORMATION_LABEL[d.teamFormation]}</b>
         </div>
       ) : (
         <div style={{ marginTop: 12, display: 'grid', gap: 14 }}>
@@ -256,9 +256,22 @@ function SettingsEditor({ S, admin }) {
                   <option value="order">신청 순서</option><option value="tier">티어 시드(강팀 분산)</option><option value="random">랜덤 추첨</option>
                 </select>
               </div>
-              <div style={cell}><label style={lbl}>경기 방식</label>
+              <div style={cell}><label style={lbl}>경기 방식 (기본)</label>
                 <select value={d.bestOf} onChange={(e) => setD((x) => ({ ...x, bestOf: +e.target.value }))} style={inp}>
                   <option value={1}>단판 (BO1)</option><option value={3}>3판2선 (BO3)</option><option value={5}>5판3선 (BO5)</option>
+                </select>
+              </div>
+              <div style={cell}><label style={lbl}>후반 라운드 BO</label>
+                <select value={d.bestOfFinal} onChange={(e) => setD((x) => ({ ...x, bestOfFinal: +e.target.value }))} style={inp}>
+                  <option value={1}>단판 (BO1)</option><option value={3}>3판2선 (BO3)</option><option value={5}>5판3선 (BO5)</option>
+                </select>
+              </div>
+              <div style={cell}><label style={lbl}>후반 BO 적용 범위</label>
+                <select value={d.bestOfFinalRounds} onChange={(e) => setD((x) => ({ ...x, bestOfFinalRounds: +e.target.value }))} style={inp}>
+                  <option value={0}>전체 동일 (기본 BO만)</option>
+                  <option value={1}>결승만</option>
+                  <option value={2}>준결승(4강)부터</option>
+                  <option value={3}>8강부터</option>
                 </select>
               </div>
               <div style={cell}><label style={lbl}>팀 구성 방식</label>
@@ -655,8 +668,14 @@ function Apply({ t, teams, pool, auction, canManage, admin, id, reload, S, user,
       {t.status === 'recruiting' && (user ? <ApplyPlayer t={t} id={id} reload={reload} S={S} /> : loginGate)}
       {/* ② 신청자 목록 (티어 배정됨) */}
       <PoolList pool={pool} canManage={canManage} id={id} reload={reload} />
-      {/* ③ 팀 짜기 — 경매=경매 탭, 점수제=점수표 탭 */}
-      {t.status === 'recruiting' && <div className="panel center muted" style={{ padding: '18px 0' }}>{isAuction ? <>실시간 경매는 <b>🔨 경매 탭</b>에서 진행돼요.</> : <>점수제 팀 짜기는 <b>🏅 점수표 탭</b>에서 진행돼요.</>}</div>}
+      {/* ③ 팀 짜기 — 점수제는 여기서 바로(신청·점수 통합), 경매는 경매 탭 */}
+      {S.teamFormation === 'score' && (
+        <>
+          {t.status === 'recruiting' && <ScoreFormation pool={pool} S={S} id={id} reload={reload} user={user} login={login} />}
+          <ScoreOverview teams={teams} S={S} />
+        </>
+      )}
+      {isAuction && t.status === 'recruiting' && <div className="panel center muted" style={{ padding: '18px 0' }}>실시간 경매는 <b>🔨 경매 탭</b>에서 진행돼요.</div>}
       {/* ④ 짜인 팀 + 대진 생성 */}
       <div className="panel">
         <h2>참가팀 ({approved.length}{t.status === 'recruiting' ? ` · 대기 ${teams.filter((x) => x.status === 'pending').length}` : ''})</h2>
@@ -825,8 +844,8 @@ function Schedule({ t, matches, teams, nameOf, canManage, admin, S }) {
   const groupM = matches.filter((m) => m.bracket === 'G');
   const kM = matches.filter((m) => m.bracket === 'K');
   const wM = matches.filter((m) => m.bracket === 'W');
-  if (wM.length > 0) return <>{podium}<DoubleElimBoard matches={matches} t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} /></>;
-  if (groupM.length === 0) return <>{podium}<BracketView matches={matches.filter((m) => m.bracket !== 'T')} title="대진표" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} />{tPanel}</>;
+  if (wM.length > 0) return <>{podium}<DoubleElimBoard matches={matches} t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} bestOfFinal={S.bestOfFinal} finalRounds={S.bestOfFinalRounds} /></>;
+  if (groupM.length === 0) return <>{podium}<BracketView matches={matches.filter((m) => m.bracket !== 'T')} title="대진표" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} bestOfFinal={S.bestOfFinal} finalRounds={S.bestOfFinalRounds} />{tPanel}</>;
 
   // 그룹 스테이지 모드
   const gmap = {};
@@ -874,7 +893,7 @@ function Schedule({ t, matches, teams, nameOf, canManage, admin, S }) {
         {canManage && t.status === 'running' && <p className="hint" style={{ marginTop: 8 }}>각 경기에서 이긴 팀 방향(◀/▶) 버튼 클릭. 초록 = 진출권.</p>}
       </div>
       {kM.length > 0
-        ? <BracketView matches={kM} title="본선 대진표" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} />
+        ? <BracketView matches={kM} title="본선 대진표" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} bestOfFinal={S.bestOfFinal} finalRounds={S.bestOfFinalRounds} />
         : <div className="panel center muted" style={{ padding: '24px 0' }}>조별 경기가 모두 끝나면 본선 대진이 자동으로 생성돼요.</div>}
       {tPanel}
     </>
@@ -882,17 +901,17 @@ function Schedule({ t, matches, teams, nameOf, canManage, admin, S }) {
 }
 
 // 더블 엘리: 승자조·패자조·최종결승 3단
-function DoubleElimBoard({ matches, t, nameOf, canManage, admin, bestOf = 1 }) {
+function DoubleElimBoard({ matches, t, nameOf, canManage, admin, bestOf = 1, bestOfFinal = 1, finalRounds = 0 }) {
   const W = matches.filter((m) => m.bracket === 'W');
   const L = matches.filter((m) => m.bracket === 'L');
   const GF = matches.filter((m) => m.bracket === 'GF');
   return (
     <>
-      <BracketView matches={W} title="🏆 승자조" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={bestOf}
+      <BracketView matches={W} title="🏆 승자조" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={bestOf} bestOfFinal={bestOfFinal} finalRounds={finalRounds}
         roundLabel={(r, tot) => (r === tot ? '승자조 결승' : `${2 ** (tot - r + 1)}강`)} />
-      <BracketView matches={L} title="💀 패자조" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={bestOf}
+      <BracketView matches={L} title="💀 패자조" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={bestOf} bestOfFinal={bestOfFinal} finalRounds={finalRounds}
         roundLabel={(r, tot) => (r === tot ? '패자조 결승' : `패자조 R${r}`)} />
-      <BracketView matches={GF} title="👑 최종 결승" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={bestOf}
+      <BracketView matches={GF} title="👑 최종 결승" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={bestOfFinal !== bestOf && finalRounds > 0 ? bestOfFinal : bestOf}
         roundLabel={() => '최종 결승'} />
     </>
   );
@@ -908,50 +927,56 @@ function serieLines(bestOf) {
   return lines;
 }
 
-function BracketView({ matches, title, t, nameOf, canManage, admin, roundLabel, bestOf = 1 }) {
+function BracketView({ matches, title, t, nameOf, canManage, admin, roundLabel, bestOf = 1, bestOfFinal = 1, finalRounds = 0 }) {
   const totalRounds = Math.max(...matches.map((m) => m.round));
   const rl = roundLabel || ((round) => (round === totalRounds ? '결승' : `${2 ** (totalRounds - round + 1)}강`));
-  const lines = serieLines(bestOf);
+  // 후반 라운드(결승 등)는 결승 BO 적용, 나머지는 기본 BO
+  const boFor = (round) => (finalRounds > 0 && round > totalRounds - finalRounds ? bestOfFinal : bestOf);
+  const hasEscalation = finalRounds > 0 && bestOfFinal !== bestOf;
   const schedulable = (m) => canManage && t.status === 'running' && m.team_a && m.team_b && !m.winner;
   return (
     <div className="panel" style={{ overflowX: 'auto' }}>
-      <h2>{title}{bestOf > 1 ? <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}> · BO{bestOf}</span> : null}</h2>
+      <h2>{title}{bestOf > 1 || hasEscalation ? <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}> · BO{bestOf}{hasEscalation ? ` (후반 BO${bestOfFinal})` : ''}</span> : null}</h2>
       <div style={{ display: 'flex', gap: 24, minWidth: 'min-content', paddingBottom: 8 }}>
-        {Array.from({ length: totalRounds }, (_, r) => r + 1).map((round) => (
-          <div key={round} style={{ display: 'flex', flexDirection: 'column', gap: 10, justifyContent: 'space-around', minWidth: 168 }}>
-            <div className="muted" style={{ fontSize: 11, textAlign: 'center' }}>{rl(round, totalRounds)}</div>
-            {matches.filter((m) => m.round === round).sort((a, b) => a.pos - b.pos).map((m) => {
-              const ready = canManage && t.status === 'running' && !m.winner && m.team_a && m.team_b;
-              return (
-                <div key={m.id} style={{ border: '1px solid #33333c', borderRadius: 8, background: '#1c1c22' }}>
-                  {[m.team_a, m.team_b].map((tid, k) => (
-                    <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, padding: '5px 9px', borderTop: k ? '1px solid #2a2a33' : 'none', background: m.winner === tid && tid ? 'rgba(79,182,214,.18)' : 'transparent', fontWeight: m.winner === tid ? 700 : 400, borderRadius: 6 }}>
-                      <span style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tid ? nameOf(tid) : <span className="muted">미정</span>}</span>
-                      {m.winner && m.score_a != null && <span className="muted" style={{ fontSize: 12, fontWeight: 700 }}>{k === 0 ? m.score_a : m.score_b}</span>}
-                      {ready && bestOf === 1 && <button className="mini" style={{ padding: '1px 7px', fontSize: 10 }} onClick={() => admin({ matchId: m.id, winner: tid }, '/bracket', 'PATCH')}>승</button>}
-                    </div>
-                  ))}
-                  {ready && bestOf > 1 && (
-                    <div style={{ padding: '4px 8px', borderTop: '1px solid #2a2a33' }}>
-                      <select defaultValue="" onChange={(e) => { if (e.target.value === '') return; const l = lines[+e.target.value]; admin({ matchId: m.id, winner: l.side === 'a' ? m.team_a : m.team_b, score_a: l.a, score_b: l.b }, '/bracket', 'PATCH'); }} style={{ ...inp, width: '100%', fontSize: 11.5 }}>
-                        <option value="">결과 입력 (위:아래)</option>
-                        {lines.map((l, idx) => <option key={idx} value={idx}>{l.a} : {l.b}</option>)}
-                      </select>
-                    </div>
-                  )}
-                  {(m.scheduled_at || schedulable(m)) && (
-                    <div className="bv-sched-row">
-                      {m.scheduled_at && <span className="bv-sched">🗓 {fmtSched(m.scheduled_at)}</span>}
-                      {schedulable(m) && <input type="datetime-local" value={toLocalInput(m.scheduled_at)} onChange={(e) => admin({ matchId: m.id, action: 'schedule', scheduledAt: e.target.value ? new Date(e.target.value).toISOString() : null }, '/bracket', 'PATCH')} className="bv-schedinput" />}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ))}
+        {Array.from({ length: totalRounds }, (_, r) => r + 1).map((round) => {
+          const rbo = boFor(round);
+          const lines = serieLines(rbo);
+          return (
+            <div key={round} style={{ display: 'flex', flexDirection: 'column', gap: 10, justifyContent: 'space-around', minWidth: 168 }}>
+              <div className="muted" style={{ fontSize: 11, textAlign: 'center' }}>{rl(round, totalRounds)}{rbo > 1 ? ` · BO${rbo}` : ''}</div>
+              {matches.filter((m) => m.round === round).sort((a, b) => a.pos - b.pos).map((m) => {
+                const ready = canManage && t.status === 'running' && !m.winner && m.team_a && m.team_b;
+                return (
+                  <div key={m.id} style={{ border: '1px solid #33333c', borderRadius: 8, background: '#1c1c22' }}>
+                    {[m.team_a, m.team_b].map((tid, k) => (
+                      <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, padding: '5px 9px', borderTop: k ? '1px solid #2a2a33' : 'none', background: m.winner === tid && tid ? 'rgba(79,182,214,.18)' : 'transparent', fontWeight: m.winner === tid ? 700 : 400, borderRadius: 6 }}>
+                        <span style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tid ? nameOf(tid) : <span className="muted">미정</span>}</span>
+                        {m.winner && m.score_a != null && <span className="muted" style={{ fontSize: 12, fontWeight: 700 }}>{k === 0 ? m.score_a : m.score_b}</span>}
+                        {ready && rbo === 1 && <button className="mini" style={{ padding: '1px 7px', fontSize: 10 }} onClick={() => admin({ matchId: m.id, winner: tid }, '/bracket', 'PATCH')}>승</button>}
+                      </div>
+                    ))}
+                    {ready && rbo > 1 && (
+                      <div style={{ padding: '4px 8px', borderTop: '1px solid #2a2a33' }}>
+                        <select defaultValue="" onChange={(e) => { if (e.target.value === '') return; const l = lines[+e.target.value]; admin({ matchId: m.id, winner: l.side === 'a' ? m.team_a : m.team_b, score_a: l.a, score_b: l.b }, '/bracket', 'PATCH'); }} style={{ ...inp, width: '100%', fontSize: 11.5 }}>
+                          <option value="">결과 입력 (위:아래)</option>
+                          {lines.map((l, idx) => <option key={idx} value={idx}>{l.a} : {l.b}</option>)}
+                        </select>
+                      </div>
+                    )}
+                    {(m.scheduled_at || schedulable(m)) && (
+                      <div className="bv-sched-row">
+                        {m.scheduled_at && <span className="bv-sched">🗓 {fmtSched(m.scheduled_at)}</span>}
+                        {schedulable(m) && <input type="datetime-local" value={toLocalInput(m.scheduled_at)} onChange={(e) => admin({ matchId: m.id, action: 'schedule', scheduledAt: e.target.value ? new Date(e.target.value).toISOString() : null }, '/bracket', 'PATCH')} className="bv-schedinput" />}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
       </div>
-      {canManage && t.status === 'running' && <p className="hint" style={{ marginTop: 8 }}>{bestOf > 1 ? '스코어 선택(위팀:아래팀) → 다음 라운드 자동 진출.' : '이긴 팀 승 버튼 → 다음 라운드 자동 진출.'}</p>}
+      {canManage && t.status === 'running' && <p className="hint" style={{ marginTop: 8 }}>{bestOf > 1 || hasEscalation ? '스코어 선택(위팀:아래팀) → 다음 라운드 자동 진출.' : '이긴 팀 승 버튼 → 다음 라운드 자동 진출.'}</p>}
     </div>
   );
 }

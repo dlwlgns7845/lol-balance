@@ -14,7 +14,9 @@ export const REGIONS = ['NA', 'KR', 'EUW', 'EUNE', 'JP', 'OCE', 'BR', 'LAN', 'LA
 export const DEFAULT_SETTINGS = {
   eligibility: { minLevel: 0, tierCap: null, tierFloor: null, rosterMin: 5, rosterMax: 7, tierBasis: 'current', minGames: 0, region: 'NA', allowFlex: true },
   format: 'single_elim',
-  bestOf: 1,
+  bestOf: 1,            // 기본 경기 방식(BO)
+  bestOfFinal: 1,      // 후반 라운드 BO (결승 등)
+  bestOfFinalRounds: 0, // 후반 BO 적용 범위(트레일링 라운드 수): 0=동일, 1=결승만, 2=준결승부터, 3=8강부터
   seeding: 'order',
   scoring: { win: 3, draw: 1, loss: 0 },
   teamFormation: 'roster',
@@ -51,6 +53,8 @@ export function normalizeSettings(raw) {
     },
     format: FORMATS.includes(s.format) ? s.format : 'single_elim',
     bestOf: [1, 3, 5].includes(Number(s.bestOf)) ? Number(s.bestOf) : 1,
+    bestOfFinal: [1, 3, 5].includes(Number(s.bestOfFinal)) ? Number(s.bestOfFinal) : 1,
+    bestOfFinalRounds: clampInt(s.bestOfFinalRounds, 0, 0, 3),
     seeding: SEEDINGS.includes(s.seeding) ? s.seeding : 'order',
     scoring: { win: clampInt(sc.win, 3, 0, 10), draw: clampInt(sc.draw, 1, 0, 10), loss: clampInt(sc.loss, 0, 0, 10) },
     teamFormation: FORMATIONS.includes(s.teamFormation) ? s.teamFormation : 'auction',

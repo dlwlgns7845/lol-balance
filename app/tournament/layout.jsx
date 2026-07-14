@@ -53,13 +53,10 @@ export default function TournamentLayout({ children }) {
         </div>
         <nav className="tb-nav">
           {selId && TABS.map(([k, label]) => (
-            <Link key={k} href={`/tournament/${selId}/${k}`} className={tab === k ? 'active' : ''}>{label}</Link>
+            <Link key={k} href={`/tournament/${selId}/${k}`} className={tab === k ? 'active' : ''}>{k === 'apply' && selFormation === 'score' ? '📝 신청·점수' : label}</Link>
           ))}
           {selId && (
             <Link href={`/tournament/${selId}/schedule`} className={tab === 'schedule' ? 'active' : ''}>🗓 일정·결과</Link>
-          )}
-          {selId && selFormation === 'score' && (
-            <Link href={`/tournament/${selId}/scoreboard`} className={tab === 'scoreboard' ? 'active' : ''}>🏅 점수표</Link>
           )}
           {selId && user && selFormation === 'auction' && (
             <Link href={`/tournament/${selId}/auction`} className={tab === 'auction' ? 'active' : ''}>🔨 경매</Link>
