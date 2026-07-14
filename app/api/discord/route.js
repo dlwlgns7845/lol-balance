@@ -11,7 +11,7 @@ import { balance, balance20Split } from '../../../src/engine.js';
 import { LANES } from '../../../src/queue.js';
 import { MAINTENANCE } from '../../../src/maintenance.js';
 import { queueMessage, buildTeamsRanked, buildMetaMap, allocateSignups, LANE_KR } from '../../../src/discord-queue.js';
-import { extractScoreboard } from '../../../src/vision.js';
+import { parseRoflBuffer } from '../../../src/rofl.js';
 import { fetchTierEstimate } from '../../../src/opgg.js';
 import { fetchTierEstimateHybrid, fetchRiotProfile, hasRiotKey } from '../../../src/riot.js';
 import { TIER_LABEL, POS_KR } from '../../../src/table.js';
@@ -475,33 +475,44 @@ async function handleComponent(i) {
   return updateMsg(queueMessage(queue, freshSignups, false, null, 0, null, metaMap));
 }
 
-// ── 스샷 자동 전적기록 ── 로비 종료 스코어보드 → gpt-4o OCR → saveMatch(자동 사람등록+중복검사)
-async function processMatchShot(i, photoId, gid) {
+// ── 리플(.rofl) 자동 전적기록 ── 다운로드 → 파싱 → Riot ID 자동매핑 → 확인 → saveMatch(objectives·상세 포함)
+const roflAccKey = (gn, tag) => `${normNm(gn)}#${(tag || '').toLowerCase()}`;
+async function processMatchReplay(i, fileId, gid) {
   try {
-    const att = i.data?.resolved?.attachments?.[photoId];
-    if (!att || !(att.content_type || '').startsWith('image/')) return followup(i, '❌ 이미지(스코어보드 스샷)를 올려주세요.');
-    if (att.size > 8 * 1024 * 1024) return followup(i, '❌ 이미지가 너무 커요 (8MB 이하).');
+    const att = i.data?.resolved?.attachments?.[fileId];
+    if (!att) return followup(i, '❌ .rofl 리플레이 파일을 올려주세요.');
+    if (!(att.filename || '').toLowerCase().endsWith('.rofl')) return followup(i, '❌ .rofl 파일만 돼요. (롤 리플레이 · 클라이언트 전적에서 다운로드)');
+    if (att.size > 60 * 1024 * 1024) return followup(i, '❌ 리플이 너무 커요 (60MB↑). 롱겜은 사이트에서 올려주세요.');
     const res = await fetch(att.url);
-    if (!res.ok) return followup(i, '이미지 다운로드 실패, 다시 시도하세요.');
-    const buf = Buffer.from(await res.arrayBuffer());
-    const dataUrl = `data:${att.content_type};base64,${buf.toString('base64')}`;
-
+    if (!res.ok) return followup(i, '리플 다운로드 실패, 다시 시도하세요.');
     let parsed;
-    try { parsed = await extractScoreboard(dataUrl); }
-    catch (e) { return followup(i, '스샷 판독 실패: ' + e.message); }
-    const teams = parsed?.teams;
-    if (!Array.isArray(teams) || teams.length !== 2 || teams.some((t) => !Array.isArray(t.players) || t.players.length !== 5)) {
-      return followup(i, '❌ 스코어보드를 제대로 못 읽었어요. **로비 종료 스코어보드 전체**(10명)가 다 보이게 다시 찍어 올려주세요.');
-    }
-    const [t1, t2] = teams;
-    const winner = t1.win ? 'A' : (t2.win ? 'B' : 'A');
-    const mk = (pl, team) => ({ name: (pl.name || '').trim(), team, champion: pl.champion || null, k: pl.k, d: pl.d, a: pl.a, damage: pl.damage, cs: pl.cs, gold: pl.gold });
-    const participants = [...t1.players.map((p) => mk(p, 'A')), ...t2.players.map((p) => mk(p, 'B'))];
-    if (participants.some((p) => !p.name)) return followup(i, '❌ 소환사명을 다 못 읽었어요. 이름이 가려지지 않게 다시 찍어주세요.');
+    try { parsed = parseRoflBuffer(new Uint8Array(await res.arrayBuffer())); }
+    catch (e) { return followup(i, '리플 분석 실패: ' + e.message); }
 
-    // 바로 저장 X — 판독 결과를 보여주고 확인/수정받음 (OCR 오독 방지). 임시 보관.
-    const pendingId = await createPending(gid, { winner, participants, durationMin: parsed.durationMin });
-    return followupData(i, await reviewData({ id: pendingId, gid, data: { winner, participants, durationMin: parsed.durationMin } }));
+    // Riot ID 자동매핑 (계정 game_name#tag_line → 사람). 태그 우선, 없으면 이름.
+    const persons = await listPersons(gid);
+    const byFull = new Map(); const byName = new Map();
+    persons.forEach((p) => (p.accounts || []).forEach((a) => {
+      const nm = normNm(a.game_name); if (!nm) return;
+      byName.set(nm, p);
+      if (a.tag_line) byFull.set(roflAccKey(a.game_name, a.tag_line), p);
+    }));
+    const findPerson = (gn, tag) => (tag && byFull.get(roflAccKey(gn, tag))) || byName.get(normNm(gn)) || null;
+
+    const ord = { top: 0, jungle: 1, mid: 2, adc: 3, sup: 4 };
+    const sorted = [...parsed.players].sort((a, b) => (a.team === b.team ? (ord[a.position] ?? 9) - (ord[b.position] ?? 9) : (a.team === 'A' ? -1 : 1)));
+    const participants = sorted.map((pl) => {
+      const person = findPerson(pl.gameName, pl.tag);
+      return {
+        name: person ? (person.nickname || person.display_name) : (pl.riotId || pl.gameName || '?'),
+        person_id: person?.id || undefined,
+        team: pl.team, champion: pl.champion || null, position: pl.position || null,
+        k: pl.k, d: pl.d, a: pl.a, damage: pl.damage, cs: pl.cs, gold: pl.gold, detail: pl.detail,
+      };
+    });
+    const data = { winner: parsed.winner, participants, durationMin: parsed.durationMin, durationSec: parsed.durationSec, objectives: parsed.objectives, source: 'replay' };
+    const pendingId = await createPending(gid, data);
+    return followupData(i, await reviewData({ id: pendingId, gid, data }));
   } catch (e) { return followup(i, '기록 처리 오류: ' + e.message); }
 }
 
@@ -728,14 +739,14 @@ async function handleModalSubmit(i) {
 }
 
 async function cmdMatchShot(i, gid) {
-  // 서버측 권한 검사 — default_member_permissions는 서버 설정에서 풀 수 있는 기본값일 뿐 (GPT 쿼터·오기록 방지)
+  // 서버측 권한 검사 — default_member_permissions는 서버 설정에서 풀 수 있는 기본값일 뿐 (오기록 방지)
   const perms = BigInt(i.member?.permissions || '0');
   const canManage = (perms & 0x20n) !== 0n || (perms & 0x8n) !== 0n; // Manage Guild | Administrator
   if (!canManage) return ephem('⚠️ 서버 관리 권한이 있는 사람만 기록할 수 있어요.');
-  const photoId = opt(i, '스샷');
-  if (!photoId) return ephem('스코어보드 스샷을 첨부하세요: `/기록 스샷:<이미지>`');
-  waitUntil(processMatchShot(i, photoId, gid)); // OCR 느림 → 백그라운드
-  return NextResponse.json({ type: 5, data: { content: '📸 스코어보드 판독 중… (10초쯤 걸려요)', flags: 64 } }); // 판독/수정은 나만보기
+  const fileId = opt(i, '리플');
+  if (!fileId) return ephem('.rofl 리플레이 파일을 첨부하세요: `/기록 리플:<파일>`');
+  waitUntil(processMatchReplay(i, fileId, gid)); // 다운로드+파싱 → 백그라운드
+  return NextResponse.json({ type: 5, data: { content: '🎬 리플 분석 중… (잠시만요)', flags: 64 } }); // 판독/수정은 나만보기
 }
 
 // 서버 ↔ 방 연결 요청 (승인 방식). 요청만 생성 → 방장/관리자가 사이트에서 승인해야 활성화(테러 방지).
