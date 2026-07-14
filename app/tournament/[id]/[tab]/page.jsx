@@ -793,13 +793,34 @@ function Scoreboard({ teams, pool, S, id, reload, user, login }) {
 }
 
 // ─── 🗓 일정·결과 (전체 일정 + 대진 + 최종순위) ───
-function Schedule({ t, matches, nameOf, canManage, admin, S }) {
+function Schedule({ t, matches, teams, nameOf, canManage, admin, S }) {
   const podium = t.status === 'done' ? <Placements matches={matches} nameOf={nameOf} /> : null;
   const tPanel = matches.some((m) => m.bracket === 'T')
     ? <BracketView matches={matches.filter((m) => m.bracket === 'T')} title="🥉 3·4위전" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} roundLabel={() => '3·4위전'} />
     : null;
   if (matches.length === 0) {
-    return <div className="panel center muted" style={{ padding: '32px 0' }}>아직 대진이 생성되지 않았어요. (신청 탭에서 팀 승인 → 대진 생성)</div>;
+    const approved = teams.filter((x) => x.status === 'approved');
+    const dePow2 = S.format !== 'double_elim' || [4, 8, 16, 32].includes(approved.length);
+    return (
+      <div className="panel">
+        <h2>참가팀 <span className="muted" style={{ fontSize: 13, fontWeight: 400 }}>{approved.length}팀 · {FORMAT_LABEL[S.format]} · 시드 {SEED_LABEL[S.seeding]}</span></h2>
+        {approved.length === 0 && <div className="muted" style={{ marginTop: 8 }}>아직 승인된 팀이 없어요. (신청 탭에서 팀 승인)</div>}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8, marginTop: 10 }}>
+          {approved.map((tm, i) => (
+            <div key={tm.id} className="tg-group" style={{ padding: '8px 11px' }}>
+              <b>{i + 1}. {tm.name}</b>
+              <div className="muted" style={{ fontSize: 11, marginTop: 3 }}>{(tm.members || []).map((m) => m.game_name).join(', ') || '로스터 미정'}</div>
+            </div>
+          ))}
+        </div>
+        {canManage && (
+          <>
+            <button className="btn" style={{ marginTop: 14 }} disabled={approved.length < 2 || !dePow2} onClick={() => { if (confirm(`${approved.length}팀으로 ${FORMAT_LABEL[S.format]} 대진을 생성할까요? (자동 분배)`)) admin({}, '/bracket', 'POST'); }}>⚔️ 대진 생성 ({approved.length}팀)</button>
+            {!dePow2 && <div style={{ fontSize: 12, marginTop: 6, color: '#d0a56f' }}>⚠️ 더블 엘리는 4·8·16·32팀일 때만 생성돼요.</div>}
+          </>
+        )}
+      </div>
+    );
   }
   const groupM = matches.filter((m) => m.bracket === 'G');
   const kM = matches.filter((m) => m.bracket === 'K');
