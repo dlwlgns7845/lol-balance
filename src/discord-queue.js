@@ -195,12 +195,26 @@ export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20
         { type: 2, style: 3, label: '✅ 이 조합으로 확정 · 전원 호출', custom_id: `tc:${queue.id}:${teamIdx}` },
       ] },
     ];
-  } else if (closed && teams20) { // 풀20 편성 모드 토글
+  } else if (closed && teams20) { // 풀20 편성 모드 토글 + 조합 리롤
     const even = teams20.mode === 'even';
+    const counts = teams20.counts || [1]; const cur = teams20.cur || [0, 0];
     closedComponents = [{ type: 1, components: [
       { type: 2, style: even ? 2 : 1, label: '📊 고저분리', custom_id: `t20m:${queue.id}:split` },
       { type: 2, style: even ? 1 : 2, label: '⚖️ 4팀 균등', custom_id: `t20m:${queue.id}:even` },
     ] }];
+    if (even) {
+      if (counts[0] > 1) closedComponents.push({ type: 1, components: [
+        { type: 2, style: 2, label: '◀ 이전 조합', custom_id: `t20r:${queue.id}:even:${cur[0]}:p` },
+        { type: 2, style: 2, label: `${cur[0] + 1} / ${counts[0]}`, custom_id: `t20r:${queue.id}:even:x:x`, disabled: true },
+        { type: 2, style: 2, label: '다음 조합 ▶', custom_id: `t20r:${queue.id}:even:${cur[0]}:n` },
+      ] });
+    } else {
+      [0, 1].forEach((g) => { if (counts[g] > 1) closedComponents.push({ type: 1, components: [
+        { type: 2, style: 2, label: `${g === 0 ? '🔺 고티어' : '🔻 저티어'} ◀`, custom_id: `t20r:${queue.id}:split:${g}:${cur[0]}:${cur[1]}:p` },
+        { type: 2, style: 2, label: `${cur[g] + 1} / ${counts[g]}`, custom_id: `t20r:${queue.id}:split:${g}:x:x:x`, disabled: true },
+        { type: 2, style: 2, label: '▶', custom_id: `t20r:${queue.id}:split:${g}:${cur[0]}:${cur[1]}:n` },
+      ] }); });
+    }
   }
   return { embeds: [embed], components: closed ? closedComponents : queueComponents(queue.id), allowed_mentions: { parse: [] } };
 }

@@ -350,9 +350,12 @@ async function cmdRecruit(i, gid) {
   return NextResponse.json({ type: 4, data: queueMessage(q, [], false) });
 }
 
-// 20인 마감 → 4팀 편성. mode='split'(고저분리) | 'even'(4팀 균등). 20명 배정·포지션 있어야, 아니면 null.
-// 반환 정규화: { mode, games:[{lanes,sumA,sumB},{...}], spread? }
-function autoTeams20(queue, signups, persons, mode = 'split') {
+// 20인 마감 → 4팀 편성. mode='split'(고저분리) | 'even'(4팀 균등). idx=조합 인덱스(리롤).
+// 반환 정규화: { mode, games:[{lanes,sumA,sumB},{...}], spread?, counts:[..], cur:[..] }
+//  even: counts=[전체 arrangement 수], cur=[선택] · split: counts=[게임1 후보수, 게임2 후보수], cur=[i0,i1]
+const wrap = (i, n) => (((i % n) + n) % n);
+const gameCell = (c) => ({ lanes: c.lanes, sumA: c.sumA, sumB: c.sumB });
+function autoTeams20(queue, signups, persons, mode = 'split', idx = [0, 0]) {
   const alloc = allocateSignups(queue, signups);
   const placedIds = LANES.flatMap((l) => alloc.lanes[l]);
   if (placedIds.length !== 20) return null;
@@ -368,12 +371,16 @@ function autoTeams20(queue, signups, persons, mode = 'split') {
   }
   try {
     if (mode === 'even') {
-      const a = balance20(players).arrangements[0];
-      if (!a) return null;
-      return { mode: 'even', spread: a.spread, games: a.views.map((v) => ({ lanes: v.lanes, sumA: v.sumA, sumB: v.sumB })) };
+      const arr = balance20(players).arrangements;
+      if (!arr.length) return null;
+      const ai = wrap(idx[0] || 0, arr.length);
+      const a = arr[ai];
+      return { mode: 'even', spread: a.spread, counts: [arr.length], cur: [ai], games: a.views.map(gameCell) };
     }
     const r = balance20Split(players);
-    return { mode: 'split', games: r.games.map((g) => { const c = g.candidates[0]; return { lanes: c.lanes, sumA: c.sumA, sumB: c.sumB }; }) };
+    const g0 = r.games[0].candidates, g1 = r.games[1].candidates;
+    const i0 = wrap(idx[0] || 0, g0.length), i1 = wrap(idx[1] || 0, g1.length);
+    return { mode: 'split', counts: [g0.length, g1.length], cur: [i0, i1], games: [gameCell(g0[i0]), gameCell(g1[i1])] };
   } catch { return null; }
 }
 
@@ -458,6 +465,7 @@ async function handleComponent(i) {
   if (action === 't20') return handleTrim20(i, qid, lane); // 20인 부분마감 초과인원 빼기 (lane=policy)
   if (action === 't20pick') return handleTrim20Pick(i, qid); // 관리자 지정 빼기 (셀렉트)
   if (action === 't20m') return handleTeams20Mode(i, qid, lane); // 풀20 편성 모드 토글 (lane=even|split)
+  if (action === 't20r') return handleTeams20Reroll(i, parts); // 풀20 조합 리롤
   if (action === 'br') return handleBalanceReroll(qid, lane, parts[3]); // /밸런스 조합 넘기기
   if (action === 'rec' || action === 'rex') return handleRecordConfirm(i, action, qid); // 스샷 판독 확인/취소
   if (action === 'rswap') return handleRecordSwap(qid); // 승패 뒤집기
@@ -644,6 +652,21 @@ async function handleTeams20Mode(i, qid, mode) {
   const persons = await listPersons(queue.gid);
   const metaMap = buildMetaMap(persons);
   const teams20 = autoTeams20({ ...queue, status: 'closed' }, signups, persons, mode === 'even' ? 'even' : 'split');
+  return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, null, 0, teams20, metaMap));
+}
+
+// 풀20 조합 리롤. even: t20r:qid:even:cur:dir · split: t20r:qid:split:game:cur0:cur1:dir
+async function handleTeams20Reroll(i, parts) {
+  const qid = parts[1], mode = parts[2];
+  const queue = await getQueue(qid);
+  if (!queue) return ephem('⌛ 만료된 모집이에요.');
+  const signups = await listSignups(qid);
+  const persons = await listPersons(queue.gid);
+  const metaMap = buildMetaMap(persons);
+  let idx;
+  if (mode === 'even') { const step = parts[4] === 'p' ? -1 : 1; idx = [(Number(parts[3]) || 0) + step, 0]; }
+  else { const g = Number(parts[3]) || 0; const step = parts[6] === 'p' ? -1 : 1; idx = [Number(parts[4]) || 0, Number(parts[5]) || 0]; idx[g] += step; }
+  const teams20 = autoTeams20({ ...queue, status: 'closed' }, signups, persons, mode, idx);
   return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, null, 0, teams20, metaMap));
 }
 
