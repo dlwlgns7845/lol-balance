@@ -1,7 +1,9 @@
 'use client';
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useGroup } from './GroupProvider.jsx';
+import { apiFetch } from './api.js';
 
 const NAV = [
   { href: '/', label: '통계', ic: '📊' },
@@ -15,6 +17,14 @@ export default function AppShell({ children }) {
   const { group, leave, user, canEdit, authOn, isAdmin, login, logout, claim } = useGroup();
   const path = usePathname();
   const nav = isAdmin ? [...NAV, { href: '/admin', label: '관리자', ic: '🛡' }] : NAV;
+  const [menu, setMenu] = useState(false);
+
+  async function clearTraces() {
+    setMenu(false);
+    if (!window.confirm('내 로그인 기록(관람 흔적·이메일 노출)을 지우고 로그아웃할까요?\n\n다시 로그인하면 정상적으로 이용할 수 있어요.')) return;
+    try { await apiFetch('/api/directory-optout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); } catch { /* 무시 */ }
+    if (logout) logout();
+  }
 
   return (
     <div className="app-shell">
@@ -47,9 +57,21 @@ export default function AppShell({ children }) {
           )}
           <span className="tb-room">{group.name} <span className="muted">#{group.code}</span></span>
           {authOn && (user ? (
-            <button className="btn ghost tb-user" onClick={logout} title={user.email + ' · 클릭하면 로그아웃'}>
-              {(user.user_metadata?.full_name || user.email || '?').slice(0, 1).toUpperCase()}
-            </button>
+            <div className="tb-usermenu">
+              <button className="btn ghost tb-user" onClick={() => setMenu((v) => !v)} title={user.email || ''}>
+                {(user.user_metadata?.full_name || user.email || '?').slice(0, 1).toUpperCase()}
+              </button>
+              {menu && (
+                <>
+                  <div className="tb-menu-backdrop" onClick={() => setMenu(false)} />
+                  <div className="tb-menu">
+                    <div className="tb-menu-email">{user.email}</div>
+                    <button onClick={() => { setMenu(false); logout && logout(); }}>로그아웃</button>
+                    <button className="danger" onClick={clearTraces}>🙈 로그인 기록 삭제 후 로그아웃</button>
+                  </div>
+                </>
+              )}
+            </div>
           ) : (
             <button className="btn ghost" onClick={login}><span className="gg">G</span> 로그인</button>
           ))}
