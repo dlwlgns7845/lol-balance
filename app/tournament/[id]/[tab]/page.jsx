@@ -61,6 +61,7 @@ export default function TournamentTab() {
       {tab === 'stats' && <Stats {...shared} />}
       {tab === 'scrim' && <div className="panel center muted" style={{ padding: '40px 0' }}>🎯 스크림 기능은 준비 중이에요. (연습경기 매칭·일정 — 원하는 형태 알려주면 붙일게요)</div>}
       {tab === 'scoreboard' && <Scoreboard {...shared} />}
+      {tab === 'schedule' && <Schedule {...shared} />}
       {tab === 'auction' && (!user
         ? <div className="panel center muted" style={{ padding: '32px 0' }}>경매는 로그인 후 볼 수 있어요. <button className="btn" style={{ marginLeft: 8 }} onClick={login}><span className="gg">G</span> 로그인</button></div>
         : S.teamFormation === 'auction'
@@ -655,7 +656,7 @@ function Apply({ t, teams, pool, auction, canManage, admin, id, reload, S, user,
       {/* ② 신청자 목록 (티어 배정됨) */}
       <PoolList pool={pool} canManage={canManage} id={id} reload={reload} />
       {/* ③ 팀 짜기 — 경매=경매 탭, 점수제=점수표 탭 */}
-      {t.status === 'recruiting' && <div className="panel center muted" style={{ padding: '18px 0' }}>{isAuction ? <>실시간 경매는 <b>🔨 경매 탭</b>에서 진행돼요.</> : <>점수제 팀 짜기는 <b>🗓 일정·결과 탭</b>에서 진행돼요.</>}</div>}
+      {t.status === 'recruiting' && <div className="panel center muted" style={{ padding: '18px 0' }}>{isAuction ? <>실시간 경매는 <b>🔨 경매 탭</b>에서 진행돼요.</> : <>점수제 팀 짜기는 <b>🏅 점수표 탭</b>에서 진행돼요.</>}</div>}
       {/* ④ 짜인 팀 + 대진 생성 */}
       <div className="panel">
         <h2>참가팀 ({approved.length}{t.status === 'recruiting' ? ` · 대기 ${teams.filter((x) => x.status === 'pending').length}` : ''})</h2>
@@ -780,30 +781,31 @@ function Placements({ matches, nameOf }) {
   );
 }
 
-// ─── 🏅 점수표 (팀 점수 + 대진) ───
-function Scoreboard({ t, matches, teams, pool, nameOf, canManage, admin, S, id, reload, user, login }) {
+// ─── 🏅 점수표 (점수제 팀 구성 전용) ───
+function Scoreboard({ teams, pool, S, id, reload, user, login }) {
+  if (S.teamFormation !== 'score') return <div className="panel center muted" style={{ padding: '32px 0' }}>점수제 대회에서 팀 짜기·점수를 보는 탭이에요.</div>;
+  return (
+    <>
+      <ScoreFormation pool={pool} S={S} id={id} reload={reload} user={user} login={login} />
+      <ScoreOverview teams={teams} S={S} />
+    </>
+  );
+}
+
+// ─── 🗓 일정·결과 (전체 일정 + 대진 + 최종순위) ───
+function Schedule({ t, matches, nameOf, canManage, admin, S }) {
   const podium = t.status === 'done' ? <Placements matches={matches} nameOf={nameOf} /> : null;
   const tPanel = matches.some((m) => m.bracket === 'T')
     ? <BracketView matches={matches.filter((m) => m.bracket === 'T')} title="🥉 3·4위전" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} roundLabel={() => '3·4위전'} />
     : null;
-  const isScore = S.teamFormation === 'score';
-  // 점수제: 드래그 팀 빌더 + 제출 팀 점수
-  const builder = isScore ? <ScoreFormation pool={pool} S={S} id={id} reload={reload} user={user} login={login} /> : null;
-  const overview = isScore ? <ScoreOverview teams={teams} S={S} /> : null;
   if (matches.length === 0) {
-    return (
-      <>
-        {builder}
-        {overview}
-        {!isScore && <div className="panel center muted" style={{ padding: '32px 0' }}>아직 대진이 생성되지 않았어요. (신청 탭에서 대진 생성)</div>}
-      </>
-    );
+    return <div className="panel center muted" style={{ padding: '32px 0' }}>아직 대진이 생성되지 않았어요. (신청 탭에서 팀 승인 → 대진 생성)</div>;
   }
   const groupM = matches.filter((m) => m.bracket === 'G');
   const kM = matches.filter((m) => m.bracket === 'K');
   const wM = matches.filter((m) => m.bracket === 'W');
-  if (wM.length > 0) return <>{podium}{builder}{overview}<DoubleElimBoard matches={matches} t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} /></>;
-  if (groupM.length === 0) return <>{podium}{builder}{overview}<BracketView matches={matches.filter((m) => m.bracket !== 'T')} title="대진표" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} />{tPanel}</>;
+  if (wM.length > 0) return <>{podium}<DoubleElimBoard matches={matches} t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} /></>;
+  if (groupM.length === 0) return <>{podium}<BracketView matches={matches.filter((m) => m.bracket !== 'T')} title="대진표" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} />{tPanel}</>;
 
   // 그룹 스테이지 모드
   const gmap = {};
@@ -813,7 +815,7 @@ function Scoreboard({ t, matches, teams, pool, nameOf, canManage, admin, S, id, 
   const advance = S.groups.advance;
   return (
     <>
-      {podium}{builder}{overview}
+      {podium}
       <div className="panel">
         <h2>조별 리그 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 조별 {advance}팀 진출</span></h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginTop: 10 }}>

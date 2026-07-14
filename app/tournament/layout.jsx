@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useGroup } from '../../components/GroupProvider.jsx';
 import { apiFetch } from '../../components/api.js';
 
-const TABS = [['notice', '📢 공지'], ['apply', '📝 신청'], ['stats', '📊 통계'], ['scrim', '🎯 스크림'], ['scoreboard', '🗓 일정·결과']];
+const TABS = [['notice', '📢 공지'], ['apply', '📝 신청'], ['stats', '📊 통계'], ['scrim', '🎯 스크림']];
 const ST = { recruiting: '🟢', running: '🔵', done: '🏁' };
 const sInp = { background: '#26262e', color: '#ddd', border: '1px solid #33333c', borderRadius: 6, padding: '5px 8px', fontSize: 12.5 };
 
@@ -16,6 +16,7 @@ export default function TournamentLayout({ children }) {
   const selId = parts[1] || null;
   const tab = parts[2] || 'notice';
   const [list, setList] = useState([]);
+  const selFormation = list.find((x) => x.id === selId)?.settings?.teamFormation;
   const [name, setName] = useState('');
   const [maxTeams, setMaxTeams] = useState(8);
   const [busy, setBusy] = useState(false);
@@ -51,15 +52,16 @@ export default function TournamentLayout({ children }) {
           </a>
         </div>
         <nav className="tb-nav">
-          {selId && TABS.filter(([k]) => {
-            // 경매 셋업(모집중)일 땐 점수표(대진) 탭 숨김 — 대진 생성 후엔 표시
-            const st = list.find((x) => x.id === selId);
-            if (k === 'scoreboard' && st?.settings?.teamFormation === 'auction' && st?.status === 'recruiting') return false;
-            return true;
-          }).map(([k, label]) => (
+          {selId && TABS.map(([k, label]) => (
             <Link key={k} href={`/tournament/${selId}/${k}`} className={tab === k ? 'active' : ''}>{label}</Link>
           ))}
-          {selId && user && list.find((x) => x.id === selId)?.settings?.teamFormation === 'auction' && (
+          {selId && (
+            <Link href={`/tournament/${selId}/schedule`} className={tab === 'schedule' ? 'active' : ''}>🗓 일정·결과</Link>
+          )}
+          {selId && selFormation === 'score' && (
+            <Link href={`/tournament/${selId}/scoreboard`} className={tab === 'scoreboard' ? 'active' : ''}>🏅 점수표</Link>
+          )}
+          {selId && user && selFormation === 'auction' && (
             <Link href={`/tournament/${selId}/auction`} className={tab === 'auction' ? 'active' : ''}>🔨 경매</Link>
           )}
           {selId && user && (
