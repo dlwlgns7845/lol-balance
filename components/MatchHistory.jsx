@@ -114,6 +114,12 @@ function RichRow({ p, dd, color, maxDmg, maxTaken, maxGold, durationMin, byName,
   const rq = det.roleQuest;
   const questDone = rq && Object.values(rq).some((v) => v === '1' || v === 'true' || v === true || Number(v) > 0);
   const riotNick = det.riotId && det.riotId.split('#')[0];
+  const bar = (val, max, cls, muted) => (
+    <div className="mhr-stat">
+      <span className={muted ? 'muted' : ''}>{k(val || 0)}</span>
+      <div className="dmg-bar"><span className={`f ${cls}`} style={{ width: Math.round((val || 0) / (max || 1) * 100) + '%' }} /></div>
+    </div>
+  );
   return (
     <div className={`mhr-row ${alt ? 'mhr-alt' : ''} ${highlight && normNm(p.name) === highlight ? 'me' : ''} ${onPlayer && p.personId ? 'clk' : ''}`}
       onClick={onPlayer && p.personId ? (e) => { e.stopPropagation(); onPlayer(p.personId); } : undefined}>
@@ -121,29 +127,24 @@ function RichRow({ p, dd, color, maxDmg, maxTaken, maxGold, durationMin, byName,
         <ChampImg name={p.champion} iconUrl={dd.icon} size={32} />
         {det.level ? <span className="mhr-lv">{det.level}</span> : null}
       </div>
-      <div className="mhr-sr">
-        <div className="mhr-sr-r">{[0, 1].map((i) => { const u = dd.spell?.(spells[i]); return <span key={i} className="mhr-sr-i">{u ? <img src={u} alt="" width={13} height={13} /> : null}</span>; })}</div>
-        <div className="mhr-sr-r">{[det.keystone, det.subStyle].map((pid, i) => { const u = dd.rune?.(pid); return <span key={i} className={`mhr-sr-i ${i ? 'sub' : ''}`}>{u ? <img src={u} alt="" width={13} height={13} /> : null}</span>; })}</div>
-      </div>
       <div className="mhr-name">
         <span className="mhr-nm">{p.name}{questDone ? <span className="mhr-quest" title={`역할 퀘스트 완료 (${JSON.stringify(rq)})`}>🎯</span> : null}<TitleBadges titles={byName?.[normNm(p.name)]} max={2} />{p.mvp && <span className="mbadge mvp">MVP</span>}{p.ace && <span className="mbadge ace">ACE</span>}</span>
         <span className="mhr-sub"><span className="muted">{p.champion}</span>{p.tier && <span className={tierClass(p.tier)}> · {TIER_LABEL[p.tier] || p.tier}</span>}{riotNick && riotNick !== p.name && <span className="mhr-riot muted"> · {riotNick}</span>}</span>
+      </div>
+      <div className="mhr-sr">
+        <div className="mhr-sr-r">{[0, 1].map((i) => { const u = dd.spell?.(spells[i]); return <span key={i} className="mhr-sr-i">{u ? <img src={u} alt="" width={14} height={14} /> : null}</span>; })}</div>
+        <div className="mhr-sr-r">{[det.keystone, det.subStyle].map((pid, i) => { const u = dd.rune?.(pid); return <span key={i} className={`mhr-sr-i ${i ? 'sub' : ''}`}>{u ? <img src={u} alt="" width={14} height={14} /> : null}</span>; })}</div>
       </div>
       <div className="mhr-kda">
         <span>{p.k} / <span className="red">{p.d}</span> / {p.a}</span>
         <span className={`muted mhr-ratio ${rClass(+kdaRatio(p))}`}>{kdaRatio(p)}</span>
       </div>
-      <div className="mhr-dmg" title="가한 피해 | 받은 피해">
-        <div className="mhr-dmg-c"><span>{k(p.damage || 0)}</span><div className="dmg-bar"><span className={`f ${color}`} style={{ width: Math.round((p.damage || 0) / maxDmg * 100) + '%' }} /></div></div>
-        <div className="mhr-dmg-c"><span className="muted">{k(det.dmgTaken || 0)}</span><div className="dmg-bar"><span className="f taken" style={{ width: Math.round((det.dmgTaken || 0) / maxTaken * 100) + '%' }} /></div></div>
-      </div>
+      {bar(p.damage, maxDmg, color, false)}
+      {bar(det.dmgTaken, maxTaken, 'taken', true)}
+      {bar(p.gold, maxGold, 'gold', false)}
       <div className="mhr-c muted"><b>{det.visionScore || 0}</b><span>👁 {det.wardsPlaced || 0}/{det.wardsKilled || 0}</span></div>
       <div className="mhr-c muted"><b>{p.cs || 0}</b><span>{csm ? csm + '/분' : 'CS'}</span></div>
       <div className="mhr-items">{[0, 1, 2, 3, 4, 5, 6].map((i) => { const u = itemUrl(items[i]); return <span key={i} className="mhr-item">{u ? <img src={u} alt="" width={20} height={20} /> : null}</span>; })}</div>
-      <div className="mhr-gold">
-        <span className="muted">🌾 {k(p.gold || 0)}</span>
-        <div className="dmg-bar"><span className={`f gold ${color}`} style={{ width: Math.round((p.gold || 0) / (maxGold || 1) * 100) + '%' }} /></div>
-      </div>
     </div>
   );
 }
@@ -157,14 +158,15 @@ function RosterRich({ label, players, win, color, dd, maxDmg, maxTaken, maxGold,
       </div>
       <div className="mhr-row mhr-colhead muted">
         <span />
-        <span>스펠/룬</span>
         <span>선수</span>
+        <span>스펠</span>
         <span>KDA</span>
-        <span className="mhr-dmg"><span className="mhr-dmg-c">피해량</span><span className="mhr-dmg-c">받은피해량</span></span>
+        <span>피해량</span>
+        <span>받은피해량</span>
+        <span>골드량</span>
         <span>와드</span>
         <span>CS</span>
         <span>아이템</span>
-        <span style={{ textAlign: 'right' }}>골드</span>
       </div>
       {players.map((p, i) => <RichRow key={i} p={p} dd={dd} color={color} maxDmg={maxDmg} maxTaken={maxTaken} maxGold={maxGold} durationMin={durationMin} byName={byName} onPlayer={onPlayer} itemUrl={itemUrl} highlight={highlight} alt={i % 2 === 1} />)}
     </div>
