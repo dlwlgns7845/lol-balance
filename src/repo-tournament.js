@@ -486,6 +486,13 @@ async function buildKnockoutFromGroups(tournamentId, all) {
   await db().from('tournament_matches').insert(kMatches);
 }
 
+// 경기 일정(날짜/시간) 설정·해제
+export async function setMatchSchedule(tournamentId, matchId, scheduledAt) {
+  const { error } = await db().from('tournament_matches').update({ scheduled_at: scheduledAt || null }).eq('id', matchId).eq('tournament_id', tournamentId);
+  if (error) { if (/scheduled_at/i.test(error.message || '')) throw new Error('일정 마이그레이션(tournament-schedule-schema.sql)을 먼저 실행하세요'); throw error; }
+  return getTournament(tournamentId);
+}
+
 // 경기 결과 입력: 승자 저장 + 진출/본선생성. 최종 결승이면 대회 종료.
 export async function reportMatch(matchId, b) {
   const { data: m } = await db().from('tournament_matches').select('*').eq('id', matchId).maybeSingle();

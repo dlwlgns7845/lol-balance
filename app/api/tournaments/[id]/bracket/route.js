@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { generateBracket, reportMatch } from '../../../../../src/repo-tournament.js';
+import { generateBracket, reportMatch, setMatchSchedule } from '../../../../../src/repo-tournament.js';
 import { requireTournamentOwner, errStatus } from '../../../../../src/auth.js';
 
 // 대진 생성 (대회 운영자)
@@ -15,6 +15,7 @@ export async function PATCH(request, { params }) {
   try {
     await requireTournamentOwner(request, params.id);
     const body = await request.json();
+    if (body.action === 'schedule') return NextResponse.json({ ok: true, ...(await setMatchSchedule(params.id, body.matchId, body.scheduledAt)) });
     return NextResponse.json({ ok: true, ...(await reportMatch(body.matchId, body)) });
   } catch (e) { return NextResponse.json({ ok: false, error: e.message }, { status: errStatus(e) }); }
 }

@@ -1148,6 +1148,11 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 .pl-2 .pl-bar { background: linear-gradient(180deg, rgba(190,190,200,.3), rgba(190,190,200,.1)); height: 66px; line-height: 50px; }
 .pl-3 .pl-bar { background: linear-gradient(180deg, rgba(205,140,95,.3), rgba(205,140,95,.1)); height: 48px; line-height: 32px; }
 
+/* 경기 일정 */
+.bv-sched-row { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-top: 1px solid #2a2a33; flex-wrap: wrap; }
+.bv-sched { font-size: 11px; color: #cfae6f; font-weight: 700; white-space: nowrap; }
+.bv-schedinput { background: #26262e; color: #bbb; border: 1px solid #33333c; border-radius: 5px; padding: 2px 5px; font-size: 10.5px; flex: 1; min-width: 0; color-scheme: dark; }
+
 /* 점수제 팀 빌더 */
 .sf-summary { display: flex; justify-content: space-between; align-items: center; padding: 8px 14px; background: #16161c; border-radius: 8px; margin: 8px 0; font-weight: 800; font-size: 15px; }
 .sf-light { font-size: 12px; font-weight: 700; padding: 3px 12px; border-radius: 6px; }

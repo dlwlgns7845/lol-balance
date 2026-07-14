@@ -15,6 +15,9 @@ const inp = { background: '#26262e', color: '#ddd', border: '1px solid #33333c',
 const FORMAT_LABEL = { single_elim: '싱글 엘리미네이션', double_elim: '더블 엘리미네이션', group_stage: '그룹 스테이지(예선)' };
 const SEED_LABEL = { order: '신청 순서', tier: '티어 시드(강팀 분산)', random: '랜덤 추첨' };
 const FORMATION_LABEL = { auction: '경매 드래프트', score: '점수제', roster: '로스터 신청' };
+const P2 = (n) => String(n).padStart(2, '0');
+const fmtSched = (iso) => { if (!iso) return ''; const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${P2(d.getHours())}:${P2(d.getMinutes())}`; };
+const toLocalInput = (iso) => { if (!iso) return ''; const d = new Date(iso); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
 
 export default function TournamentTab() {
   const { id, tab } = useParams();
@@ -652,7 +655,7 @@ function Apply({ t, teams, pool, auction, canManage, admin, id, reload, S, user,
       {/* ② 신청자 목록 (티어 배정됨) */}
       <PoolList pool={pool} canManage={canManage} id={id} reload={reload} />
       {/* ③ 팀 짜기 — 경매=경매 탭, 점수제=점수표 탭 */}
-      {t.status === 'recruiting' && <div className="panel center muted" style={{ padding: '18px 0' }}>{isAuction ? <>실시간 경매는 <b>🔨 경매 탭</b>에서 진행돼요.</> : <>점수제 팀 짜기는 <b>🏅 점수표 탭</b>에서 진행돼요.</>}</div>}
+      {t.status === 'recruiting' && <div className="panel center muted" style={{ padding: '18px 0' }}>{isAuction ? <>실시간 경매는 <b>🔨 경매 탭</b>에서 진행돼요.</> : <>점수제 팀 짜기는 <b>🗓 일정·결과 탭</b>에서 진행돼요.</>}</div>}
       {/* ④ 짜인 팀 + 대진 생성 */}
       <div className="panel">
         <h2>참가팀 ({approved.length}{t.status === 'recruiting' ? ` · 대기 ${teams.filter((x) => x.status === 'pending').length}` : ''})</h2>
@@ -886,6 +889,7 @@ function BracketView({ matches, title, t, nameOf, canManage, admin, roundLabel, 
   const totalRounds = Math.max(...matches.map((m) => m.round));
   const rl = roundLabel || ((round) => (round === totalRounds ? '결승' : `${2 ** (totalRounds - round + 1)}강`));
   const lines = serieLines(bestOf);
+  const schedulable = (m) => canManage && t.status === 'running' && m.team_a && m.team_b && !m.winner;
   return (
     <div className="panel" style={{ overflowX: 'auto' }}>
       <h2>{title}{bestOf > 1 ? <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}> · BO{bestOf}</span> : null}</h2>
@@ -910,6 +914,12 @@ function BracketView({ matches, title, t, nameOf, canManage, admin, roundLabel, 
                         <option value="">결과 입력 (위:아래)</option>
                         {lines.map((l, idx) => <option key={idx} value={idx}>{l.a} : {l.b}</option>)}
                       </select>
+                    </div>
+                  )}
+                  {(m.scheduled_at || schedulable(m)) && (
+                    <div className="bv-sched-row">
+                      {m.scheduled_at && <span className="bv-sched">🗓 {fmtSched(m.scheduled_at)}</span>}
+                      {schedulable(m) && <input type="datetime-local" value={toLocalInput(m.scheduled_at)} onChange={(e) => admin({ matchId: m.id, action: 'schedule', scheduledAt: e.target.value ? new Date(e.target.value).toISOString() : null }, '/bracket', 'PATCH')} className="bv-schedinput" />}
                     </div>
                   )}
                 </div>

@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useGroup } from '../../components/GroupProvider.jsx';
 import { apiFetch } from '../../components/api.js';
 
-const TABS = [['notice', '📢 공지'], ['apply', '📝 신청'], ['stats', '📊 통계'], ['scrim', '🎯 스크림'], ['scoreboard', '🏅 점수표']];
+const TABS = [['notice', '📢 공지'], ['apply', '📝 신청'], ['stats', '📊 통계'], ['scrim', '🎯 스크림'], ['scoreboard', '🗓 일정·결과']];
 const ST = { recruiting: '🟢', running: '🔵', done: '🏁' };
 const sInp = { background: '#26262e', color: '#ddd', border: '1px solid #33333c', borderRadius: 6, padding: '5px 8px', fontSize: 12.5 };
 
