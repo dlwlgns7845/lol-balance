@@ -240,6 +240,13 @@ function SettingsEditor({ S, admin }) {
               {d.format === 'double_elim' && (
                 <div style={{ gridColumn: '1 / -1', fontSize: 11.5, color: '#d0a56f' }}>⚠️ 더블 엘리는 승인 팀이 <b>4·8·16·32…</b> (2의 거듭제곱)일 때 대진이 생성돼요. 최종결승은 단판이에요.</div>
               )}
+              {d.format !== 'double_elim' && (
+                <div style={cell}><label style={lbl}>3·4위전</label>
+                  <select value={d.thirdPlace ? '1' : '0'} onChange={(e) => setD((x) => ({ ...x, thirdPlace: e.target.value === '1' }))} style={inp}>
+                    <option value="0">없음</option><option value="1">있음 (준결승 패자끼리)</option>
+                  </select>
+                </div>
+              )}
               <div style={cell}><label style={lbl}>시드 배정</label>
                 <select value={d.seeding} onChange={(e) => setD((x) => ({ ...x, seeding: e.target.value }))} style={inp}>
                   <option value="order">신청 순서</option><option value="tier">티어 시드(강팀 분산)</option><option value="random">랜덤 추첨</option>
@@ -731,8 +738,51 @@ function ScoreOverview({ teams, S }) {
   );
 }
 
+// 대진 결과 → 최종 순위 (우승/준우승/3위). 더블엘리=GF+패자조결승패자, 그 외=결승+준결승패자
+function computePlacements(matches) {
+  const de = matches.some((m) => m.bracket === 'GF');
+  const hasK = matches.some((m) => m.bracket === 'K');
+  const loserOf = (m) => (m.winner === m.team_a ? m.team_b : m.team_a);
+  let finalMatch; const third = [];
+  if (de) {
+    finalMatch = matches.find((m) => m.bracket === 'GF');
+    const lb = matches.filter((m) => m.bracket === 'L');
+    if (lb.length) { const lbFinal = lb.find((m) => m.round === Math.max(...lb.map((x) => x.round))); if (lbFinal?.winner) third.push(loserOf(lbFinal)); }
+  } else {
+    const seg = matches.filter((m) => (hasK ? m.bracket === 'K' : m.bracket == null));
+    if (!seg.length) return null;
+    const maxR = Math.max(...seg.map((m) => m.round));
+    finalMatch = seg.find((m) => m.round === maxR);
+    // 3위전(bracket 'T')이 있으면 그 승자, 없으면 준결승 패자들(공동)
+    const tp = matches.find((m) => m.bracket === 'T' && m.winner);
+    if (tp) third.push(tp.winner);
+    else seg.filter((m) => m.round === maxR - 1 && m.winner).forEach((m) => third.push(loserOf(m)));
+  }
+  if (!finalMatch?.winner) return null;
+  return { champ: finalMatch.winner, runner: loserOf(finalMatch), third: third.filter(Boolean) };
+}
+
+function Placements({ matches, nameOf }) {
+  const p = computePlacements(matches);
+  if (!p) return null;
+  return (
+    <div className="panel" style={{ textAlign: 'center' }}>
+      <h2 style={{ textAlign: 'left' }}>🏆 최종 순위</h2>
+      <div className="pl-podium">
+        <div className="pl-col pl-2"><div className="pl-bar">🥈</div><b>{nameOf(p.runner)}</b><div className="muted" style={{ fontSize: 12 }}>준우승</div></div>
+        <div className="pl-col pl-1"><div className="pl-bar">🥇</div><b style={{ fontSize: 17 }}>{nameOf(p.champ)}</b><div className="muted" style={{ fontSize: 12 }}>우승</div></div>
+        <div className="pl-col pl-3"><div className="pl-bar">🥉</div><b>{p.third.length ? p.third.map(nameOf).join(' · ') : '-'}</b><div className="muted" style={{ fontSize: 12 }}>3위</div></div>
+      </div>
+    </div>
+  );
+}
+
 // ─── 🏅 점수표 (팀 점수 + 대진) ───
 function Scoreboard({ t, matches, teams, pool, nameOf, canManage, admin, S, id, reload, user, login }) {
+  const podium = t.status === 'done' ? <Placements matches={matches} nameOf={nameOf} /> : null;
+  const tPanel = matches.some((m) => m.bracket === 'T')
+    ? <BracketView matches={matches.filter((m) => m.bracket === 'T')} title="🥉 3·4위전" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} roundLabel={() => '3·4위전'} />
+    : null;
   const isScore = S.teamFormation === 'score';
   // 점수제: 드래그 팀 빌더 + 제출 팀 점수
   const builder = isScore ? <ScoreFormation pool={pool} S={S} id={id} reload={reload} user={user} login={login} /> : null;
@@ -749,8 +799,8 @@ function Scoreboard({ t, matches, teams, pool, nameOf, canManage, admin, S, id, 
   const groupM = matches.filter((m) => m.bracket === 'G');
   const kM = matches.filter((m) => m.bracket === 'K');
   const wM = matches.filter((m) => m.bracket === 'W');
-  if (wM.length > 0) return <>{builder}{overview}<DoubleElimBoard matches={matches} t={t} nameOf={nameOf} canManage={canManage} admin={admin} /></>;
-  if (groupM.length === 0) return <>{builder}{overview}<BracketView matches={matches} title="대진표" t={t} nameOf={nameOf} canManage={canManage} admin={admin} /></>;
+  if (wM.length > 0) return <>{podium}{builder}{overview}<DoubleElimBoard matches={matches} t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} /></>;
+  if (groupM.length === 0) return <>{podium}{builder}{overview}<BracketView matches={matches.filter((m) => m.bracket !== 'T')} title="대진표" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} />{tPanel}</>;
 
   // 그룹 스테이지 모드
   const gmap = {};
@@ -760,7 +810,7 @@ function Scoreboard({ t, matches, teams, pool, nameOf, canManage, admin, S, id, 
   const advance = S.groups.advance;
   return (
     <>
-      {builder}{overview}
+      {podium}{builder}{overview}
       <div className="panel">
         <h2>조별 리그 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 조별 {advance}팀 진출</span></h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginTop: 10 }}>
@@ -798,56 +848,77 @@ function Scoreboard({ t, matches, teams, pool, nameOf, canManage, admin, S, id, 
         {canManage && t.status === 'running' && <p className="hint" style={{ marginTop: 8 }}>각 경기에서 이긴 팀 방향(◀/▶) 버튼 클릭. 초록 = 진출권.</p>}
       </div>
       {kM.length > 0
-        ? <BracketView matches={kM} title="본선 대진표" t={t} nameOf={nameOf} canManage={canManage} admin={admin} />
+        ? <BracketView matches={kM} title="본선 대진표" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} />
         : <div className="panel center muted" style={{ padding: '24px 0' }}>조별 경기가 모두 끝나면 본선 대진이 자동으로 생성돼요.</div>}
+      {tPanel}
     </>
   );
 }
 
 // 더블 엘리: 승자조·패자조·최종결승 3단
-function DoubleElimBoard({ matches, t, nameOf, canManage, admin }) {
+function DoubleElimBoard({ matches, t, nameOf, canManage, admin, bestOf = 1 }) {
   const W = matches.filter((m) => m.bracket === 'W');
   const L = matches.filter((m) => m.bracket === 'L');
   const GF = matches.filter((m) => m.bracket === 'GF');
   return (
     <>
-      <BracketView matches={W} title="🏆 승자조" t={t} nameOf={nameOf} canManage={canManage} admin={admin}
+      <BracketView matches={W} title="🏆 승자조" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={bestOf}
         roundLabel={(r, tot) => (r === tot ? '승자조 결승' : `${2 ** (tot - r + 1)}강`)} />
-      <BracketView matches={L} title="💀 패자조" t={t} nameOf={nameOf} canManage={canManage} admin={admin}
+      <BracketView matches={L} title="💀 패자조" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={bestOf}
         roundLabel={(r, tot) => (r === tot ? '패자조 결승' : `패자조 R${r}`)} />
-      <BracketView matches={GF} title="👑 최종 결승" t={t} nameOf={nameOf} canManage={canManage} admin={admin}
+      <BracketView matches={GF} title="👑 최종 결승" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={bestOf}
         roundLabel={() => '최종 결승'} />
     </>
   );
 }
 
 // 싱글엘리/본선/각 브라켓 공용 렌더
-function BracketView({ matches, title, t, nameOf, canManage, admin, roundLabel }) {
+// BO 시리즈 가능한 스코어라인 (a=team_a 승수)
+function serieLines(bestOf) {
+  const w = Math.ceil((bestOf || 1) / 2);
+  const lines = [];
+  for (let l = 0; l < w; l += 1) lines.push({ a: w, b: l, side: 'a' });   // 2:0, 2:1 …
+  for (let l = w - 1; l >= 0; l -= 1) lines.push({ a: l, b: w, side: 'b' }); // 1:2, 0:2 …
+  return lines;
+}
+
+function BracketView({ matches, title, t, nameOf, canManage, admin, roundLabel, bestOf = 1 }) {
   const totalRounds = Math.max(...matches.map((m) => m.round));
   const rl = roundLabel || ((round) => (round === totalRounds ? '결승' : `${2 ** (totalRounds - round + 1)}강`));
+  const lines = serieLines(bestOf);
   return (
     <div className="panel" style={{ overflowX: 'auto' }}>
-      <h2>{title}</h2>
+      <h2>{title}{bestOf > 1 ? <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}> · BO{bestOf}</span> : null}</h2>
       <div style={{ display: 'flex', gap: 24, minWidth: 'min-content', paddingBottom: 8 }}>
         {Array.from({ length: totalRounds }, (_, r) => r + 1).map((round) => (
-          <div key={round} style={{ display: 'flex', flexDirection: 'column', gap: 10, justifyContent: 'space-around', minWidth: 160 }}>
+          <div key={round} style={{ display: 'flex', flexDirection: 'column', gap: 10, justifyContent: 'space-around', minWidth: 168 }}>
             <div className="muted" style={{ fontSize: 11, textAlign: 'center' }}>{rl(round, totalRounds)}</div>
-            {matches.filter((m) => m.round === round).sort((a, b) => a.pos - b.pos).map((m) => (
-              <div key={m.id} style={{ border: '1px solid #33333c', borderRadius: 8, background: '#1c1c22' }}>
-                {[m.team_a, m.team_b].map((tid, k) => (
-                  <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 9px', borderTop: k ? '1px solid #2a2a33' : 'none', background: m.winner === tid && tid ? 'rgba(79,182,214,.18)' : 'transparent', fontWeight: m.winner === tid ? 700 : 400, borderRadius: 6 }}>
-                    <span style={{ fontSize: 13 }}>{tid ? nameOf(tid) : <span className="muted">미정</span>}</span>
-                    {canManage && t.status === 'running' && tid && !m.winner && m.team_a && m.team_b && (
-                      <button className="mini" style={{ padding: '1px 7px', fontSize: 10 }} onClick={() => admin({ matchId: m.id, winner: tid }, '/bracket', 'PATCH')}>승</button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ))}
+            {matches.filter((m) => m.round === round).sort((a, b) => a.pos - b.pos).map((m) => {
+              const ready = canManage && t.status === 'running' && !m.winner && m.team_a && m.team_b;
+              return (
+                <div key={m.id} style={{ border: '1px solid #33333c', borderRadius: 8, background: '#1c1c22' }}>
+                  {[m.team_a, m.team_b].map((tid, k) => (
+                    <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, padding: '5px 9px', borderTop: k ? '1px solid #2a2a33' : 'none', background: m.winner === tid && tid ? 'rgba(79,182,214,.18)' : 'transparent', fontWeight: m.winner === tid ? 700 : 400, borderRadius: 6 }}>
+                      <span style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tid ? nameOf(tid) : <span className="muted">미정</span>}</span>
+                      {m.winner && m.score_a != null && <span className="muted" style={{ fontSize: 12, fontWeight: 700 }}>{k === 0 ? m.score_a : m.score_b}</span>}
+                      {ready && bestOf === 1 && <button className="mini" style={{ padding: '1px 7px', fontSize: 10 }} onClick={() => admin({ matchId: m.id, winner: tid }, '/bracket', 'PATCH')}>승</button>}
+                    </div>
+                  ))}
+                  {ready && bestOf > 1 && (
+                    <div style={{ padding: '4px 8px', borderTop: '1px solid #2a2a33' }}>
+                      <select defaultValue="" onChange={(e) => { if (e.target.value === '') return; const l = lines[+e.target.value]; admin({ matchId: m.id, winner: l.side === 'a' ? m.team_a : m.team_b, score_a: l.a, score_b: l.b }, '/bracket', 'PATCH'); }} style={{ ...inp, width: '100%', fontSize: 11.5 }}>
+                        <option value="">결과 입력 (위:아래)</option>
+                        {lines.map((l, idx) => <option key={idx} value={idx}>{l.a} : {l.b}</option>)}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         ))}
       </div>
-      {canManage && t.status === 'running' && <p className="hint" style={{ marginTop: 8 }}>이긴 팀의 <b>승</b> 버튼 → 다음 라운드 자동 진출.</p>}
+      {canManage && t.status === 'running' && <p className="hint" style={{ marginTop: 8 }}>{bestOf > 1 ? '스코어 선택(위팀:아래팀) → 다음 라운드 자동 진출.' : '이긴 팀 승 버튼 → 다음 라운드 자동 진출.'}</p>}
     </div>
   );
 }

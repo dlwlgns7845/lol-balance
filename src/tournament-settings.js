@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS = {
   seeding: 'order',
   scoring: { win: 3, draw: 1, loss: 0 },
   teamFormation: 'roster',
+  thirdPlace: false, // 3·4위전 (싱글엘리·그룹 본선)
   groups: { count: 2, advance: 2 },
   // 경매: 예산 + 입찰 제한시간 + 연장(리셋) 상한(0=무제한) + 이 금액 넘으면 연장중단(0=off)
   auction: { budget: 1000, bidSeconds: 30, bidMaxExtends: 0, bidNoResetOver: 0 },
@@ -53,6 +54,7 @@ export function normalizeSettings(raw) {
     seeding: SEEDINGS.includes(s.seeding) ? s.seeding : 'order',
     scoring: { win: clampInt(sc.win, 3, 0, 10), draw: clampInt(sc.draw, 1, 0, 10), loss: clampInt(sc.loss, 0, 0, 10) },
     teamFormation: FORMATIONS.includes(s.teamFormation) ? s.teamFormation : 'auction',
+    thirdPlace: s.thirdPlace === true,
     groups: { count: clampInt(gr.count, 2, 1, 8), advance: clampInt(gr.advance, 2, 1, 8) },
     auction: { budget: clampInt((s.auction || {}).budget, 1000, 1, 1000000), bidSeconds: clampInt((s.auction || {}).bidSeconds, 30, 5, 600), bidMaxExtends: clampInt((s.auction || {}).bidMaxExtends, 0, 0, 100), bidNoResetOver: clampInt((s.auction || {}).bidNoResetOver, 0, 0, 1000000) },
     scoreCap: clampInt(s.scoreCap, 185, 1, 100000),

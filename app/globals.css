@@ -1140,6 +1140,14 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 .tg-m .tg-win { color: var(--blue); font-weight: 700; }
 .tg-btns { display: flex; gap: 3px; }
 
+/* 최종 순위 시상대 */
+.pl-podium { display: flex; align-items: flex-end; justify-content: center; gap: 12px; margin-top: 12px; }
+.pl-col { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 90px; }
+.pl-bar { width: 100%; border-radius: 8px 8px 0 0; text-align: center; font-size: 26px; padding: 8px 0; }
+.pl-1 .pl-bar { background: linear-gradient(180deg, rgba(232,192,125,.35), rgba(232,192,125,.12)); height: 92px; line-height: 76px; }
+.pl-2 .pl-bar { background: linear-gradient(180deg, rgba(190,190,200,.3), rgba(190,190,200,.1)); height: 66px; line-height: 50px; }
+.pl-3 .pl-bar { background: linear-gradient(180deg, rgba(205,140,95,.3), rgba(205,140,95,.1)); height: 48px; line-height: 32px; }
+
 /* 점수제 팀 빌더 */
 .sf-summary { display: flex; justify-content: space-between; align-items: center; padding: 8px 14px; background: #16161c; border-radius: 8px; margin: 8px 0; font-weight: 800; font-size: 15px; }
 .sf-light { font-size: 12px; font-weight: 700; padding: 3px 12px; border-radius: 6px; }

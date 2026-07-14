@@ -457,6 +457,7 @@ export async function generateBracket(tournamentId) {
     matches = generateDoubleElim(seeded).map((m) => ({ tournament_id: tournamentId, ...m })); // n=2^k 검증은 내부에서
   } else {
     matches = generateSingleElim(seeded).map((m) => ({ tournament_id: tournamentId, ...m }));
+    if (settings.thirdPlace && seeded.length >= 4) matches.push({ tournament_id: tournamentId, bracket: 'T', round: 1, pos: 0, team_a: null, team_b: null, winner: null });
   }
   const { error } = await db().from('tournament_matches').insert(matches);
   if (error) {
@@ -481,6 +482,7 @@ async function buildKnockoutFromGroups(tournamentId, all) {
   const seeds = knockoutSeeds(groupStandings(all, groups), advance);
   if (seeds.length < 2) return;
   const kMatches = generateSingleElim(seeds).map((m) => ({ tournament_id: tournamentId, bracket: 'K', ...m }));
+  if (normalizeSettings(tRow?.settings).thirdPlace && seeds.length >= 4) kMatches.push({ tournament_id: tournamentId, bracket: 'T', round: 1, pos: 0, team_a: null, team_b: null, winner: null });
   await db().from('tournament_matches').insert(kMatches);
 }
 
@@ -493,7 +495,9 @@ export async function reportMatch(matchId, b) {
   await db().from('tournament_matches').update({ winner, score_a: b.score_a ?? null, score_b: b.score_b ?? null }).eq('id', matchId);
   const { data: all } = await db().from('tournament_matches').select('*').eq('tournament_id', m.tournament_id);
   const cur = all.map((x) => (x.id === matchId ? { ...x, winner } : x)); // 방금 결과 반영본
-  if (m.bracket === 'G') {
+  if (m.bracket === 'T') {
+    // 3·4위전: 승자만 기록, 진출/상태변경 없음
+  } else if (m.bracket === 'G') {
     // 조별: 모든 조 경기 끝나면 본선 자동 생성. 아니면 대기.
     if (groupsComplete(cur)) await buildKnockoutFromGroups(m.tournament_id, cur);
   } else if (m.bracket === 'W' || m.bracket === 'L' || m.bracket === 'GF') {
@@ -523,6 +527,11 @@ export async function reportMatch(matchId, b) {
       if (nextM) await db().from('tournament_matches').update({ [`team_${nx.slot}`]: winner }).eq('id', nextM.id);
     } else {
       await db().from('tournaments').update({ status: 'done' }).eq('id', m.tournament_id); // 최종 결승 = 종료
+    }
+    // 3·4위전: 준결승(결승 직전 라운드) 패자를 3위전으로 (pos 0→a, 1→b)
+    if (m.round === totalRounds - 1) {
+      const tMatch = cur.find((x) => x.bracket === 'T');
+      if (tMatch) { const loser = winner === m.team_a ? m.team_b : m.team_a; await db().from('tournament_matches').update({ [`team_${m.pos === 0 ? 'a' : 'b'}`]: loser }).eq('id', tMatch.id); }
     }
   }
   return getTournament(m.tournament_id);
