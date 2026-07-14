@@ -191,17 +191,11 @@ export async function fetchTierEstimate(gameName, tagLine, region) {
       basis: `현재 솔랭 ${cur.tier}${cur.division || ''} ${curGames}판${k !== k0 ? ` · 내전보정 ×0.6→${k}` : ''}`,
       games: curGames, confidence: 'high', source: 'opgg' };
   }
-  // 현재<200: 과거 판수검증은 Riot 필요(여기선 불가)지만 현재시즌 최고티어(curHigh)는 op.gg가 줌.
-  // curHigh vs op.gg 최고티어 중 강한 쪽 (과거 판수 미검증이라 의심 처리)
-  const cand = [];
-  if (prof.curHigh && prof.curHigh.tier) cand.push({ ...prof.curHigh, cur: true, label: `현재시즌 최고 ${prof.curHigh.tier}${prof.curHigh.division || ''}` });
-  if (prof.peak) cand.push({ tier: prof.peak.tier, division: prof.peak.division, lp: null, cur: false, label: `op.gg 최고 ${prof.peak.tier}${prof.peak.division || ''}` });
-  if (cand.length) {
-    cand.forEach((c) => { let k = mapTierApexAware(c.tier, c.division, c.lp); if (c.cur) k = nerfCurrentApex(k); c.key = k; c.strength = keyStrength(c.key); }); // 현재시즌만 ×0.6
-    cand.sort((a, b) => b.strength - a.strength);
-    return { found: true, gameName: prof.gameName, tag: prof.tag, suggestedTier: cand[0].key, ...extra,
-      basis: `현재 ${curGames}판<200 · 과거판수 미검증 → ${cand[0].label} (수동확인)`,
-      games: curGames, confidence: 'low', suspect: true, apexNoLp: APEX.has((cand[0].tier || '').toUpperCase()) && cand[0].lp == null, source: 'opgg' };
+  // 현재 <200판(표본 부족) → 모든 시즌 통틀어 역대 최고 티어로 판정
+  if (prof.peakTier) {
+    return { found: true, gameName: prof.gameName, tag: prof.tag, suggestedTier: prof.peakTier, ...extra,
+      basis: `현재 ${curGames}판<200 → 역대 최고 티어 (${prof.peakTier})`,
+      games: curGames, confidence: curGames >= 30 ? 'medium' : 'low', source: 'opgg' };
   }
   return { found: true, gameName: prof.gameName, tag: prof.tag, suggestedTier: null, ...extra, basis: '랭크 기록 없음', games: 0, confidence: 'low', source: 'opgg' };
 }
