@@ -88,6 +88,9 @@ export function validateEligibility(settings, members) {
     if (el.minGames > 0 && m.games != null && Number(m.games) < el.minGames) {
       errors.push(`${m.game_name || '팀원'}: 현재 시즌 판수 부족 (${m.games} < ${el.minGames})`);
     }
+    if (el.minLevel > 0 && m.level != null && Number(m.level) < el.minLevel) {
+      errors.push(`${m.game_name || '팀원'}: 레벨 부족 (${m.level} < ${el.minLevel})`);
+    }
   });
   return { ok: errors.length === 0, errors };
 }

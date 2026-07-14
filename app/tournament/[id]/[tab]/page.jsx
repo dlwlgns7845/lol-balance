@@ -402,7 +402,8 @@ function ApplyPlayer({ t, id, reload, S }) {
       const pickBasis = { current: prof.suggestedTier, currentPeak: prof.curHighTier, lastSeason: prof.lastSeasonTier, peak: prof.peakTier };
       const tier = prof.found && usable ? (pickBasis[el.tierBasis] || prof.suggestedTier || null) : null;
       const games = prof.games ?? null;
-      const r = await apiFetch(`/api/tournaments/${id}/auction`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ game_name: gn.trim(), tag_line: tg.trim(), tier, role: role || null, games }) }).then((x) => x.json());
+      const level = prof.level ?? null;
+      const r = await apiFetch(`/api/tournaments/${id}/auction`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ game_name: gn.trim(), tag_line: tg.trim(), tier, role: role || null, games, level }) }).then((x) => x.json());
       if (!r.ok) throw new Error(r.error);
       setMsg(`✅ 신청 완료 — 배정 티어 ${tier ? (TIER_LABEL[tier] || tier) : '미확인'}${games ? ` · 현재시즌 ${games}판` : ''}`);
       setName(''); setRole(''); reload();

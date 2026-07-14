@@ -108,6 +108,7 @@ export default function TournamentLayout({ children }) {
         </aside>
         <main className="main" style={{ flex: 1 }}><div className="content" style={{ maxWidth: 1320 }}>{children}</div></main>
       </div>
+      <footer className="site-credit">티어·전적 데이터 제공: <a href="https://op.gg" target="_blank" rel="noreferrer">OP.GG</a></footer>
     </div>
   );
 }

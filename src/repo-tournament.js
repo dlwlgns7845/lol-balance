@@ -157,7 +157,7 @@ export async function addPoolPlayer(tournamentId, b) {
   const game_name = (b.game_name || '').trim();
   if (!game_name) throw new Error('게임 닉네임을 입력하세요');
   // 자격 검증 (티어 상/하한 · 최소 판수). 로스터 인원 조건은 개인 신청엔 미적용.
-  const chk = validateEligibility(t.settings, [{ game_name, tier: b.tier || null, games: b.games ?? null }]);
+  const chk = validateEligibility(t.settings, [{ game_name, tier: b.tier || null, games: b.games ?? null, level: b.level ?? null }]);
   const relevant = chk.errors.filter((e) => !e.includes('로스터'));
   if (relevant.length) throw new Error(relevant.join('\n'));
   const row = { tournament_id: tournamentId, game_name, tag_line: b.tag_line || null, tier: b.tier || null, role: b.role || null, user_id: b.user_id ?? null };

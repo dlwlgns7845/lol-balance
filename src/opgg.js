@@ -4,7 +4,7 @@
 const MCP_URL = 'https://mcp-api.op.gg/mcp';
 
 const PROFILE_FIELDS = [
-  'data.summoner.game_name', 'data.summoner.tagline',
+  'data.summoner.game_name', 'data.summoner.tagline', 'data.summoner.level',
   'data.summoner.league_stats[].game_type',
   'data.summoner.league_stats[].win', 'data.summoner.league_stats[].lose',
   'data.summoner.league_stats[].tier_info.tier',
@@ -75,6 +75,9 @@ function matchLeague(text, queue) {
 // op.gg MCP 응답 텍스트 → 구조화 + 제안 티어
 export function parseProfile(text) {
   const head = text.match(/Summoner\("([^"]*)","([^"]*)"/);
+  // 소환사 레벨 (베스트에포트: Summoner("name","tag",<level> 또는 level=N. 못 찾으면 null → 최소레벨 검증 스킵)
+  const lvM = text.match(/Summoner\("[^"]*","[^"]*",\s*(\d+)/) || text.match(/[Ll]evel["\s:=]+(\d+)/);
+  const level = lvM ? Number(lvM[1]) : null;
   const solo = matchLeague(text, 'SOLORANKED');
   const flex = matchLeague(text, 'FLEXRANKED');
 
@@ -134,7 +137,7 @@ export function parseProfile(text) {
     peak: peak ? { tier: peak.tier, division: peak.division } : null,
     curHigh,
     seasons,
-    suggestedTier, peakTier, curHighTier, lastSeasonTier, basis, games, confidence,
+    suggestedTier, peakTier, curHighTier, lastSeasonTier, level, basis, games, confidence,
   };
 }
 
@@ -177,12 +180,14 @@ export async function fetchTierEstimate(gameName, tagLine, region) {
   if (!prof.found) return prof;
   const cur = prof.solo;
   const curGames = cur ? (cur.win || 0) + (cur.lose || 0) : 0;
+  // 티어 선정 기준(현재/역대/전시즌)·레벨은 프로필에서 그대로 전달 (멸망전 자격 판정용)
+  const extra = { peakTier: prof.peakTier, curHighTier: prof.curHighTier, lastSeasonTier: prof.lastSeasonTier, level: prof.level ?? null };
 
   if (cur && cur.tier && curGames >= 200) {
     const k0 = mapTierApexAware(cur.tier, cur.division, cur.lp);
     const k = nerfCurrentApex(k0); // 현재 시즌이므로 마스터+면 ×0.6
     return { found: true, gameName: prof.gameName, tag: prof.tag,
-      suggestedTier: k,
+      suggestedTier: k, ...extra,
       basis: `현재 솔랭 ${cur.tier}${cur.division || ''} ${curGames}판${k !== k0 ? ` · 내전보정 ×0.6→${k}` : ''}`,
       games: curGames, confidence: 'high', source: 'opgg' };
   }
@@ -194,11 +199,11 @@ export async function fetchTierEstimate(gameName, tagLine, region) {
   if (cand.length) {
     cand.forEach((c) => { let k = mapTierApexAware(c.tier, c.division, c.lp); if (c.cur) k = nerfCurrentApex(k); c.key = k; c.strength = keyStrength(c.key); }); // 현재시즌만 ×0.6
     cand.sort((a, b) => b.strength - a.strength);
-    return { found: true, gameName: prof.gameName, tag: prof.tag, suggestedTier: cand[0].key,
-      basis: `현재 ${curGames}판<200 · Riot키없어 과거판수 미검증 → ${cand[0].label} (수동확인)`,
+    return { found: true, gameName: prof.gameName, tag: prof.tag, suggestedTier: cand[0].key, ...extra,
+      basis: `현재 ${curGames}판<200 · 과거판수 미검증 → ${cand[0].label} (수동확인)`,
       games: curGames, confidence: 'low', suspect: true, apexNoLp: APEX.has((cand[0].tier || '').toUpperCase()) && cand[0].lp == null, source: 'opgg' };
   }
-  return { found: true, gameName: prof.gameName, tag: prof.tag, suggestedTier: null, basis: '랭크 기록 없음', games: 0, confidence: 'low', source: 'opgg' };
+  return { found: true, gameName: prof.gameName, tag: prof.tag, suggestedTier: null, ...extra, basis: '랭크 기록 없음', games: 0, confidence: 'low', source: 'opgg' };
 }
 
 async function mcpCall(method, params) {

@@ -13,7 +13,6 @@ import { MAINTENANCE } from '../../../src/maintenance.js';
 import { queueMessage, buildTeamsRanked, buildMetaMap, allocateSignups, LANE_KR } from '../../../src/discord-queue.js';
 import { parseRoflBuffer } from '../../../src/rofl.js';
 import { fetchTierEstimate } from '../../../src/opgg.js';
-import { fetchTierEstimateHybrid, fetchRiotProfile, hasRiotKey } from '../../../src/riot.js';
 import { TIER_LABEL, POS_KR } from '../../../src/table.js';
 
 export const runtime = 'nodejs';
@@ -132,15 +131,9 @@ async function cmdLink(i, gid) {
   return ephem(`✅ <@${me}> ↔ **${target.display_name}** 연동 완료! 아바타는 디코 프로필 사진으로 설정됐어요 (\`/프로필\`로 변경 가능). 이제 \`/내전적\`·\`/밸런스\`에서 자동 인식돼요.`);
 }
 
-// 티어 측정 (seed API와 동일 파이프라인): Riot키 있으면 하이브리드, 없으면 op.gg 단독
+// 티어 측정 (seed API와 동일 파이프라인): op.gg 단일 소스
 async function measureTier(name, tag, region) {
-  if (hasRiotKey()) {
-    try { const hy = await fetchTierEstimateHybrid(name, tag, region); if (hy.found) return hy; } catch { /* 폴백 */ }
-  }
-  const est = await fetchTierEstimate(name, tag, region);
-  if (est.found) return est;
-  if (hasRiotKey()) { const riot = await fetchRiotProfile(name, tag, region); if (riot.found) return riot; }
-  return est;
+  return fetchTierEstimate(name, tag, region);
 }
 
 // 슬래시 응답 뒤 결과를 원본 메시지에 채움(15분 유효). 봇토큰 불필요(interaction 토큰).
