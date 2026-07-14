@@ -937,6 +937,13 @@ function Schedule({ t, matches, teams, nameOf, canManage, admin, S }) {
   const tPanel = matches.some((m) => m.bracket === 'T')
     ? <BracketView matches={matches.filter((m) => m.bracket === 'T')} title="🥉 3·4위전" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} roundLabel={() => '3·4위전'} />
     : null;
+  // 운영 도구: 진행 중 대진 취소 → 모집중 (테스트/정정용)
+  const adminBar = canManage && matches.length > 0 ? (
+    <div className="panel" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 14px' }}>
+      <span className="muted" style={{ fontSize: 12.5 }}>🛠 운영 도구 {t.status === 'done' ? '(종료된 대회)' : ''}</span>
+      <button className="mini" style={{ marginLeft: 'auto', color: '#e06a78', borderColor: 'rgba(224,106,120,.4)' }} onClick={() => { if (confirm('진행 중인 대진을 취소하고 모집중으로 되돌릴까요?\n\n대진(경기·결과)이 모두 삭제돼요. 팀·신청자는 유지됩니다. (테스트/정정용)')) admin({}, '/bracket', 'DELETE'); }}>🔄 대진 취소 (모집중으로)</button>
+    </div>
+  ) : null;
   if (matches.length === 0) {
     const approved = teams.filter((x) => x.status === 'approved');
     const dePow2 = S.format !== 'double_elim' || [4, 8, 16, 32].includes(approved.length);
@@ -964,8 +971,8 @@ function Schedule({ t, matches, teams, nameOf, canManage, admin, S }) {
   const groupM = matches.filter((m) => m.bracket === 'G');
   const kM = matches.filter((m) => m.bracket === 'K');
   const wM = matches.filter((m) => m.bracket === 'W');
-  if (wM.length > 0) return <>{podium}<DoubleElimBoard matches={matches} t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} bestOfFinal={S.bestOfFinal} finalRounds={S.bestOfFinalRounds} /></>;
-  if (groupM.length === 0) return <>{podium}<BracketView matches={matches.filter((m) => m.bracket !== 'T')} title="대진표" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} bestOfFinal={S.bestOfFinal} finalRounds={S.bestOfFinalRounds} />{tPanel}</>;
+  if (wM.length > 0) return <>{adminBar}{podium}<DoubleElimBoard matches={matches} t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} bestOfFinal={S.bestOfFinal} finalRounds={S.bestOfFinalRounds} /></>;
+  if (groupM.length === 0) return <>{adminBar}{podium}<BracketView matches={matches.filter((m) => m.bracket !== 'T')} title="대진표" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} bestOfFinal={S.bestOfFinal} finalRounds={S.bestOfFinalRounds} />{tPanel}</>;
 
   // 그룹 스테이지 모드
   const gmap = {};
@@ -975,6 +982,7 @@ function Schedule({ t, matches, teams, nameOf, canManage, admin, S }) {
   const advance = S.groups.advance;
   return (
     <>
+      {adminBar}
       {podium}
       <div className="panel">
         <h2>조별 리그 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 조별 {advance}팀 진출</span></h2>

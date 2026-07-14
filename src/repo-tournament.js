@@ -613,6 +613,16 @@ export async function generateBracket(tournamentId) {
   return getTournament(tournamentId);
 }
 
+// 🔄 대진 취소 (진행중 → 모집중). 대진(경기)만 삭제, 팀·신청자는 유지 → 재편성 가능. (테스트/정정용)
+export async function cancelBracket(tournamentId) {
+  const { data: t } = await db().from('tournaments').select('id').eq('id', tournamentId).maybeSingle();
+  if (!t) throw new Error('대회를 찾을 수 없어요');
+  await db().from('tournament_matches').delete().eq('tournament_id', tournamentId);
+  await db().from('tournament_teams').update({ seed: null }).eq('tournament_id', tournamentId);
+  await db().from('tournaments').update({ status: 'recruiting' }).eq('id', tournamentId);
+  return getTournament(tournamentId);
+}
+
 // 조별 경기 완료 시 본선(K) 생성 — 조별 상위 advance팀을 시드로 싱글엘리.
 async function buildKnockoutFromGroups(tournamentId, all) {
   if (all.some((x) => x.bracket === 'K')) return; // 이미 생성됨
