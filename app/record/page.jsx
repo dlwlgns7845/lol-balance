@@ -11,23 +11,6 @@ const POS = ['top', 'jungle', 'mid', 'adc', 'sup'];       // 팀 내 순서 = �
 const POS_KR = { top: '탑', jungle: '정글', mid: '미드', adc: '원딜', sup: '서폿' };
 const posByIdx = (i) => POS[i % 5]; // rows = [1팀5 + 2팀5] → 팀 내 인덱스로 기본 포지션
 
-// 가능한 고해상도 유지 (아주 클 때만 다운스케일)
-function resizeToDataUrl(file, maxW = 1920) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const scale = Math.min(1, maxW / img.width);
-      const c = document.createElement('canvas');
-      c.width = Math.round(img.width * scale);
-      c.height = Math.round(img.height * scale);
-      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-      resolve(c.toDataURL('image/jpeg', 0.92));
-    };
-    img.onerror = reject;
-    img.src = URL.createObjectURL(file);
-  });
-}
-
 export default function RecordPage() {
   const { group, canEdit } = useGroup();
   const gid = group?.id;
@@ -35,9 +18,8 @@ export default function RecordPage() {
   // 화면에 보인 챔프명(한글/영문/오타) → Data Dragon 정식 ID. 못 찾으면 원문 유지(수동 수정).
   const resolveChamp = (c) => (dd.id && dd.id(c)) || c;
   const [persons, setPersons] = useState([]);
-  const [dataUrl, setDataUrl] = useState(null);
   const [objectives, setObjectives] = useState(null); // 리플 팀 오브젝트 (리플일 때만)
-  const [source, setSource] = useState(null);         // 'replay' | 'screenshot' | 'manual'
+  const [source, setSource] = useState(null);         // 'replay' | 'manual' (스샷 제거됨)
   const roflRef = useRef();
   const [rows, setRows] = useState([]);
   const [winner, setWinner] = useState('A');
@@ -48,7 +30,6 @@ export default function RecordPage() {
   const [msg, setMsg] = useState(null);
   const [champList, setChampList] = useState([]);
   const [editing, setEditing] = useState(false); // 기존 경기 수정 모드
-  const fileRef = useRef();
   const searchParams = useSearchParams();
   const editId = searchParams.get('edit');
 
@@ -74,10 +55,10 @@ export default function RecordPage() {
 
   // 수동 입력: 빈 10칸(1팀 5 + 2팀 5)
   function manualEntry() {
-    setErr(null); setMsg(null); setEditing(false); setDataUrl(null);
+    setErr(null); setMsg(null); setEditing(false);
     const empty = (team, position) => ({ team, position, name: '', champion: '', k: 0, d: 0, a: 0, damage: 0, cs: 0, personId: '__new__' });
     setRows([...POS.map((p) => empty(1, p)), ...POS.map((p) => empty(2, p))]);
-    setWinner('A'); setDurationMin(0); setSource('manual'); setObjectives(null);
+    setWinner('A'); setDurationSec(0); setSource('manual'); setObjectives(null);
   }
 
   useEffect(() => {
@@ -123,8 +104,6 @@ export default function RecordPage() {
     if (best && bestD <= maxDist && bestD < second) return best.id;
     return '__new__';
   }
-  function matchPerson(name) { return matchPersonId(name, persons); }
-
   // 라이엇ID(게임명#태그) → 사람. 계정(game_name+tag_line) 정확매칭 우선, 없으면 이름 매칭 폴백.
   function matchByRiot(gameName, tag) {
     const norm = (s) => (s || '').toLowerCase().replace(/\s+/g, '');
@@ -136,7 +115,7 @@ export default function RecordPage() {
   // 🎬 리플(.rofl) 업로드 → 브라우저에서 파싱 → 표 자동채움 + 사람 자동매핑 + 오브젝트 캡처
   async function onRofl(e) {
     const file = e.target.files?.[0]; if (!file) return;
-    setErr(null); setMsg(null); setEditing(false); setDataUrl(null); setLoading(true);
+    setErr(null); setMsg(null); setEditing(false); setLoading(true);
     try {
       const { players, winner: w, objectives: obj, durationSec: dsec } = await parseRofl(file);
       const ord = { top: 0, jungle: 1, mid: 2, adc: 3, sup: 4 };
@@ -159,41 +138,6 @@ export default function RecordPage() {
     setRows((rs) => rs.map((r) => (r.personId === '__new__' ? { ...r, personId: matchPersonId(r.name, persons) } : r)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [persons]);
-
-  async function onFile(e) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setErr(null); setMsg(null); setRows([]);
-    setDataUrl(await resizeToDataUrl(f));
-  }
-
-  async function analyze() {
-    if (!dataUrl) return;
-    setErr(null); setMsg(null); setLoading(true);
-    try {
-      const r = await apiFetch('/api/extract', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gid, image: dataUrl }),
-      }).then((x) => x.json());
-      if (!r.ok) throw new Error(r.error);
-      const flat = []; let winTeam = 1;
-      for (const t of r.data.teams || []) {
-        if (t.win) winTeam = t.team;
-        (t.players || []).forEach((p, pi) => {
-          flat.push({ team: t.team, name: p.name || '', champion: resolveChamp(p.champion || ''),
-            position: posByIdx(pi), // 스샷 순서 = 탑→서폿 기본. 아래 드롭다운으로 수정.
-            k: p.k ?? 0, d: p.d ?? 0, a: p.a ?? 0, damage: p.damage ?? 0, cs: p.cs ?? 0,
-            personId: matchPerson(p.name) });
-        });
-      }
-      if (flat.length !== 10) throw new Error(`10명이 아니라 ${flat.length}명 추출됨 — 스샷 다시 확인`);
-      setRows(flat);
-      setWinner(winTeam === 2 ? 'B' : 'A');
-      setDurationSec((r.data.durationMin || 0) * 60);
-      setSource('screenshot'); setObjectives(null);
-    } catch (e) { setErr('분석 실패: ' + e.message); }
-    setLoading(false);
-  }
 
   function editRow(i, patch) { setRows((r) => r.map((x, idx) => (idx === i ? { ...x, ...patch } : x))); }
 
@@ -239,14 +183,14 @@ export default function RecordPage() {
         return;
       }
       setMsg('저장 완료 — 통계·전적 반영됨.');
-      setRows([]); setDataUrl(null); if (fileRef.current) fileRef.current.value = '';
+      setRows([]); if (roflRef.current) roflRef.current.value = '';
     } catch (e) { setErr(editing ? '수정 실패: ' + e.message : '저장 실패: ' + e.message); }
     setSaving(false);
   }
 
   if (group && !canEdit) return (
     <div>
-      <h1>경기 기록 (스크린샷)</h1>
+      <h1>경기 기록</h1>
       <div className="panel center muted" style={{ padding: '26px 0' }}>
         👀 구경 모드예요. 경기 기록은 <b>편집 권한</b>이 있어야 올릴 수 있어요. 방장에게 권한을 요청하세요.
       </div>
@@ -258,7 +202,7 @@ export default function RecordPage() {
       <h1>{editing ? '경기 수정' : '경기 기록'}</h1>
       <p className="sub">
         {editing ? '저장된 경기의 값을 고치고 수정 저장하세요.'
-          : '스샷 올려서 AI 자동추출하거나, 수동 입력으로 직접 기록할 수 있어요.'}
+          : '게임 후 저장된 .rofl 리플 파일을 올리면 자동 추출돼요. 수동 입력도 가능해요.'}
       </p>
 
       {editing ? (
@@ -269,16 +213,11 @@ export default function RecordPage() {
       ) : (
         <div className="panel">
           <div className="controls">
-            <span className="muted" style={{ fontSize: 12 }}>📸 스샷:</span>
-            <input ref={fileRef} type="file" accept="image/*" onChange={onFile} style={{ width: 'auto' }} />
-            <button className="btn" onClick={analyze} disabled={!dataUrl || loading}>{loading ? 'AI 분석 중…' : 'AI 분석'}</button>
-            {dataUrl && <span className="muted">이미지 준비됨</span>}
-            <button className="btn ghost" style={{ marginLeft: 'auto' }} onClick={manualEntry} title="스샷 없이 직접 10명 입력">✏️ 수동 입력</button>
-          </div>
-          <div className="controls" style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #24242c' }}>
             <span className="muted" style={{ fontSize: 12 }}>🎬 리플:</span>
             <input ref={roflRef} type="file" accept=".rofl" onChange={onRofl} disabled={loading} style={{ width: 'auto' }} />
-            <span className="muted" style={{ fontSize: 11 }}>게임 후 저장된 <code>.rofl</code> 넣으면 스코어보드·아이템·오브젝트 자동 추출 (스샷 불필요, 사람 자동매핑)</span>
+            {loading && <span className="muted">분석 중…</span>}
+            <span className="muted" style={{ fontSize: 11 }}>게임 후 저장된 <code>.rofl</code> 넣으면 스코어보드·아이템·오브젝트 자동 추출 (사람 자동매핑)</span>
+            <button className="btn ghost" style={{ marginLeft: 'auto' }} onClick={manualEntry} title="리플 없이 직접 10명 입력">✏️ 수동 입력</button>
           </div>
           {err && <div className="err">{err}</div>}
           {msg && <div className="seed-status" style={{ fontSize: 13 }}>✓ {msg} — <Link href="/" className="accent">통계 보기</Link></div>}
