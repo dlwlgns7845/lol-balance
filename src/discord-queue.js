@@ -6,11 +6,12 @@ import { balance } from './engine.js';
 // 마감 시 → 사이트 밸런서(engine.balance)로 최적 팀편성 후보 랭킹 (10인만).
 //  올라운더(ALL)=아무 라인 배치 가능 + 점수 −1 혜택 / 특정 주라인=주+선택라인만. 엔진이 라인배치·팀분할 동시 최적화.
 export function buildTeamsRanked(queue, signups, personMap) {
-  if (queue.size !== 10) return [];
   const info = new Map(signups.map((s) => [s.discord_id, s]));
-  const alloc = allocateSignups(queue, signups);
+  // 항상 10인 1게임 편성(선착순 2/라인). 20인이 부분(≤19)으로 마감돼 10명만 남은 경우에도 재사용.
+  const input = signups.map((s, idx) => ({ id: s.discord_id, main: s.main, sub: s.sub || null, order: idx }));
+  const alloc = allocateQueue(input, 10);
   const placed = LANES.flatMap((l) => alloc.lanes[l]); // 배정된 인원 (대기자 제외)
-  if (placed.length !== 10) return []; // 아직 10명 안 참
+  if (placed.length !== 10) return []; // 2인/라인 5v5 안 나옴
   const players = placed.map((id) => {
     const s = info.get(id); const p = personMap?.get(id) || {};
     const all = s.main === 'all';
@@ -96,7 +97,7 @@ export function queueComponents(qid) {
     { type: 1, components: [{ type: 3, custom_id: `qs:${qid}`, placeholder: '부/대기 라인 (여러 개 선택 가능 · 없어도 됨)',
       min_values: 0, max_values: LANES.length,
       options: LANES.map((l) => ({ label: LANE_KR[l], value: l })) }] },
-    { type: 1, components: [btn(`ql:${qid}`, '❌ 나가기', 4), btn(`qc:${qid}`, '🔒 마감', 2)] },
+    { type: 1, components: [btn(`ql:${qid}`, '❌ 나가기', 4), btn(`qk:${qid}`, '🚫 킥(방장)', 2), btn(`qc:${qid}`, '🔒 마감', 2)] },
   ];
 }
 
@@ -169,14 +170,14 @@ export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20
     ];
     embed.title += ' · 팀 확정';
   }
-  if (closed && teams20) { // 20인 고저분리 4팀
+  if (closed && teams20) { // 20인 4팀 (고저분리 | 균등)
+    const even = teams20.mode === 'even';
     const gameField = (game, label) => {
-      const c = game.candidates[0];
-      const side = (T) => c.lanes.map((l) => `${LANE_KR[l.pos]} · **${l[T].name}** \`${l[T].tier || '?'}\``).join('\n');
-      return { name: label, value: `🟦 **블루** (${c.sumA.toFixed(0)})\n${side('a')}\n\n🟥 **레드** (${c.sumB.toFixed(0)})\n${side('b')}`, inline: true };
+      const side = (T) => game.lanes.map((l) => `${LANE_KR[l.pos]} · **${l[T].name}** \`${l[T].tier || '?'}\``).join('\n');
+      return { name: label, value: `🟦 **블루** (${game.sumA.toFixed(0)})\n${side('a')}\n\n🟥 **레드** (${game.sumB.toFixed(0)})\n${side('b')}`, inline: true };
     };
-    embed.fields = [gameField(teams20.games[0], '🔺 고티어 게임'), gameField(teams20.games[1], '🔻 저티어 게임')];
-    embed.title += ' · 고저분리 4팀';
+    embed.fields = [gameField(teams20.games[0], even ? '🎮 게임 1' : '🔺 고티어 게임'), gameField(teams20.games[1], even ? '🎮 게임 2' : '🔻 저티어 게임')];
+    embed.title += even ? ` · 4팀 균등${teams20.spread != null ? ` (편차 ${teams20.spread})` : ''}` : ' · 고저분리 4팀';
   }
   let closedComponents = [];
   if (closed && teams && confirmed) {
@@ -194,6 +195,12 @@ export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20
         { type: 2, style: 3, label: '✅ 이 조합으로 확정 · 전원 호출', custom_id: `tc:${queue.id}:${teamIdx}` },
       ] },
     ];
+  } else if (closed && teams20) { // 풀20 편성 모드 토글
+    const even = teams20.mode === 'even';
+    closedComponents = [{ type: 1, components: [
+      { type: 2, style: even ? 2 : 1, label: '📊 고저분리', custom_id: `t20m:${queue.id}:split` },
+      { type: 2, style: even ? 1 : 2, label: '⚖️ 4팀 균등', custom_id: `t20m:${queue.id}:even` },
+    ] }];
   }
   return { embeds: [embed], components: closed ? closedComponents : queueComponents(queue.id), allowed_mentions: { parse: [] } };
 }

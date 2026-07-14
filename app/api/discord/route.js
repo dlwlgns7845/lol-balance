@@ -7,13 +7,13 @@ import { getStats, getAwards, getMatchHistory, listPersons, updatePerson, create
   createQueue, getQueue, getOpenQueue, closeQueue, listSignups, getSignup, upsertSignup, removeSignup, setQueueMessage,
   createPending, getPending, updatePending, deletePending,
   getGuildRoom, getGuildLink, requestGuildLink, getGroupByCode } from '../../../src/repo.js';
-import { balance, balance20Split } from '../../../src/engine.js';
-import { LANES } from '../../../src/queue.js';
+import { balance, balance20, balance20Split } from '../../../src/engine.js';
+import { LANES, allocateQueue } from '../../../src/queue.js';
 import { MAINTENANCE } from '../../../src/maintenance.js';
-import { queueMessage, buildTeamsRanked, buildMetaMap, allocateSignups, LANE_KR } from '../../../src/discord-queue.js';
+import { queueMessage, buildTeamsRanked, buildMetaMap, allocateSignups, syncDiscordMessage, LANE_KR } from '../../../src/discord-queue.js';
 import { parseRoflBuffer } from '../../../src/rofl.js';
 import { fetchTierEstimate } from '../../../src/opgg.js';
-import { TIER_LABEL, POS_KR } from '../../../src/table.js';
+import { TIER_LABEL, POS_KR, TIER_ORDER } from '../../../src/table.js';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60; // 스샷 OCR(gpt-4o) + 저장 여유
@@ -350,8 +350,9 @@ async function cmdRecruit(i, gid) {
   return NextResponse.json({ type: 4, data: queueMessage(q, [], false) });
 }
 
-// 20인 마감 → 고저분리 4팀 (파워순 상위10/하위10 → 각 로비 균형). 20명 배정·포지션 있어야, 아니면 null.
-function autoTeams20(queue, signups, persons) {
+// 20인 마감 → 4팀 편성. mode='split'(고저분리) | 'even'(4팀 균등). 20명 배정·포지션 있어야, 아니면 null.
+// 반환 정규화: { mode, games:[{lanes,sumA,sumB},{...}], spread? }
+function autoTeams20(queue, signups, persons, mode = 'split') {
   const alloc = allocateSignups(queue, signups);
   const placedIds = LANES.flatMap((l) => alloc.lanes[l]);
   if (placedIds.length !== 20) return null;
@@ -365,7 +366,48 @@ function autoTeams20(queue, signups, persons) {
     if (!positions.length) return null; // 포지션 미지정 = 자동팀 불가
     players.push({ name: person.nickname || person.display_name, tier: person.base_tier, secondaryTier: person.secondary_tier || null, positions, primary: person.primary_positions || [] });
   }
-  try { return balance20Split(players); } catch { return null; }
+  try {
+    if (mode === 'even') {
+      const a = balance20(players).arrangements[0];
+      if (!a) return null;
+      return { mode: 'even', spread: a.spread, games: a.views.map((v) => ({ lanes: v.lanes, sumA: v.sumA, sumB: v.sumB })) };
+    }
+    const r = balance20Split(players);
+    return { mode: 'split', games: r.games.map((g) => { const c = g.candidates[0]; return { lanes: c.lanes, sumA: c.sumA, sumB: c.sumB }; }) };
+  } catch { return null; }
+}
+
+// 부분 인원(10~19명) → 유지할 10명 선택. policy=late(늦은신청 제외)|tier(약티어 제외)|rand. null=2인/라인 불가.
+function pickTen(signups, persons, policy) {
+  const byD = new Map(persons.filter((p) => p.discord_id).map((p) => [p.discord_id, p]));
+  const byId = new Map(persons.map((p) => [p.id, p]));
+  const tierRankOf = (id) => { const p = String(id).startsWith('site:') ? byId.get(id.slice(5)) : byD.get(id); const idx = TIER_ORDER.indexOf(p?.base_tier); return idx < 0 ? 999 : idx; }; // 작을수록 강함
+  const arr = signups.map((s, idx) => ({ id: s.discord_id, main: s.main, sub: s.sub || null, idx }));
+  if (policy === 'tier') arr.sort((a, b) => tierRankOf(a.id) - tierRankOf(b.id) || a.idx - b.idx); // 강한 티어 우선 → 약한 사람이 대기(탈락)
+  else if (policy === 'rand') { for (let i = arr.length - 1; i > 0; i -= 1) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } }
+  // late: 신청순(idx) 그대로 → 늦은 사람이 대기(탈락)
+  const input = arr.map((x, i) => ({ id: x.id, main: x.main, sub: x.sub, order: i }));
+  const alloc = allocateQueue(input, 10);
+  const keep = LANES.flatMap((l) => alloc.lanes[l]);
+  if (keep.length !== 10) return null;
+  const keepSet = new Set(keep);
+  return { keepIds: keep, removeIds: signups.map((s) => s.discord_id).filter((id) => !keepSet.has(id)) };
+}
+
+// 20인이 부분(10~19)으로 마감 → 초과 인원 빼는 방법 4지선다
+function trimOptionsMessage(queue, n) {
+  return {
+    embeds: [{ title: `🎮 롤 내전 · 20인 · 마감됨 (${n}명)`, color: GOLD,
+      description: `신청 **${n}명** — 20명이 안 차서 **10인 1게임**으로 편성할게요.\n초과 **${n - 10}명**을 어떻게 뺄까요? _(모집자만)_` }],
+    components: [
+      { type: 1, components: [
+        { type: 2, style: 1, label: '⏱ 늦게 신청한 사람', custom_id: `t20:${queue.id}:late` },
+        { type: 2, style: 1, label: '📉 티어 낮은 사람', custom_id: `t20:${queue.id}:tier` },
+        { type: 2, style: 1, label: '🎲 랜덤', custom_id: `t20:${queue.id}:rand` },
+      ] },
+      { type: 1, components: [{ type: 2, style: 2, label: '🖐 관리자 지정으로 빼기', custom_id: `t20:${queue.id}:pick` }] },
+    ],
+  };
 }
 
 // 나가기로 자리 나서 대기자가 배정되면 → 그 사람 태그해서 "자리 났어요" 알림. site: 키는 태그 못하니 스킵.
@@ -413,6 +455,9 @@ async function handleComponent(i) {
   const [action, qid, lane] = parts;
   if (action === 'tr') return handleTeamReroll(qid, lane, parts[3]); // 마감 자동팀 조합 넘기기 (lane=현재idx, parts[3]=방향 p/n)
   if (action === 'tc') return handleTeamConfirm(i, qid, lane); // 이 조합으로 확정 → 전원 호출 (lane=선택 idx)
+  if (action === 't20') return handleTrim20(i, qid, lane); // 20인 부분마감 초과인원 빼기 (lane=policy)
+  if (action === 't20pick') return handleTrim20Pick(i, qid); // 관리자 지정 빼기 (셀렉트)
+  if (action === 't20m') return handleTeams20Mode(i, qid, lane); // 풀20 편성 모드 토글 (lane=even|split)
   if (action === 'br') return handleBalanceReroll(qid, lane, parts[3]); // /밸런스 조합 넘기기
   if (action === 'rec' || action === 'rex') return handleRecordConfirm(i, action, qid); // 스샷 판독 확인/취소
   if (action === 'rswap') return handleRecordSwap(qid); // 승패 뒤집기
@@ -446,18 +491,46 @@ async function handleComponent(i) {
     await removeSignup(qid, me);
     const after = before.filter((s) => s.discord_id !== me);
     waitUntil(pingPromoted(i, queue, before, after));
+  } else if (action === 'qk') { // 🚫 방장 킥 → 신청자 선택 셀렉트 (나만 보이게)
+    if (queue.host_id && me !== queue.host_id) return ephem('모집 만든 사람만 킥할 수 있어요.');
+    const signups = await listSignups(qid);
+    if (!signups.length) return ephem('신청자가 없어요.');
+    const metaMap = buildMetaMap(await listPersons(queue.gid));
+    const opts = signups.slice(0, 25).map((s) => { const m = metaMap.get(s.discord_id) || {}; return { label: (m.game || s.name || '?').slice(0, 90), value: s.discord_id, description: `${LANE_KR[s.main] || s.main || ''} ${m.baseTier || ''}`.trim().slice(0, 90) }; });
+    return NextResponse.json({ type: 4, data: { flags: 64, content: '🚫 뺄 신청자를 고르세요 (여러 명 가능):', components: [{ type: 1, components: [{ type: 3, custom_id: `qks:${qid}`, placeholder: '킥할 신청자 선택', min_values: 1, max_values: Math.min(signups.length, 25), options: opts }] }] } });
+  } else if (action === 'qks') { // 킥 실행 (셀렉트 결과)
+    if (queue.host_id && me !== queue.host_id) return ephem('모집 만든 사람만 킥할 수 있어요.');
+    const kick = i.data?.values || [];
+    const before = await listSignups(qid);
+    for (const id of kick) await removeSignup(qid, id);
+    const after = await listSignups(qid);
+    waitUntil(pingPromoted(i, queue, before, after)); // 대기자 승격 알림
+    waitUntil(syncDiscordMessage(queue, after, buildMetaMap(await listPersons(queue.gid)))); // 원본 모집 메시지 갱신
+    return updateMsg({ content: `✅ ${kick.length}명 킥 완료 — 모집 메시지가 갱신됐어요.`, embeds: [], components: [] });
   } else if (action === 'qc') { // 마감 (만든 사람만) → 자동팀 + 신청자 태그 호출
     if (queue.host_id && me !== queue.host_id) return ephem('모집 만든 사람만 마감할 수 있어요.');
     await closeQueue(qid);
     const signups = await listSignups(qid);
     const persons = await listPersons(queue.gid);
     const metaMap = buildMetaMap(persons);
-    if (queue.size === 20) { // 고저분리 4팀
-      const teams20 = autoTeams20({ ...queue, status: 'closed' }, signups, persons);
-      waitUntil(pingTeams(i, signups, null, metaMap)); // 전원 태그(4팀은 메시지에 표시)
-      return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, null, 0, teams20, metaMap));
+    if (queue.size === 20) {
+      const alloc = allocateSignups({ ...queue, status: 'closed' }, signups);
+      const placed = LANES.flatMap((l) => alloc.lanes[l]);
+      if (signups.length === 20 && placed.length === 20) { // 풀 20 → 고저분리 4팀(기본)
+        const teams20 = autoTeams20({ ...queue, status: 'closed' }, signups, persons);
+        waitUntil(pingTeams(i, signups, null, metaMap)); // 전원 태그(4팀은 메시지에 표시)
+        return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, null, 0, teams20, metaMap));
+      }
+      if (signups.length >= 10) { // 부분 인원 → 10인 1게임
+        if (signups.length === 10) {
+          const ranked = buildTeamsRanked({ ...queue, status: 'closed' }, signups, metaMap);
+          return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, ranked[0], 0, null, metaMap, ranked.length));
+        }
+        return updateMsg(trimOptionsMessage(queue, signups.length)); // 11~19 → 초과 빼기 4지선다
+      }
+      return updateMsg({ embeds: [{ title: '🎮 롤 내전 · 20인 · 마감됨', color: GOLD, description: `❌ 신청 **${signups.length}명** — 10명 이상이어야 팀을 짤 수 있어요.` }], components: [] });
     }
-    // 마감 = 팀 '미리보기'만 (자동 핑 없음). 조합 넘겨보고 ✅ 확정 눌러야 전원 호출됨.
+    // 10인: 마감 = 팀 '미리보기'만 (자동 핑 없음). 조합 넘겨보고 ✅ 확정 눌러야 전원 호출됨.
     const ranked = buildTeamsRanked({ ...queue, status: 'closed' }, signups, metaMap);
     return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, ranked[0], 0, null, metaMap, ranked.length));
   } else {
@@ -539,6 +612,53 @@ async function handleTeamConfirm(i, qid, idxStr) {
   const teams = ranked[idx];
   waitUntil(pingTeams(i, signups, teams, metaMap)); // 선택한 조합으로 전원 태그 호출
   return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, teams, idx, null, metaMap, ranked.length, true));
+}
+
+// 20인 부분마감 → 초과 인원 빼고 10인 편성. policy=late|tier|rand|pick (방장만)
+async function handleTrim20(i, qid, policy) {
+  const queue = await getQueue(qid);
+  if (!queue) return ephem('⌛ 만료된 모집이에요.');
+  if (queue.host_id && callerId(i) !== queue.host_id) return ephem('모집 만든 사람만 할 수 있어요.');
+  const signups = await listSignups(qid);
+  const persons = await listPersons(queue.gid);
+  const metaMap = buildMetaMap(persons);
+  const renderTeams = (sg) => { const ranked = buildTeamsRanked({ ...queue, status: 'closed' }, sg, metaMap); return updateMsg(queueMessage({ ...queue, status: 'closed' }, sg, true, ranked[0], 0, null, metaMap, ranked.length)); };
+  if (signups.length <= 10) return renderTeams(signups); // 이미 10명 이하 → 바로 편성
+  if (policy === 'pick') { // 관리자 지정: 뺄 사람 N-10명 선택
+    const need = signups.length - 10;
+    const opts = signups.slice(0, 25).map((s) => { const m = metaMap.get(s.discord_id) || {}; return { label: (m.game || s.name || '?').slice(0, 90), value: s.discord_id, description: `${LANE_KR[s.main] || s.main || ''} ${m.baseTier || ''}`.trim().slice(0, 90) }; });
+    return updateMsg({ embeds: [{ title: '🖐 뺄 사람 선택', color: GOLD, description: `10명이 되도록 **${need}명**을 골라 빼세요.` }],
+      components: [{ type: 1, components: [{ type: 3, custom_id: `t20pick:${qid}`, placeholder: `뺄 사람 ${need}명 선택`, min_values: need, max_values: need, options: opts }] }] });
+  }
+  const pick = pickTen(signups, persons, policy);
+  if (!pick) return ephem('특정 라인 인원이 부족해 5v5(2인/라인)를 만들 수 없어요. 🖐 관리자 지정으로 조정해보세요.');
+  for (const id of pick.removeIds) await removeSignup(qid, id);
+  return renderTeams(await listSignups(qid));
+}
+
+// 풀20 편성 모드 토글: 고저분리 ↔ 4팀 균등 (뷰 전환, 핑 없음)
+async function handleTeams20Mode(i, qid, mode) {
+  const queue = await getQueue(qid);
+  if (!queue) return ephem('⌛ 만료된 모집이에요.');
+  const signups = await listSignups(qid);
+  const persons = await listPersons(queue.gid);
+  const metaMap = buildMetaMap(persons);
+  const teams20 = autoTeams20({ ...queue, status: 'closed' }, signups, persons, mode === 'even' ? 'even' : 'split');
+  return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, null, 0, teams20, metaMap));
+}
+
+// 관리자 지정 빼기 (셀렉트 결과) → 10명 되면 편성
+async function handleTrim20Pick(i, qid) {
+  const queue = await getQueue(qid);
+  if (!queue) return ephem('⌛ 만료된 모집이에요.');
+  if (queue.host_id && callerId(i) !== queue.host_id) return ephem('모집 만든 사람만 할 수 있어요.');
+  for (const id of (i.data?.values || [])) await removeSignup(qid, id);
+  const fresh = await listSignups(qid);
+  const metaMap = buildMetaMap(await listPersons(queue.gid));
+  if (fresh.length > 10) return updateMsg(trimOptionsMessage(queue, fresh.length)); // 아직 초과 → 다시
+  const ranked = buildTeamsRanked({ ...queue, status: 'closed' }, fresh, metaMap);
+  if (!ranked.length) return updateMsg({ embeds: [{ title: '⚠️ 편성 불가', color: GOLD, description: '남은 인원으로 5v5(2인/라인)가 안 나와요. 라인 분포를 확인하세요.' }], components: [] });
+  return updateMsg(queueMessage({ ...queue, status: 'closed' }, fresh, true, ranked[0], 0, null, metaMap, ranked.length));
 }
 
 // 판독 리뷰 메시지(embed + 셀렉트/버튼) — 초기 표시·수정 후 재렌더 공용.
