@@ -7,7 +7,7 @@ import { apiFetch } from '../../components/api.js';
 const deepCopy = (t) => JSON.parse(JSON.stringify(t));
 
 export default function SettingsPage() {
-  const { group, user, canEdit, isAdmin } = useGroup();
+  const { group, canEdit, isAdmin } = useGroup();
   const gid = group?.id;
   const [table, setTable] = useState(null);
   const [custom, setCustom] = useState(false);
@@ -15,23 +15,6 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
   const [links, setLinks] = useState(null); // 디스코드 연결: { pending, approved }
-  const [optedOut, setOptedOut] = useState(null); // 명단 옵트아웃 상태
-  const [optBusy, setOptBusy] = useState(false);
-
-  useEffect(() => {
-    if (!user) return;
-    apiFetch('/api/directory-optout').then((x) => x.json()).then((r) => { if (r.ok) setOptedOut(r.optedOut); }).catch(() => {});
-  }, [user]);
-  async function toggleOptout() {
-    const next = !optedOut;
-    if (next && !confirm('명단에서 내 계정을 숨기고, 지금까지의 로그인(관람) 기록을 삭제할까요?')) return;
-    setOptBusy(true);
-    try {
-      const r = await apiFetch('/api/directory-optout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hidden: next }) }).then((x) => x.json());
-      if (!r.ok) { alert('실패: ' + r.error); return; }
-      setOptedOut(next);
-    } finally { setOptBusy(false); }
-  }
 
   const loadLinks = () => {
     if (!gid || !isAdmin) return;
@@ -104,17 +87,6 @@ export default function SettingsPage() {
         ) : <span className="tb-view">👀 구경 모드 · 보기 전용</span>}
       </div>
       {msg && <div className="panel" style={{ padding: '10px 16px' }}>{msg}</div>}
-
-      {user && (
-        <div className="panel" style={{ padding: 16, marginBottom: 12 }}>
-          <h3 style={{ margin: '0 0 4px' }}>🙈 명단·로그인 기록 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>개인정보</span></h3>
-          <p className="sub" style={{ margin: '0 0 10px', fontSize: 13 }}>대회 공동운영자 지정 후보 명단에 내 계정이 뜨는 걸 막을 수 있어요. 숨기면 지금까지의 관람 흔적도 삭제되고, 이후 방·대회에 들어가도 명단에 안 남아요.</p>
-          <button className="btn" disabled={optBusy || optedOut === null} onClick={toggleOptout}>
-            {optedOut ? '✅ 숨김 해제 (다시 명단 표시)' : '🙈 명단에서 숨기기 + 기록 삭제'}
-          </button>
-          {optedOut && <span className="muted" style={{ marginLeft: 10, fontSize: 12 }}>현재 숨김 상태예요.</span>}
-        </div>
-      )}
 
       {isAdmin && links && (
         <div className="panel" style={{ padding: 16, marginBottom: 12 }}>

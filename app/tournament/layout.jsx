@@ -19,6 +19,14 @@ export default function TournamentLayout({ children }) {
   const [name, setName] = useState('');
   const [maxTeams, setMaxTeams] = useState(8);
   const [busy, setBusy] = useState(false);
+  const [menu, setMenu] = useState(false);
+
+  async function clearTraces() {
+    setMenu(false);
+    if (!window.confirm('내 로그인 기록(관람 흔적·이메일 노출)을 지우고 로그아웃할까요?\n\n다시 로그인하면 정상적으로 이용할 수 있어요.')) return;
+    try { await apiFetch('/api/directory-optout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); } catch { /* 무시 */ }
+    if (logout) logout();
+  }
 
   const load = () => fetch('/api/tournaments').then((x) => x.json()).then((r) => r.ok && setList(r.tournaments || []));
   useEffect(() => { load(); }, [path]);
@@ -60,7 +68,21 @@ export default function TournamentLayout({ children }) {
         </nav>
         <div className="tb-actions">
           {user
-            ? <button className="btn ghost tb-user" onClick={logout} title={(user.email || '') + ' · 로그아웃'}>{(user.user_metadata?.full_name || user.email || '?').slice(0, 1).toUpperCase()}</button>
+            ? (
+              <div className="tb-usermenu">
+                <button className="btn ghost tb-user" onClick={() => setMenu((v) => !v)} title={user.email || ''}>{(user.user_metadata?.full_name || user.email || '?').slice(0, 1).toUpperCase()}</button>
+                {menu && (
+                  <>
+                    <div className="tb-menu-backdrop" onClick={() => setMenu(false)} />
+                    <div className="tb-menu">
+                      <div className="tb-menu-email">{user.email}</div>
+                      <button onClick={() => { setMenu(false); logout && logout(); }}>로그아웃</button>
+                      <button className="danger" onClick={clearTraces}>🙈 로그인 기록 삭제 후 로그아웃</button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )
             : <button className="btn ghost" onClick={login}><span className="gg">G</span> 로그인</button>}
           <a className="btn ghost" href="/" style={{ textDecoration: 'none' }}># 방 입장</a>
         </div>

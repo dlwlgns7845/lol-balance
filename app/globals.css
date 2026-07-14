@@ -1187,6 +1187,16 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 .la-timer.urgent { color: var(--red); animation: pulse 1s infinite; }
 .la-ext { font-size: 12px; font-weight: 700; color: #cfae6f; padding: 2px 8px; border-radius: 5px; background: rgba(207,174,111,.12); }
 .la-ext.locked { color: var(--red); background: rgba(224,106,120,.15); }
+
+/* 유저 아바타 드롭다운 */
+.tb-usermenu { position: relative; }
+.tb-menu-backdrop { position: fixed; inset: 0; z-index: 40; }
+.tb-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 41; min-width: 220px;
+  background: #1a1a20; border: 1px solid #33333c; border-radius: 10px; padding: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+.tb-menu-email { font-size: 11.5px; color: #999; padding: 6px 10px; border-bottom: 1px solid #2a2a33; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; }
+.tb-menu button { display: block; width: 100%; text-align: left; background: transparent; border: 0; color: #ddd; padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.tb-menu button:hover { background: rgba(255,255,255,.06); }
+.tb-menu button.danger { color: #e0925a; }
 @keyframes pulse { 50% { opacity: .5; } }
 @media (max-width: 760px) { .la-lists { grid-template-columns: 1fr; } }
 .sf-x { border: 0; background: transparent; color: #999; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; }

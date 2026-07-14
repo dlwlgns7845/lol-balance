@@ -142,7 +142,7 @@ function AdminsManager({ id, t, reload, user }) {
   return (
     <div className="panel">
       <h2>👥 공동운영자</h2>
-      <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>공동운영할 사람에게 이 대회 링크를 주고 <b>로그인해서 한 번 들어오면</b> 아래 목록에 떠요. (사이트 전체가 아니라 이 대회에 들어온 사람만 · 명단 숨김 설정한 유저는 제외)</div>
+      <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>공동운영할 사람에게 이 대회 링크를 주고 <b>로그인해서 한 번 들어오면</b> 아래 목록에 떠요. (사이트 전체가 아니라 이 대회에 들어온 사람만)</div>
       {isHost ? (
         <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
           <select value={pick} onChange={(e) => setPick(e.target.value)} style={{ ...inp, minWidth: 220 }}>

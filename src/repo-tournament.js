@@ -5,7 +5,6 @@ import { generateSingleElim, nextSlot, generateGroups, groupStandings, knockoutS
 import { normalizeSettings, validateEligibility, seedTeams, teamStrength, tierRank } from './tournament-settings.js';
 import { tierPts } from './engine.js';
 import { POS, TABLE } from './table.js';
-import { isOptedOut } from './repo.js';
 
 const isMissingCol = (e) => e && (e.code === '42703' || e.code === 'PGRST204' || /column .* does not exist|settings/.test(e.message || ''));
 
@@ -54,7 +53,6 @@ export async function updateTournament(id, patch) {
 // 로그인 유저가 대회를 열람하면 viewer로 자동 등록 → 대회장이 admin으로 승격.
 export async function registerTournamentMember(tournamentId, user) {
   if (!tournamentId || !user?.id) return;
-  if (await isOptedOut(user.id)) return; // 옵트아웃 유저는 명단에 안 남김
   const r = await db().from('tournament_members').select('role').eq('tournament_id', tournamentId).eq('user_id', user.id).maybeSingle();
   if (r.error) return; // 테이블 미생성(마이그레이션 전) → 무시
   if (r.data) { await db().from('tournament_members').update({ email: user.email || null, name: user.name || null }).eq('tournament_id', tournamentId).eq('user_id', user.id); return; }
