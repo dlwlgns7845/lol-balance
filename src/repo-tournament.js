@@ -196,6 +196,151 @@ export async function submitScoreTeam(tournamentId, b) {
   return getTournament(tournamentId);
 }
 
+// ── 점수제 팀: 방장 승인제 (합류 신청 → 방장 수락). 동의 없이 남을 팀에 못 넣게. ──
+const MIGRATE_SCORE = '점수제 팀 마이그레이션(tournament-score-teams-schema.sql)을 먼저 실행하세요';
+const isScoreColErr = (e) => e && /pool_id|join_status/i.test(e.message || '');
+
+async function scoreCtx(tournamentId) {
+  const { data: t } = await db().from('tournaments').select('status, settings').eq('id', tournamentId).maybeSingle();
+  if (!t) throw new Error('대회를 찾을 수 없어요');
+  const s = normalizeSettings(t.settings);
+  if (s.teamFormation !== 'score') throw new Error('점수제 대회가 아니에요');
+  return { t, cap: s.scoreCap };
+}
+async function myPoolEntry(tournamentId, userId) {
+  if (!userId) return null;
+  const { data } = await db().from('tournament_pool').select('*').eq('tournament_id', tournamentId).eq('user_id', userId).order('created_at').limit(1);
+  return (data && data[0]) || null;
+}
+async function teamMembersRaw(teamId) {
+  const { data } = await db().from('tournament_team_members').select('*').eq('team_id', teamId);
+  return data || [];
+}
+function teamTotalPts(approvedMembers) {
+  let total = 0;
+  approvedMembers.forEach((m) => { if (m.role && TABLE[m.tier]) total += tierPts(m.tier, POS.indexOf(m.role)); });
+  return Math.round(total * 10) / 10;
+}
+async function clearMyRequests(tournamentId, userId) { // 이 유저의 대기 합류신청 정리 (한 번에 한 곳)
+  const { data: teams } = await db().from('tournament_teams').select('id').eq('tournament_id', tournamentId);
+  const ids = (teams || []).map((x) => x.id);
+  if (ids.length) await db().from('tournament_team_members').delete().eq('user_id', userId).eq('join_status', 'requested').in('team_id', ids);
+}
+
+// 팀 만들기 — 로그인 신청자가 방장이 되어 팀 생성(본인 라인 배정).
+export async function createScoreTeam(tournamentId, user, b) {
+  const { t } = await scoreCtx(tournamentId);
+  if (t.status !== 'recruiting') throw new Error('모집이 마감된 대회예요');
+  const name = (b.name || '').trim();
+  if (!name) throw new Error('팀 이름을 입력하세요');
+  if (!POS.includes(b.lane)) throw new Error('본인 라인을 선택하세요');
+  const mine = await myPoolEntry(tournamentId, user.id);
+  if (!mine) throw new Error('먼저 선수 신청을 해주세요');
+  if (mine.sold_to) throw new Error('이미 다른 팀에 속해 있어요');
+  await clearMyRequests(tournamentId, user.id);
+  const { data: team, error } = await db().from('tournament_teams')
+    .insert({ tournament_id: tournamentId, name, is_captain_team: true, captain_user_id: user.id, status: 'pending' }).select().single();
+  if (error) { if (/is_captain|captain_user/i.test(error.message || '')) throw new Error('실시간 경매 마이그레이션(tournament-auction-live-schema.sql)을 먼저 실행하세요'); throw error; }
+  const mi = await db().from('tournament_team_members').insert({ team_id: team.id, game_name: mine.game_name, tag_line: mine.tag_line, tier: mine.tier, role: b.lane, pool_id: mine.id, user_id: user.id, join_status: 'approved' });
+  if (mi.error) { await db().from('tournament_teams').delete().eq('id', team.id); if (isScoreColErr(mi.error)) throw new Error(MIGRATE_SCORE); throw mi.error; }
+  await db().from('tournament_pool').update({ sold_to: team.id }).eq('id', mine.id);
+  return getTournament(tournamentId);
+}
+
+// 합류 신청 — 로그인 신청자가 특정 팀 특정 라인에 신청(대기 상태).
+export async function requestJoinScoreTeam(tournamentId, user, b) {
+  const { t } = await scoreCtx(tournamentId);
+  if (t.status !== 'recruiting') throw new Error('모집이 마감된 대회예요');
+  if (!POS.includes(b.lane)) throw new Error('희망 라인을 선택하세요');
+  const { data: team } = await db().from('tournament_teams').select('*').eq('id', b.teamId).maybeSingle();
+  if (!team || team.tournament_id !== tournamentId || !team.is_captain_team) throw new Error('팀을 찾을 수 없어요');
+  if (team.status !== 'pending') throw new Error('이미 확정된 팀이에요');
+  const mine = await myPoolEntry(tournamentId, user.id);
+  if (!mine) throw new Error('먼저 선수 신청을 해주세요');
+  if (mine.sold_to) throw new Error('이미 다른 팀에 속해 있어요');
+  const members = await teamMembersRaw(team.id);
+  if (members.some((m) => m.join_status !== 'requested' && m.role === b.lane)) throw new Error('그 라인은 이미 찼어요');
+  if (members.some((m) => m.join_status === 'requested' && m.user_id === user.id)) throw new Error('이미 이 팀에 신청했어요');
+  await clearMyRequests(tournamentId, user.id);
+  const ins = await db().from('tournament_team_members').insert({ team_id: team.id, game_name: mine.game_name, tag_line: mine.tag_line, tier: mine.tier, role: b.lane, pool_id: mine.id, user_id: user.id, join_status: 'requested' });
+  if (ins.error) { if (isScoreColErr(ins.error)) throw new Error(MIGRATE_SCORE); throw ins.error; }
+  return getTournament(tournamentId);
+}
+
+// 합류 신청 취소 (본인)
+export async function cancelJoinRequest(tournamentId, user, b) {
+  const { data: m } = await db().from('tournament_team_members').select('*').eq('id', b.memberId).maybeSingle();
+  if (!m) return getTournament(tournamentId);
+  if (m.user_id !== user.id) throw new Error('본인 신청만 취소할 수 있어요');
+  if (m.join_status !== 'requested') throw new Error('이미 처리된 신청이에요');
+  await db().from('tournament_team_members').delete().eq('id', m.id);
+  return getTournament(tournamentId);
+}
+
+// 합류 신청 수락/거절 (방장 또는 운영자)
+export async function resolveJoinRequest(tournamentId, user, isManager, b) {
+  const { cap } = await scoreCtx(tournamentId);
+  const { data: m } = await db().from('tournament_team_members').select('*').eq('id', b.memberId).maybeSingle();
+  if (!m || m.join_status !== 'requested') throw new Error('처리할 신청이 없어요');
+  const { data: team } = await db().from('tournament_teams').select('*').eq('id', m.team_id).maybeSingle();
+  if (!team || team.tournament_id !== tournamentId) throw new Error('팀을 찾을 수 없어요');
+  if (!isManager && team.captain_user_id !== user.id) throw new Error('방장만 수락/거절할 수 있어요');
+  if (b.decision === 'reject') { await db().from('tournament_team_members').delete().eq('id', m.id); return getTournament(tournamentId); }
+  if (team.status !== 'pending') throw new Error('이미 확정된 팀이에요');
+  const { data: p } = await db().from('tournament_pool').select('*').eq('id', m.pool_id).maybeSingle();
+  if (!p) throw new Error('신청자를 찾을 수 없어요');
+  if (p.sold_to) throw new Error('이미 다른 팀에 배정된 선수예요');
+  const approved = (await teamMembersRaw(team.id)).filter((x) => x.join_status !== 'requested');
+  if (approved.some((x) => x.role === m.role)) throw new Error('그 라인은 이미 찼어요');
+  if (approved.length >= 5) throw new Error('이미 5명이 다 찼어요');
+  if (!TABLE[m.tier]) throw new Error(`${m.game_name}: 티어 미확인 — 배정 불가`);
+  if (Math.round((teamTotalPts(approved) + tierPts(m.tier, POS.indexOf(m.role))) * 10) / 10 > cap) throw new Error(`합계가 상한 ${cap}점을 초과해요`);
+  await db().from('tournament_team_members').update({ join_status: 'approved' }).eq('id', m.id);
+  await db().from('tournament_pool').update({ sold_to: team.id }).eq('id', m.pool_id);
+  await clearMyRequests(tournamentId, m.user_id); // 다른 팀 대기 신청 정리
+  return getTournament(tournamentId);
+}
+
+// 멤버 내보내기 (방장 또는 운영자) — 방장 본인은 불가(팀 해체 이용)
+export async function kickScoreMember(tournamentId, user, isManager, b) {
+  const { data: m } = await db().from('tournament_team_members').select('*').eq('id', b.memberId).maybeSingle();
+  if (!m) throw new Error('멤버를 찾을 수 없어요');
+  const { data: team } = await db().from('tournament_teams').select('*').eq('id', m.team_id).maybeSingle();
+  if (!team || team.tournament_id !== tournamentId) throw new Error('팀을 찾을 수 없어요');
+  if (!isManager && team.captain_user_id !== user.id) throw new Error('방장만 내보낼 수 있어요');
+  if (team.captain_user_id && m.user_id === team.captain_user_id) throw new Error('방장은 내보낼 수 없어요 (팀 해체를 이용하세요)');
+  await db().from('tournament_team_members').delete().eq('id', m.id);
+  if (m.pool_id && m.join_status !== 'requested') await db().from('tournament_pool').update({ sold_to: null }).eq('id', m.pool_id);
+  return getTournament(tournamentId);
+}
+
+// 팀 확정 (5라인·상한 통과 시 status=approved → 대진 대상)
+export async function submitScoreTeamReady(tournamentId, user, isManager, b) {
+  const { cap } = await scoreCtx(tournamentId);
+  const { data: team } = await db().from('tournament_teams').select('*').eq('id', b.teamId).maybeSingle();
+  if (!team || team.tournament_id !== tournamentId) throw new Error('팀을 찾을 수 없어요');
+  if (!isManager && team.captain_user_id !== user.id) throw new Error('방장만 확정할 수 있어요');
+  const approved = (await teamMembersRaw(team.id)).filter((x) => x.join_status !== 'requested');
+  if (approved.length !== 5 || new Set(approved.map((x) => x.role)).size !== 5) throw new Error('5개 라인을 모두 채워야 확정할 수 있어요');
+  if (teamTotalPts(approved) > cap) throw new Error(`합계가 상한 ${cap}점을 초과해요`);
+  await db().from('tournament_teams').update({ status: 'approved' }).eq('id', team.id);
+  await db().from('tournament_team_members').delete().eq('team_id', team.id).eq('join_status', 'requested'); // 남은 대기 신청 정리
+  return getTournament(tournamentId);
+}
+
+// 팀 해체 (방장 또는 운영자) — 멤버 풀 복귀
+export async function disbandScoreTeam(tournamentId, user, isManager, b) {
+  const { data: team } = await db().from('tournament_teams').select('*').eq('id', b.teamId).maybeSingle();
+  if (!team || team.tournament_id !== tournamentId) throw new Error('팀을 찾을 수 없어요');
+  if (!isManager && team.captain_user_id !== user.id) throw new Error('방장만 해체할 수 있어요');
+  const mems = await teamMembersRaw(team.id);
+  const poolIds = mems.filter((m) => m.pool_id && m.join_status !== 'requested').map((m) => m.pool_id);
+  if (poolIds.length) await db().from('tournament_pool').update({ sold_to: null }).in('id', poolIds);
+  await db().from('tournament_team_members').delete().eq('team_id', team.id);
+  await db().from('tournament_teams').delete().eq('id', team.id);
+  return getTournament(tournamentId);
+}
+
 export async function removePoolPlayer(poolId) {
   const { data: p } = await db().from('tournament_pool').select('sold_to').eq('id', poolId).maybeSingle();
   if (p?.sold_to) throw new Error('이미 낙찰된 선수예요. 먼저 낙찰을 취소하세요');

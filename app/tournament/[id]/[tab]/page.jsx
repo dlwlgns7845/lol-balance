@@ -316,7 +316,7 @@ function ScoreTableRef() {
   );
 }
 
-function ScoreFormation({ pool, S, id, reload, user, login }) {
+function ScoreFormation({ pool, S, id, reload, user, login, canManage }) {
   const cap = S.scoreCap;
   const byId = Object.fromEntries(pool.map((p) => [p.id, p]));
   const [slots, setSlots] = useState([null, null, null, null, null]); // 라인별 poolId (탑~서폿)
@@ -341,7 +341,7 @@ function ScoreFormation({ pool, S, id, reload, user, login }) {
     setBusy(true);
     try {
       const members = slots.map((pid, lane) => ({ poolId: pid, role: POS[lane] }));
-      const r = await apiFetch(`/api/tournaments/${id}/score`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: teamName, members }) }).then((x) => x.json());
+      const r = await apiFetch(`/api/tournaments/${id}/score`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'assemble', name: teamName, members }) }).then((x) => x.json());
       if (!r.ok) throw new Error(r.error);
       reset(); reload();
     } catch (e) { alert('제출 실패: ' + e.message); } finally { setBusy(false); }
@@ -375,7 +375,7 @@ function ScoreFormation({ pool, S, id, reload, user, login }) {
 
   return (
     <div className="panel">
-      <h2>📊 점수제 팀 짜기 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 합계 <b>{cap}점 이내</b>로 드래그해서 팀을 맞춰 제출</span></h2>
+      <h2>🧪 팀 시뮬레이터 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 합계 <b>{cap}점 이내</b> 밸런스 미리보기{canManage ? ' (운영자는 바로 조립 가능)' : ' — 실제 팀은 아래에서'}</span></h2>
       <div className="sf-layout">
         {/* 신청자 리스트 (드래그 소스) */}
         <div className="sf-side">
@@ -393,12 +393,14 @@ function ScoreFormation({ pool, S, id, reload, user, login }) {
             <button className="mini" onClick={reset}>초기화</button>
           </div>
           <div className="sf-team t-blue">{POS.map((_, i) => <Slot key={i} lane={i} />)}</div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-            <input placeholder="우리 팀 이름" value={teamName} onChange={(e) => setTeamName(e.target.value)} style={{ ...inp, flex: 1, minWidth: 140 }} />
-            {user
-              ? <button className="btn" disabled={busy || !full || over || !teamName.trim()} onClick={submit}>{busy ? '제출 중…' : '팀 제출'}</button>
-              : <button className="btn" onClick={login}><span className="gg">G</span> 로그인 후 제출</button>}
-          </div>
+          {canManage
+            ? (
+              <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                <input placeholder="팀 이름 (운영자 직접 조립)" value={teamName} onChange={(e) => setTeamName(e.target.value)} style={{ ...inp, flex: 1, minWidth: 140 }} />
+                <button className="btn" disabled={busy || !full || over || !teamName.trim()} onClick={submit}>{busy ? '조립 중…' : '운영자 조립 등록'}</button>
+              </div>
+            )
+            : <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>🧪 미리보기 전용이에요. 실제 팀은 아래 <b>팀 목록</b>에서 방장이 만들고 합류 신청을 받아요.</div>}
         </div>
         {/* 점수표 (항상 표시) */}
         <div className="sf-side">
@@ -668,15 +670,16 @@ function Apply({ t, teams, pool, auction, canManage, admin, id, reload, S, user,
       {t.status === 'recruiting' && (user ? <ApplyPlayer t={t} id={id} reload={reload} S={S} /> : loginGate)}
       {/* ② 신청자 목록 (티어 배정됨) */}
       <PoolList pool={pool} canManage={canManage} id={id} reload={reload} />
-      {/* ③ 팀 짜기 — 점수제는 여기서 바로(신청·점수 통합), 경매는 경매 탭 */}
+      {/* ③ 팀 짜기 — 점수제=방장 승인제 팀 목록+시뮬(여기서 바로), 경매=경매 탭 */}
       {S.teamFormation === 'score' && (
         <>
-          <ScoreFormation pool={pool} S={S} id={id} reload={reload} user={user} login={login} />
-          <ScoreOverview teams={teams} S={S} />
+          <ScoreTeams teams={teams} pool={pool} S={S} id={id} reload={reload} user={user} login={login} canManage={canManage} t={t} admin={admin} />
+          {t.status === 'recruiting' && <ScoreFormation pool={pool} S={S} id={id} reload={reload} user={user} login={login} canManage={canManage} />}
         </>
       )}
       {isAuction && t.status === 'recruiting' && <div className="panel center muted" style={{ padding: '18px 0' }}>실시간 경매는 <b>🔨 경매 탭</b>에서 진행돼요.</div>}
-      {/* ④ 짜인 팀 + 대진 생성 */}
+      {/* ④ 짜인 팀 + 대진 생성 — 점수제는 팀 목록에서 처리하므로 숨김 */}
+      {S.teamFormation !== 'score' && (
       <div className="panel">
         <h2>참가팀 ({approved.length}{t.status === 'recruiting' ? ` · 대기 ${teams.filter((x) => x.status === 'pending').length}` : ''})</h2>
         {teams.length === 0 && <div className="muted">아직 신청한 팀이 없어요.</div>}
@@ -700,6 +703,7 @@ function Apply({ t, teams, pool, auction, canManage, admin, id, reload, S, user,
           <button className="btn" style={{ marginTop: 12 }} disabled={approved.length < 2} onClick={() => { if (confirm(`승인 ${approved.length}팀으로 대진을 생성할까요? (신청 마감)`)) admin({}, '/bracket', 'POST'); }} title={approved.length < 2 ? '승인 2팀 이상 필요' : ''}>⚔️ 대진 생성 ({approved.length}팀)</button>
         )}
       </div>
+      )}
     </>
   );
 }
@@ -732,31 +736,147 @@ function Stats({ teams, matches, nameOf }) {
   );
 }
 
-// 점수제: 제출된 팀별 합계 점수 + 상한 대비
-function ScoreOverview({ teams, S }) {
+// ─── 🏅 점수제 팀 (방장 승인제: 팀 생성 → 합류 신청 → 방장 수락/내보내기 → 확정) ───
+function laneTotal(approved) {
+  let total = 0;
+  approved.forEach((m) => { if (m.role && TABLE[m.tier]) total += tierPts(m.tier, POS.indexOf(m.role)); });
+  return Math.round(total * 10) / 10;
+}
+function ScoreTeams({ teams, pool, S, id, reload, user, login, canManage, t, admin }) {
   const cap = S.scoreCap;
-  const teamScore = (tm) => {
-    let total = 0, ok = (tm.members || []).length === 5;
-    (tm.members || []).forEach((m) => { if (m.role && TABLE[m.tier]) total += tierPts(m.tier, POS.indexOf(m.role)); else ok = false; });
-    return { total: Math.round(total * 10) / 10, complete: ok };
-  };
+  const recruiting = t.status === 'recruiting';
+  const [busy, setBusy] = useState(false);
+  const [name, setName] = useState('');
+  const [lane, setLane] = useState('');
+  const r1 = (n) => Math.round(n * 10) / 10;
+
+  const myPool = user ? pool.find((p) => p.user_id === user.id) : null;
+  const allMembers = teams.flatMap((tm) => (tm.members || []).map((m) => ({ ...m, teamName: tm.name })));
+  const myApproved = user ? allMembers.find((m) => m.user_id === user.id && m.join_status !== 'requested') : null;
+  const myRequest = user ? allMembers.find((m) => m.user_id === user.id && m.join_status === 'requested') : null;
+  const iCaptainAny = user && teams.some((tm) => tm.captain_user_id === user.id);
+  const canJoin = recruiting && user && myPool && !myPool.sold_to && !myApproved && !iCaptainAny;
+
+  async function act(body) {
+    setBusy(true);
+    try {
+      const r = await apiFetch(`/api/tournaments/${id}/score`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((x) => x.json());
+      if (!r.ok) { alert('실패: ' + r.error); return; }
+      reload();
+    } finally { setBusy(false); }
+  }
+  const approvedTeams = teams.filter((tm) => tm.status === 'approved').length;
+
   return (
     <div className="panel">
-      <h2>📊 팀 점수 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 상한 {cap}점</span></h2>
-      {teams.length === 0 && <div className="muted" style={{ marginTop: 8 }}>아직 제출된 팀이 없어요.</div>}
-      {teams.map((tm) => {
-        const { total, complete } = teamScore(tm);
-        return (
-          <div key={tm.id} style={{ borderTop: '1px solid #2a2a33', padding: '8px 0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <b>{tm.seed ? `${tm.seed}. ` : ''}{tm.name}</b>
-              <span className={total > cap ? 'sf-over' : 'sf-ok'} style={{ fontWeight: 800 }}>{complete ? total : '—'}</span>
-              <span className="muted" style={{ fontSize: 11 }}>/ {cap}</span>
+      <h2>🧑‍🤝‍🧑 팀 목록 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 방장이 팀 생성 → 합류 신청 → 방장 수락 (동의한 사람만 팀에 들어가요)</span></h2>
+
+      {myRequest && (
+        <div style={{ background: 'rgba(207,174,111,.1)', border: '1px solid rgba(207,174,111,.3)', borderRadius: 8, padding: '8px 12px', margin: '10px 0', display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+          <span>⏳ <b>{myRequest.teamName}</b> 팀 · {POS_KR[myRequest.role] || myRequest.role} 합류 신청 대기 중</span>
+          <button className="mini" style={{ marginLeft: 'auto' }} disabled={busy} onClick={() => act({ action: 'cancel', memberId: myRequest.id })}>신청 취소</button>
+        </div>
+      )}
+
+      {teams.length === 0 && <div className="muted" style={{ marginTop: 10 }}>아직 만들어진 팀이 없어요. {recruiting ? '아래에서 팀을 만들어보세요.' : ''}</div>}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12, marginTop: 10 }}>
+        {teams.map((tm) => {
+          const members = tm.members || [];
+          const approved = members.filter((m) => m.join_status !== 'requested');
+          const requests = members.filter((m) => m.join_status === 'requested');
+          const laneOf = Object.fromEntries(approved.map((m) => [m.role, m]));
+          const total = laneTotal(approved);
+          const isCap = user && tm.captain_user_id === user.id;
+          const canCap = isCap || canManage;
+          const confirmed = tm.status === 'approved';
+          const full = approved.length === 5 && new Set(approved.map((m) => m.role)).size === 5;
+          const over = total > cap;
+          return (
+            <div key={tm.id} className="tg-group" style={{ padding: '11px 13px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <b style={{ fontSize: 14 }}>{tm.name}</b>
+                {confirmed ? <span className="accent" style={{ fontSize: 11 }}>✅ 확정</span> : <span className="muted" style={{ fontSize: 11 }}>모집중</span>}
+                <span style={{ marginLeft: 'auto', fontWeight: 800 }} className={over ? 'sf-over' : 'sf-ok'}>{total}</span>
+                <span className="muted" style={{ fontSize: 11 }}>/ {cap}</span>
+              </div>
+              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {POS.map((l) => {
+                  const m = laneOf[l];
+                  return (
+                    <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, padding: '3px 0', borderBottom: '1px solid #23232b' }}>
+                      <span className="muted" style={{ width: 30, fontSize: 11 }}>{POS_KR[l]}</span>
+                      {m ? (
+                        <>
+                          <span>{m.game_name}{m.user_id === tm.captain_user_id ? ' 👑' : ''}</span>
+                          <span className={tierClass(m.tier)} style={{ fontSize: 10.5, marginLeft: 4 }}>{m.tier ? (TIER_LABEL[m.tier] || m.tier) : '미확인'}</span>
+                          {canCap && recruiting && !confirmed && m.user_id !== tm.captain_user_id && <button className="sf-x" style={{ marginLeft: 'auto' }} disabled={busy} onClick={() => act({ action: 'kick', memberId: m.id })} title="내보내기">×</button>}
+                        </>
+                      ) : (
+                        <>
+                          <span className="muted" style={{ fontSize: 11 }}>비어있음</span>
+                          {canJoin && !confirmed && <button className="mini" style={{ marginLeft: 'auto', padding: '1px 7px', fontSize: 10.5 }} disabled={busy} onClick={() => act({ action: 'request', teamId: tm.id, lane: l })}>합류 신청</button>}
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {canCap && requests.length > 0 && !confirmed && (
+                <div style={{ marginTop: 8, paddingTop: 6, borderTop: '1px solid #2a2a33' }}>
+                  <div className="muted" style={{ fontSize: 11, marginBottom: 4 }}>합류 신청 {requests.length}건</div>
+                  {requests.map((rq) => (
+                    <div key={rq.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '2px 0' }}>
+                      <span>{POS_KR[rq.role] || rq.role} · {rq.game_name}</span>
+                      <span className={tierClass(rq.tier)} style={{ fontSize: 10 }}>{rq.tier ? (TIER_LABEL[rq.tier] || rq.tier) : '미확인'}</span>
+                      <span style={{ marginLeft: 'auto', display: 'flex', gap: 3 }}>
+                        <button className="mini" style={{ padding: '1px 6px', fontSize: 10 }} disabled={busy} onClick={() => act({ action: 'resolve', memberId: rq.id, decision: 'approve' })}>수락</button>
+                        <button className="mini" style={{ padding: '1px 6px', fontSize: 10 }} disabled={busy} onClick={() => act({ action: 'resolve', memberId: rq.id, decision: 'reject' })}>거절</button>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {canCap && !confirmed && (
+                <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
+                  <button className="btn" style={{ flex: 1, padding: '5px 0', fontSize: 12 }} disabled={busy || !full || over} title={!full ? '5라인을 다 채워야 해요' : over ? '상한 초과' : ''} onClick={() => act({ action: 'submit', teamId: tm.id })}>팀 확정</button>
+                  <button className="mini" disabled={busy} onClick={() => { if (confirm(`${tm.name} 팀을 해체할까요?`)) act({ action: 'disband', teamId: tm.id }); }}>해체</button>
+                </div>
+              )}
             </div>
-            <div className="muted" style={{ fontSize: 11.5, marginTop: 3 }}>{(tm.members || []).map((m) => `${POS_KR[m.role] || m.role || '?'} ${m.game_name}(${m.tier || '?'})`).join(' · ') || '멤버 없음'}</div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+
+      {/* 팀 만들기 / 로그인·신청 안내 */}
+      {recruiting && (
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #23232b' }}>
+          {!user ? (
+            <div className="muted" style={{ fontSize: 13 }}>팀을 만들려면 <button className="mini" onClick={login}><span className="gg">G</span> 로그인</button> 후 선수 신청을 먼저 해주세요.</div>
+          ) : !myPool ? (
+            <div className="muted" style={{ fontSize: 13 }}>먼저 위에서 <b>선수 신청</b>을 하면 팀을 만들거나 합류할 수 있어요.</div>
+          ) : myApproved ? (
+            <div className="muted" style={{ fontSize: 13 }}>이미 <b>{myApproved.teamName}</b> 팀에 속해 있어요.</div>
+          ) : iCaptainAny ? (
+            <div className="muted" style={{ fontSize: 13 }}>내 팀을 운영 중이에요. 합류 신청을 수락해 5명을 채우세요.</div>
+          ) : (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>➕ 내 팀 만들기</span>
+              <input placeholder="팀 이름" value={name} onChange={(e) => setName(e.target.value)} style={{ ...inp, width: 150 }} />
+              <select value={lane} onChange={(e) => setLane(e.target.value)} style={{ ...inp, width: 110 }}><option value="">내 라인</option>{POS.map((l) => <option key={l} value={l}>{POS_KR[l]}</option>)}</select>
+              <button className="btn" disabled={busy || !name.trim() || !lane} onClick={() => { act({ action: 'create', name, lane }); setName(''); setLane(''); }}>만들기</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {canManage && recruiting && (
+        <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #23232b' }}>
+          <button className="btn" disabled={busy || approvedTeams < 2} title={approvedTeams < 2 ? '확정된 팀이 2팀 이상이어야 해요' : ''} onClick={() => { if (confirm(`확정 ${approvedTeams}팀으로 대진을 생성할까요? (모집 마감)`)) admin({}, '/bracket', 'POST'); }}>⚔️ 대진 생성 (확정 {approvedTeams}팀)</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -801,12 +921,12 @@ function Placements({ matches, nameOf }) {
 }
 
 // ─── 🏅 점수표 (점수제 팀 구성 전용) ───
-function Scoreboard({ teams, pool, S, id, reload, user, login }) {
+function Scoreboard({ teams, pool, S, id, reload, user, login, canManage, t, admin }) {
   if (S.teamFormation !== 'score') return <div className="panel center muted" style={{ padding: '32px 0' }}>점수제 대회에서 팀 짜기·점수를 보는 탭이에요.</div>;
   return (
     <>
-      <ScoreFormation pool={pool} S={S} id={id} reload={reload} user={user} login={login} />
-      <ScoreOverview teams={teams} S={S} />
+      <ScoreTeams teams={teams} pool={pool} S={S} id={id} reload={reload} user={user} login={login} canManage={canManage} t={t} admin={admin} />
+      {t.status === 'recruiting' && <ScoreFormation pool={pool} S={S} id={id} reload={reload} user={user} login={login} canManage={canManage} />}
     </>
   );
 }
