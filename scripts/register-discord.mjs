@@ -43,6 +43,13 @@ const commands = [
   { name: '방연결', description: '이 서버를 내전 방에 연결 요청 (서버 관리자만, 방장 승인 필요)', type: 1,
     default_member_permissions: '32', // Manage Guild — 관리자만
     options: [{ name: '코드', description: '사이트 방 코드', type: 3, required: true }] },
+  { name: '관리자', description: '봇 관리자 승격/해제 (서버 관리자 전용) — /기록 권한 부여', type: 1,
+    default_member_permissions: '32', // Manage Guild — 서버 관리자만
+    options: [
+      { name: '동작', description: '승격 / 해제 / 목록', type: 3, required: true,
+        choices: [{ name: '승격', value: '승격' }, { name: '해제', value: '해제' }, { name: '목록', value: '목록' }] },
+      { name: '유저', description: '대상 유저 (승격·해제 시)', type: 6, required: false },
+    ] },
 ];
 
 // --global (또는 GUILD_ID 없음) = 전역 등록(모든 서버, ~1시간). 아니면 GUILD_ID 서버에 즉시(테스트).

@@ -6,7 +6,8 @@ import { waitUntil } from '@vercel/functions';
 import { getStats, getAwards, getMatchHistory, listPersons, updatePerson, createPerson, addAccount, uploadAvatarFromUrl, saveMatch,
   createQueue, getQueue, getOpenQueue, closeQueue, listSignups, getSignup, upsertSignup, removeSignup, setQueueMessage,
   createPending, getPending, updatePending, deletePending,
-  getGuildRoom, getGuildLink, requestGuildLink, getGroupByCode } from '../../../src/repo.js';
+  getGuildRoom, getGuildLink, requestGuildLink, getGroupByCode,
+  isBotAdmin, grantBotAdmin, revokeBotAdmin, listBotAdmins } from '../../../src/repo.js';
 import { balance, balance20, balance20Split } from '../../../src/engine.js';
 import { LANES, allocateQueue } from '../../../src/queue.js';
 import { MAINTENANCE } from '../../../src/maintenance.js';
@@ -874,11 +875,14 @@ async function handleModalSubmit(i) {
   return updateMsg(await reviewData(pend));
 }
 
+// 서버 관리자(Manage Guild | Administrator) 감지 — Discord 권한 비트
+const isServerAdmin = (i) => { const p = BigInt(i.member?.permissions || '0'); return (p & 0x20n) !== 0n || (p & 0x8n) !== 0n; };
+
 async function cmdMatchShot(i, gid) {
-  // 서버측 권한 검사 — default_member_permissions는 서버 설정에서 풀 수 있는 기본값일 뿐 (오기록 방지)
-  const perms = BigInt(i.member?.permissions || '0');
-  const canManage = (perms & 0x20n) !== 0n || (perms & 0x8n) !== 0n; // Manage Guild | Administrator
-  if (!canManage) return ephem('⚠️ 서버 관리 권한이 있는 사람만 기록할 수 있어요.');
+  // 서버 관리자 또는 봇 관리자(/관리자 승격)만 기록 가능
+  if (!isServerAdmin(i) && !(await isBotAdmin(gid, callerId(i)))) {
+    return ephem('⚠️ 기록 권한이 없어요. 서버 관리자에게 `/관리자 동작:승격` 으로 권한을 요청하세요.');
+  }
   const fileId = opt(i, '리플');
   if (!fileId) return ephem('.rofl 리플레이 파일을 첨부하세요: `/기록 리플:<파일>`');
   waitUntil(processMatchReplay(i, fileId, gid)); // 다운로드+파싱 → 백그라운드
@@ -902,7 +906,29 @@ async function cmdLinkGuild(i, gid) {
   return ephem(`📨 **${group.name || group.code}** (#${group.code}) 연결 **요청**을 보냈어요.\n방장/관리자가 **사이트 → 점수표(설정) 페이지**에서 승인하면 이 서버에서 커맨드를 쓸 수 있어요. (승인 전까지는 대기)`);
 }
 
-const HANDLERS = { 리더보드: cmdLeaderboard, 전적: cmdRecord, 내전적: cmdMyRecord, 연동: cmdLink, 가입: cmdRegister, 프로필: cmdProfile, 칭호: cmdAwards, 방: cmdRoom, 밸런스: cmdBalance, 모집: cmdRecruit, 기록: cmdMatchShot, 방연결: cmdLinkGuild };
+// /관리자 — 서버 관리자가 봇 관리자(비-서버관리자)에게 /기록 권한 부여/해제/목록
+async function cmdAdmin(i, gid) {
+  if (!isServerAdmin(i)) return ephem('⚠️ 서버 관리자(서버 관리 권한)만 관리자를 지정할 수 있어요.');
+  const action = opt(i, '동작');
+  if (action === '목록') {
+    const list = await listBotAdmins(gid);
+    const body = list.length
+      ? '🛡 **봇 관리자** (서버 관리자 외 /기록 권한):\n' + list.map((a) => `• ${a.name || a.discord_id}${String(a.discord_id).startsWith('site:') ? '' : ` (<@${a.discord_id}>)`}`).join('\n')
+      : '아직 지정된 봇 관리자가 없어요. (서버 관리자는 기본으로 `/기록` 가능)';
+    return ephem(body);
+  }
+  const userId = opt(i, '유저');
+  if (!userId) return ephem('대상 유저를 선택하세요. 예: `/관리자 동작:승격 유저:@사람`');
+  const u = i.data?.resolved?.users?.[userId];
+  const name = u?.global_name || u?.username || null;
+  try {
+    if (action === '승격') { await grantBotAdmin(gid, userId, name, callerId(i)); return ephem(`✅ <@${userId}> 님을 **봇 관리자**로 승격했어요. 이제 \`/기록\` 을 쓸 수 있어요.`); }
+    if (action === '해제') { await revokeBotAdmin(gid, userId); return ephem(`✅ <@${userId}> 님의 봇 관리자 권한을 **해제**했어요.`); }
+  } catch (e) { return ephem('실패: ' + e.message); }
+  return ephem('동작을 선택하세요 (승격 / 해제 / 목록).');
+}
+
+const HANDLERS = { 리더보드: cmdLeaderboard, 전적: cmdRecord, 내전적: cmdMyRecord, 연동: cmdLink, 가입: cmdRegister, 프로필: cmdProfile, 칭호: cmdAwards, 방: cmdRoom, 밸런스: cmdBalance, 모집: cmdRecruit, 기록: cmdMatchShot, 방연결: cmdLinkGuild, 관리자: cmdAdmin };
 
 export async function POST(request) {
   const body = await request.text();

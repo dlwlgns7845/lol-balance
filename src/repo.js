@@ -98,6 +98,32 @@ export async function removeGuildLink(guildId) {
   if (error) throw error;
 }
 
+// ── 디코봇 관리자 (방별 /기록 권한) ──
+const MIGRATE_BOTADMIN = '관리자 마이그레이션(discord-bot-admins-schema.sql)을 먼저 실행하세요';
+export async function isBotAdmin(gid, discordId) {
+  if (!gid || !discordId) return false;
+  try {
+    const { data, error } = await db().from('discord_bot_admins').select('discord_id').eq('gid', gid).eq('discord_id', discordId).maybeSingle();
+    if (error) return false;
+    return !!data;
+  } catch { return false; }
+}
+export async function grantBotAdmin(gid, discordId, name, by) {
+  const { error } = await db().from('discord_bot_admins').upsert({ gid, discord_id: discordId, name: name || null, granted_by: by || null }, { onConflict: 'gid,discord_id' });
+  if (error) { if (/discord_bot_admins|does not exist/i.test(error.message || '')) throw new Error(MIGRATE_BOTADMIN); throw error; }
+}
+export async function revokeBotAdmin(gid, discordId) {
+  const { error } = await db().from('discord_bot_admins').delete().eq('gid', gid).eq('discord_id', discordId);
+  if (error) { if (/discord_bot_admins|does not exist/i.test(error.message || '')) throw new Error(MIGRATE_BOTADMIN); throw error; }
+}
+export async function listBotAdmins(gid) {
+  try {
+    const { data, error } = await db().from('discord_bot_admins').select('discord_id, name, created_at').eq('gid', gid).order('created_at');
+    if (error) return [];
+    return data || [];
+  } catch { return []; }
+}
+
 // 연동된 사람들의 표시이름(nickname)을 디스코드 '서버 별명'으로 동기화. 사이트 로드시 호출(45초 캐시).
 // 봇토큰 필요. 개별 멤버 조회라 privileged intent 불필요. 별명 없으면 global_name/username 폴백.
 const _nickSyncedAt = new Map(); // gid → ms
