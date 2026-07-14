@@ -61,6 +61,9 @@ export function parseRoflBuffer(buf) {
         ccTime: n(p, 'TIME_CCING_OTHERS'),
         double: n(p, 'DOUBLE_KILLS'), triple: n(p, 'TRIPLE_KILLS'), quadra: n(p, 'QUADRA_KILLS'), penta: n(p, 'PENTA_KILLS'),
         turrets: n(p, 'TURRETS_KILLED'),
+        riotId: tag ? `${gn}#${tag}` : gn, // 롤닉(라이엇ID) — 사람 매칭돼도 인게임 닉 보존
+        // 2026 역할 퀘스트: 리플 스탯에 QUEST 관련 필드가 있으면 캡처(필드명 확정 전 방어적)
+        roleQuest: (() => { const e = Object.entries(p).filter(([kk]) => /QUEST/i.test(kk)); return e.length ? Object.fromEntries(e) : null; })(),
       },
     };
   });

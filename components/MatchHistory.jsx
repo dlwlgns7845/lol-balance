@@ -106,17 +106,28 @@ function MiddleBar({ objectives, killsA, killsB, goldA, goldB }) {
   );
 }
 
-function RichRow({ p, dd, color, maxDmg, maxTaken, durationMin, byName, onPlayer, itemUrl, highlight, alt }) {
+function RichRow({ p, dd, color, maxDmg, maxTaken, maxGold, durationMin, byName, onPlayer, itemUrl, highlight, alt }) {
   const det = p.detail || {};
   const items = det.items || [];
   const csm = durationMin ? (p.cs / durationMin).toFixed(1) : null;
+  const spells = det.spells || [];
+  const rq = det.roleQuest;
+  const questDone = rq && Object.values(rq).some((v) => v === '1' || v === 'true' || v === true || Number(v) > 0);
+  const riotNick = det.riotId && det.riotId.split('#')[0];
   return (
     <div className={`mhr-row ${alt ? 'mhr-alt' : ''} ${highlight && normNm(p.name) === highlight ? 'me' : ''} ${onPlayer && p.personId ? 'clk' : ''}`}
       onClick={onPlayer && p.personId ? (e) => { e.stopPropagation(); onPlayer(p.personId); } : undefined}>
-      <ChampImg name={p.champion} iconUrl={dd.icon} size={32} />
+      <div className="mhr-champ">
+        <ChampImg name={p.champion} iconUrl={dd.icon} size={32} />
+        {det.level ? <span className="mhr-lv">{det.level}</span> : null}
+      </div>
+      <div className="mhr-sr">
+        <div className="mhr-sr-r">{[0, 1].map((i) => { const u = dd.spell?.(spells[i]); return <span key={i} className="mhr-sr-i">{u ? <img src={u} alt="" width={13} height={13} /> : null}</span>; })}</div>
+        <div className="mhr-sr-r">{[det.keystone, det.subStyle].map((pid, i) => { const u = dd.rune?.(pid); return <span key={i} className={`mhr-sr-i ${i ? 'sub' : ''}`}>{u ? <img src={u} alt="" width={13} height={13} /> : null}</span>; })}</div>
+      </div>
       <div className="mhr-name">
-        <span className="mhr-nm">{p.name}<TitleBadges titles={byName?.[normNm(p.name)]} max={2} />{p.mvp && <span className="mbadge mvp">MVP</span>}{p.ace && <span className="mbadge ace">ACE</span>}</span>
-        <span className="mhr-sub"><span className="muted">{p.champion}</span>{p.tier && <span className={tierClass(p.tier)}> · {TIER_LABEL[p.tier] || p.tier}</span>}</span>
+        <span className="mhr-nm">{p.name}{questDone ? <span className="mhr-quest" title={`역할 퀘스트 완료 (${JSON.stringify(rq)})`}>🎯</span> : null}<TitleBadges titles={byName?.[normNm(p.name)]} max={2} />{p.mvp && <span className="mbadge mvp">MVP</span>}{p.ace && <span className="mbadge ace">ACE</span>}</span>
+        <span className="mhr-sub"><span className="muted">{p.champion}</span>{p.tier && <span className={tierClass(p.tier)}> · {TIER_LABEL[p.tier] || p.tier}</span>}{riotNick && riotNick !== p.name && <span className="mhr-riot muted"> · {riotNick}</span>}</span>
       </div>
       <div className="mhr-kda">
         <span>{p.k} / <span className="red">{p.d}</span> / {p.a}</span>
@@ -129,12 +140,15 @@ function RichRow({ p, dd, color, maxDmg, maxTaken, durationMin, byName, onPlayer
       <div className="mhr-c muted"><b>{det.visionScore || 0}</b><span>👁 {det.wardsPlaced || 0}/{det.wardsKilled || 0}</span></div>
       <div className="mhr-c muted"><b>{p.cs || 0}</b><span>{csm ? csm + '/분' : 'CS'}</span></div>
       <div className="mhr-items">{[0, 1, 2, 3, 4, 5, 6].map((i) => { const u = itemUrl(items[i]); return <span key={i} className="mhr-item">{u ? <img src={u} alt="" width={20} height={20} /> : null}</span>; })}</div>
-      <div className="mhr-gold muted">🌾 {k(p.gold || 0)}</div>
+      <div className="mhr-gold">
+        <span className="muted">🌾 {k(p.gold || 0)}</span>
+        <div className="dmg-bar"><span className={`f gold ${color}`} style={{ width: Math.round((p.gold || 0) / (maxGold || 1) * 100) + '%' }} /></div>
+      </div>
     </div>
   );
 }
 
-function RosterRich({ label, players, win, color, dd, maxDmg, maxTaken, durationMin, byName, onPlayer, itemUrl, highlight }) {
+function RosterRich({ label, players, win, color, dd, maxDmg, maxTaken, maxGold, durationMin, byName, onPlayer, itemUrl, highlight }) {
   return (
     <div className={`mhr-team t-${color}`}>
       <div className="mhr-head">
@@ -143,6 +157,7 @@ function RosterRich({ label, players, win, color, dd, maxDmg, maxTaken, duration
       </div>
       <div className="mhr-row mhr-colhead muted">
         <span />
+        <span>스펠/룬</span>
         <span>선수</span>
         <span>KDA</span>
         <span className="mhr-dmg"><span className="mhr-dmg-c">피해량</span><span className="mhr-dmg-c">받은피해량</span></span>
@@ -151,7 +166,7 @@ function RosterRich({ label, players, win, color, dd, maxDmg, maxTaken, duration
         <span>아이템</span>
         <span style={{ textAlign: 'right' }}>골드</span>
       </div>
-      {players.map((p, i) => <RichRow key={i} p={p} dd={dd} color={color} maxDmg={maxDmg} maxTaken={maxTaken} durationMin={durationMin} byName={byName} onPlayer={onPlayer} itemUrl={itemUrl} highlight={highlight} alt={i % 2 === 1} />)}
+      {players.map((p, i) => <RichRow key={i} p={p} dd={dd} color={color} maxDmg={maxDmg} maxTaken={maxTaken} maxGold={maxGold} durationMin={durationMin} byName={byName} onPlayer={onPlayer} itemUrl={itemUrl} highlight={highlight} alt={i % 2 === 1} />)}
     </div>
   );
 }
@@ -164,6 +179,7 @@ function MatchCard({ m, dd, open, onToggle, onDelete, onSwap, byName, highlight,
   const splash = mvp && dd.splash(mvp.champion); // 로딩아트(저해상 세로) 대신 스플래시(고해상 가로) → 선명
   const maxDmg = Math.max(1, ...[...m.A, ...m.B].map((p) => p.damage || 0));
   const maxTaken = Math.max(1, ...[...m.A, ...m.B].map((p) => p.detail?.dmgTaken || 0));
+  const maxGold = Math.max(1, ...[...m.A, ...m.B].map((p) => p.gold || 0));
   const itemUrl = (id) => (id && dd.version ? `https://ddragon.leagueoflegends.com/cdn/${dd.version}/img/item/${id}.png` : null);
 
   if (!open) {
@@ -271,9 +287,9 @@ function MatchCard({ m, dd, open, onToggle, onDelete, onSwap, byName, highlight,
       </div>
       {m.source === 'replay' && (m.A[0]?.detail || m.B[0]?.detail) ? (
         <div className="mhr-teams">
-          <RosterRich label="블루" players={m.A} win={aWin} color="blue" dd={dd} maxDmg={maxDmg} maxTaken={maxTaken} durationMin={m.durationMin} byName={byName} onPlayer={onPlayer} itemUrl={itemUrl} highlight={highlight} />
+          <RosterRich label="블루" players={m.A} win={aWin} color="blue" dd={dd} maxDmg={maxDmg} maxTaken={maxTaken} maxGold={maxGold} durationMin={m.durationMin} byName={byName} onPlayer={onPlayer} itemUrl={itemUrl} highlight={highlight} />
           <MiddleBar objectives={m.objectives} killsA={m.killsA} killsB={m.killsB} goldA={m.goldA} goldB={m.goldB} />
-          <RosterRich label="레드" players={m.B} win={!aWin} color="red" dd={dd} maxDmg={maxDmg} maxTaken={maxTaken} durationMin={m.durationMin} byName={byName} onPlayer={onPlayer} itemUrl={itemUrl} highlight={highlight} />
+          <RosterRich label="레드" players={m.B} win={!aWin} color="red" dd={dd} maxDmg={maxDmg} maxTaken={maxTaken} maxGold={maxGold} durationMin={m.durationMin} byName={byName} onPlayer={onPlayer} itemUrl={itemUrl} highlight={highlight} />
         </div>
       ) : (
         <div className="mhf-teams">
