@@ -655,10 +655,10 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mhr-row.clk:hover { background: rgba(79,182,214,.16); }
 .mhr-row.me { background: rgba(79,182,214,.2); }
 .mhr-name { min-width: 0; display: flex; flex-direction: column; }
-.mhr-nm { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 3px; }
-.mhr-sub { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mhr-kda { display: flex; flex-direction: column; font-size: 13px; }
-.mhr-ratio { font-size: 11px; font-weight: 700; }
+.mhr-nm { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 3px; }
+.mhr-sub { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mhr-kda { display: flex; flex-direction: column; font-size: 15px; }
+.mhr-ratio { font-size: 13px; font-weight: 700; }
 .mhr-dmg { display: flex; gap: 6px; font-size: 10px; }
 .mhr-dmg-c { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; text-align: center; }
 .mhr-dmg-c .dmg-bar { height: 5px; }
@@ -670,13 +670,13 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 /* 스펠·KDA·피해량·받은피해량·골드·와드·CS(2~8번째) 가운데 정렬 */
 .mhr-colhead > span:nth-child(n+2):nth-child(-n+8) { text-align: center; }
 .mhr-c { display: flex; flex-direction: column; align-items: center; line-height: 1.2; }
-.mhr-c b { font-size: 13px; color: var(--text); }
-.mhr-c span { font-size: 10.5px; }
+.mhr-c b { font-size: 15px; color: var(--text); }
+.mhr-c span { font-size: 12.5px; }
 .mhr-items { display: flex; gap: 3px; justify-content: center; }
 .mhr-item { width: 30px; height: 30px; border-radius: 5px; background: rgba(255,255,255,.045); overflow: hidden; }
 .mhr-item img { border-radius: 4px; display: block; }
 /* 피해량·받은피해량·골드량: 숫자 + 막대 (가운데) */
-.mhr-stat { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 12.5px; min-width: 0; }
+.mhr-stat { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 14.5px; min-width: 0; }
 .mhr-stat > span { white-space: nowrap; }
 .mhr-stat .dmg-bar { width: 100%; height: 5px; }
 .dmg-bar .f.gold { background: linear-gradient(90deg, #c8942f, #f0c860); }
@@ -695,8 +695,8 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mhr-spells .mhr-sr-i img { width: 30px; height: 30px; object-fit: contain; }
 .mhr-sr-i { border-radius: 3px; background: rgba(255,255,255,.05); overflow: hidden; display: flex; align-items: center; justify-content: center; }
 .mhr-sr-i img { display: block; border-radius: 3px; }
-.mhr-quest { font-size: 10px; }
-.mhr-riot { font-size: 9.5px; }
+.mhr-quest { font-size: 12px; }
+.mhr-riot { font-size: 11.5px; }
 /* 두 팀 사이 중앙 바: 좌=블루 오브젝트 · 중앙 Total Kill/Gold · 우=레드 오브젝트 */
 .mhmid { display: grid; grid-template-columns: 1fr minmax(260px, 400px) 1fr; align-items: center; gap: 14px; padding: 5px 16px; }
 .mhmid-obj { display: flex; gap: 4px; font-size: 10.5px; align-items: center; white-space: nowrap; flex-wrap: wrap; }
