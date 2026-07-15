@@ -680,14 +680,15 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mhr-stat > span { white-space: nowrap; }
 .mhr-stat .dmg-bar { width: 100%; height: 5px; }
 .dmg-bar .f.gold { background: linear-gradient(90deg, #c8942f, #f0c860); }
-/* 선수 블록: 챔프 + 룬(옆·세로) + 이름 */
+/* 선수 블록: [챔프+룬] + 이름 — 챔프와 룬은 한 래퍼로 묶어 서로 정중앙 정렬(이름 높이 무관) */
 .mhr-player { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.mhr-cr { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
 .mhr-champ { position: relative; width: 32px; height: 32px; flex-shrink: 0; }
 .mhr-lv { position: absolute; right: -3px; bottom: -3px; min-width: 15px; height: 15px; padding: 0 2px; border-radius: 8px; background: #0b0b10; border: 1px solid rgba(255,255,255,.35); color: #e7e7ee; font-size: 9.5px; font-weight: 700; line-height: 15px; text-align: center; }
-/* 룬: 챔프 옆 세로(위 메인룬 · 아래 보조룬) — 뜨는 룬만 챔프와 세로 중앙 정렬(위로 안 튐) */
-.mhr-runes { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; align-items: center; align-self: center; }
-.mhr-runes .mhr-sr-i { width: 15px; height: 15px; flex: 0 0 15px; background: transparent; border-radius: 50%; }
-.mhr-runes .mhr-sr-i img { width: 15px; height: 15px; object-fit: contain; }
+/* 룬: 챔프 옆 세로(위 메인룬 · 아래 보조룬) — 챔프와 정중앙 정렬 */
+.mhr-runes { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; align-items: center; justify-content: center; }
+.mhr-runes .mhr-sr-i { width: 14px; height: 14px; flex: 0 0 14px; background: transparent; border-radius: 50%; }
+.mhr-runes .mhr-sr-i img { width: 14px; height: 14px; object-fit: contain; }
 /* 스펠: 독립 칸 · 한 줄에 2개 */
 .mhr-spells { display: flex; gap: 3px; align-items: center; justify-content: center; }
 .mhr-spells .mhr-sr-i { width: 18px; height: 18px; flex: 0 0 18px; }
