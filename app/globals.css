@@ -648,7 +648,7 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mhr-head { display: flex; align-items: center; gap: 10px; padding: 6px 12px; font-size: 12px; background: rgba(255,255,255,.02); border-bottom: 1px solid var(--line); }
 .mhr-head .mhf-label { font-weight: 700; }
 /* 항목을 좌우 끝까지 밀고 균일 간격(space-between). 선수=왼쪽끝, 아이템=오른쪽끝 */
-.mhr-row { display: grid; grid-template-columns: 250px 66px 58px 74px 86px 74px 48px 54px 232px; align-items: center; column-gap: 8px; padding: 4px 16px; border-bottom: 1px solid rgba(255,255,255,.04); justify-content: space-between; }
+.mhr-row { display: grid; grid-template-columns: 250px 66px 58px 74px 86px 74px 48px 54px 232px 40px; align-items: center; column-gap: 8px; padding: 4px 16px; border-bottom: 1px solid rgba(255,255,255,.04); justify-content: space-between; }
 .mhr-row:last-child { border-bottom: none; }
 .mhr-row.mhr-alt { background: var(--tint); } /* 지브라: 팀 색 베이스로 한 줄씩 진하게 */
 .mhr-row.clk { cursor: pointer; }
@@ -667,13 +667,19 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mhr-colhead { font-size: 9.5px; padding-top: 5px; padding-bottom: 5px; background: rgba(255,255,255,.015); border-bottom: 1px solid var(--line); cursor: default; }
 .mhr-colhead:hover { background: rgba(255,255,255,.015); }
 .mhr-colhead > span { white-space: nowrap; overflow: hidden; }
-/* 스펠·KDA·피해량·받은피해량·골드·와드·CS(2~8번째) 가운데 정렬 */
-.mhr-colhead > span:nth-child(n+2):nth-child(-n+8) { text-align: center; }
+/* 스펠·KDA·피해량·받은피해량·골드·와드·CS(2~8번째) + 퀘스트(10) 가운데 정렬 */
+.mhr-colhead > span:nth-child(n+2):nth-child(-n+8), .mhr-colhead > span:nth-child(10) { text-align: center; }
 .mhr-c { display: flex; flex-direction: column; align-items: center; line-height: 1.2; }
 .mhr-c b { font-size: 15px; color: var(--text); }
 .mhr-c span { font-size: 12.5px; }
 .mhr-items { display: flex; gap: 3px; justify-content: center; }
 .mhr-item { width: 30px; height: 30px; border-radius: 5px; background: rgba(255,255,255,.045); overflow: hidden; }
+/* 퀘스트 칸(오른쪽 끝): 역할 퀘스트 보상 신발 + 완료 표시 */
+.mhr-quest-cell { display: flex; align-items: center; justify-content: center; }
+.mhr-qitem { position: relative; }
+.mhr-qitem.done { box-shadow: 0 0 0 2px #e8c07d, 0 0 6px rgba(232,192,125,.5); }
+.mhr-qcheck { color: #e8c07d; font-size: 15px; font-weight: 800; }
+.mhr-qempty { width: 30px; height: 30px; border-radius: 5px; border: 1px dashed rgba(255,255,255,.08); }
 .mhr-item img { border-radius: 4px; display: block; }
 /* 피해량·받은피해량·골드량: 숫자 + 막대 (가운데) */
 .mhr-stat { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 14.5px; min-width: 0; }
