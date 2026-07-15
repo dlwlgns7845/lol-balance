@@ -672,11 +672,11 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mhr-c { display: flex; flex-direction: column; align-items: center; line-height: 1.2; }
 .mhr-c b { font-size: 15px; color: var(--text); }
 .mhr-c span { font-size: 12.5px; }
-.mhr-items { display: flex; gap: 3px; justify-content: center; }
-.mhr-item { width: 30px; height: 30px; border-radius: 5px; background: rgba(255,255,255,.045); overflow: hidden; }
-/* 퀘스트: 아이템 바로 옆(구분선 후) 역할 보상 신발 + 완료 시 금테 */
-.mhr-qdiv { width: 1px; height: 26px; background: rgba(255,255,255,.16); margin: 0 4px; flex-shrink: 0; }
-.mhr-qitem { position: relative; }
+.mhr-items { display: flex; gap: 3px; align-items: center; }
+.mhr-item { width: 30px; height: 30px; border-radius: 5px; background: rgba(255,255,255,.045); overflow: hidden; flex-shrink: 0; }
+/* 퀘스트: 아이템 묶음 오른쪽 끝(별도 위치) 역할 보상 신발 + 완료 시 금테 */
+.mhr-qitem { position: relative; margin-left: auto; }
+.mhr-ihead { display: flex; justify-content: space-between; }
 .mhr-qitem.done { box-shadow: 0 0 0 2px #e8c07d, 0 0 6px rgba(232,192,125,.5); }
 .mhr-qcheck { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; color: #6b7280; font-size: 14px; font-weight: 800; }
 .mhr-item img { border-radius: 4px; display: block; }
