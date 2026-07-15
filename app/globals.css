@@ -647,8 +647,8 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mhr-team.t-red { box-shadow: inset 3px 0 0 #e84d4d; background: rgba(224,77,77,.05); --tint: rgba(224,77,77,.11); }
 .mhr-head { display: flex; align-items: center; gap: 10px; padding: 6px 12px; font-size: 12px; background: rgba(255,255,255,.02); border-bottom: 1px solid var(--line); }
 .mhr-head .mhf-label { font-weight: 700; }
-/* 사진1 간격: 고정폭 칸 → 좌측 정렬 팩킹(넓은 화면은 오른쪽 여백). CS↔아이템 벌어짐 방지 */
-.mhr-row { display: grid; grid-template-columns: 182px 50px 58px 74px 86px 74px 48px 54px 154px; align-items: center; gap: 14px; padding: 4px 14px; border-bottom: 1px solid rgba(255,255,255,.04); justify-content: start; }
+/* 항목을 좌우 끝까지 밀고 균일 간격(space-between). 선수=왼쪽끝, 아이템=오른쪽끝 */
+.mhr-row { display: grid; grid-template-columns: 176px 48px 56px 72px 84px 72px 46px 52px 150px; align-items: center; column-gap: 8px; padding: 4px 16px; border-bottom: 1px solid rgba(255,255,255,.04); justify-content: space-between; }
 .mhr-row:last-child { border-bottom: none; }
 .mhr-row.mhr-alt { background: var(--tint); } /* 지브라: 팀 색 베이스로 한 줄씩 진하게 */
 .mhr-row.clk { cursor: pointer; }
@@ -684,10 +684,10 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mhr-player { display: flex; align-items: center; gap: 7px; min-width: 0; }
 .mhr-champ { position: relative; width: 32px; height: 32px; flex-shrink: 0; }
 .mhr-lv { position: absolute; right: -3px; bottom: -3px; min-width: 15px; height: 15px; padding: 0 2px; border-radius: 8px; background: #0b0b10; border: 1px solid rgba(255,255,255,.35); color: #e7e7ee; font-size: 9.5px; font-weight: 700; line-height: 15px; text-align: center; }
-/* 룬: 챔프 옆 세로(위 메인룬 · 아래 보조룬) — 챔프와 세로 중앙 정렬, 찌그러짐 방지(정사각 유지) */
-.mhr-runes { display: flex; flex-direction: column; gap: 3px; flex-shrink: 0; align-items: center; justify-content: center; }
-.mhr-runes .mhr-sr-i { width: 16px; height: 16px; flex: 0 0 16px; background: transparent; border-radius: 50%; }
-.mhr-runes .mhr-sr-i img { width: 16px; height: 16px; object-fit: contain; }
+/* 룬: 챔프 옆 세로(위 메인룬 · 아래 보조룬) — 챔프 높이(32px)에 딱 맞춰 세로 중앙(위·아래 안 튐) */
+.mhr-runes { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; align-items: center; justify-content: center; height: 32px; }
+.mhr-runes .mhr-sr-i { width: 15px; height: 15px; flex: 0 0 15px; background: transparent; border-radius: 50%; }
+.mhr-runes .mhr-sr-i img { width: 15px; height: 15px; object-fit: contain; }
 /* 스펠: 독립 칸 · 한 줄에 2개 */
 .mhr-spells { display: flex; gap: 3px; align-items: center; justify-content: center; }
 .mhr-spells .mhr-sr-i { width: 18px; height: 18px; flex: 0 0 18px; }
