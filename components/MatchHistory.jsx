@@ -146,7 +146,7 @@ function RichRow({ p, dd, color, maxDmg, maxTaken, maxGold, durationMin, byName,
       {bar(p.gold, maxGold, 'gold', false)}
       <div className="mhr-c muted"><b>{det.visionScore || 0}</b><span>👁 {det.wardsPlaced || 0}/{det.wardsKilled || 0}</span></div>
       <div className="mhr-c muted"><b>{p.cs || 0}</b><span>{csm ? csm + '/분' : 'CS'}</span></div>
-      <div className="mhr-items">{[0, 1, 2, 3, 4, 5, 6].map((i) => { const u = itemUrl(items[i]); return <span key={i} className="mhr-item">{u ? <img src={u} alt="" width={25} height={25} /> : null}</span>; })}</div>
+      <div className="mhr-items">{[0, 1, 2, 3, 4, 5, 6].map((i) => { const u = itemUrl(items[i]); return <span key={i} className="mhr-item">{u ? <img src={u} alt="" width={30} height={30} /> : null}</span>; })}</div>
     </div>
   );
 }
