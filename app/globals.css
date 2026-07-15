@@ -648,7 +648,7 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mhr-head { display: flex; align-items: center; gap: 10px; padding: 6px 12px; font-size: 12px; background: rgba(255,255,255,.02); border-bottom: 1px solid var(--line); }
 .mhr-head .mhf-label { font-weight: 700; }
 /* 항목을 좌우 끝까지 밀고 균일 간격(space-between). 선수=왼쪽끝, 아이템=오른쪽끝 */
-.mhr-row { display: grid; grid-template-columns: 176px 66px 56px 72px 84px 72px 46px 52px 232px; align-items: center; column-gap: 8px; padding: 4px 16px; border-bottom: 1px solid rgba(255,255,255,.04); justify-content: space-between; }
+.mhr-row { display: grid; grid-template-columns: 250px 66px 58px 74px 86px 74px 48px 54px 232px; align-items: center; column-gap: 8px; padding: 4px 16px; border-bottom: 1px solid rgba(255,255,255,.04); justify-content: space-between; }
 .mhr-row:last-child { border-bottom: none; }
 .mhr-row.mhr-alt { background: var(--tint); } /* 지브라: 팀 색 베이스로 한 줄씩 진하게 */
 .mhr-row.clk { cursor: pointer; }
