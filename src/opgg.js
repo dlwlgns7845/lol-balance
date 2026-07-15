@@ -172,9 +172,30 @@ export function keyStrength(k) {
   return b * 100 + (5 - div) * 10;
 }
 
-// 닉 → 티어 추정 (op.gg 단독, Riot 키 없을 때). 규칙:
-// ① 현재 솔랭 ≥200판 → 현재 티어. ② <200판이면 과거 시즌 판수 검증 필요한데 op.gg는
-// 과거 판수를 안 줌 → 못 함 → op.gg 최고티어로 주고 수동확인(의심). (정밀판은 riot 하이브리드)
+// 닉 → 티어 추정 (op.gg 단독, Riot 키 없을 때). 규칙 (2026-07-15 개정):
+// ① 현재 솔랭 ≥200판 → **근 3시즌(현시즌 최고 + 직전 2시즌 최고) 중 최고 티어**.
+//    (개정 전엔 현재 티어 — 이번 시즌 눌러앉기/강등 억제를 위해 최근 폼의 천장으로)
+// ② <200판이면 과거 시즌 판수 검증 필요한데 op.gg는 과거 판수를 안 줌 → 못 함 →
+//    op.gg 최고티어로 주고 수동확인(의심). (정밀판은 riot 하이브리드)
+
+// 근 3시즌 후보(현시즌 최고 + 직전 2시즌) 중 배정키가 가장 높은 것.
+// 현시즌 후보만 마스터+ ×0.6 내전보정(nerf) 적용 — 비교도 보정 후 키로 일관되게.
+export function bestRecent3(prof) {
+  const cands = [];
+  const ch = prof.curHigh && prof.curHigh.tier ? prof.curHigh : (prof.solo && prof.solo.tier ? prof.solo : null);
+  if (ch) {
+    const k0 = mapTierApexAware(ch.tier, ch.division, ch.lp);
+    cands.push({ key: nerfCurrentApex(k0), raw: k0, cur: true, label: `현시즌 ${ch.tier}${ch.division || ''}` });
+  }
+  for (const s of (prof.seasons || []).slice(0, 2)) {
+    const k = mapTierApexAware(s.tier, s.division, s.lp);
+    cands.push({ key: k, raw: k, cur: false, label: `S${s.season_id} ${s.tier}${s.division || ''}` });
+  }
+  if (!cands.length) return null;
+  cands.sort((a, b) => keyStrength(b.key) - keyStrength(a.key));
+  return cands[0];
+}
+
 export async function fetchTierEstimate(gameName, tagLine, region) {
   const prof = await fetchProfile(gameName, tagLine, region);
   if (!prof.found) return prof;
@@ -184,12 +205,13 @@ export async function fetchTierEstimate(gameName, tagLine, region) {
   const extra = { peakTier: prof.peakTier, curHighTier: prof.curHighTier, lastSeasonTier: prof.lastSeasonTier, level: prof.level ?? null };
 
   if (cur && cur.tier && curGames >= 200) {
-    const k0 = mapTierApexAware(cur.tier, cur.division, cur.lp);
-    const k = nerfCurrentApex(k0); // 현재 시즌이므로 마스터+면 ×0.6
-    return { found: true, gameName: prof.gameName, tag: prof.tag,
-      suggestedTier: k, ...extra,
-      basis: `현재 솔랭 ${cur.tier}${cur.division || ''} ${curGames}판${k !== k0 ? ` · 내전보정 ×0.6→${k}` : ''}`,
-      games: curGames, confidence: 'high', source: 'opgg' };
+    const best = bestRecent3(prof);
+    if (best) {
+      return { found: true, gameName: prof.gameName, tag: prof.tag,
+        suggestedTier: best.key, ...extra,
+        basis: `현재 ${curGames}판≥200 → 근 3시즌 최고 (${best.label})${best.key !== best.raw ? ` · 내전보정 ×0.6→${best.key}` : ''}`,
+        games: curGames, confidence: 'high', source: 'opgg' };
+    }
   }
   // 현재 <200판(표본 부족) → 모든 시즌 통틀어 역대 최고 티어로 판정
   if (prof.peakTier) {

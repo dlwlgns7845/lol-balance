@@ -1,5 +1,5 @@
 // Riot 공식 API로 솔랭 시즌 평균 티어 시드. 서버 전용.
-import { mapTier, fetchProfile, mapTierApexAware, keyStrength, nerfCurrentApex } from './opgg.js';
+import { mapTier, fetchProfile, mapTierApexAware, keyStrength, nerfCurrentApex, bestRecent3 } from './opgg.js';
 
 // ── op.gg season_id ↔ 실제 시즌 날짜창 (NA). 형 스샷으로 확인된 매핑.
 // 29=2024S3, 27=2024S2, 25=2024S1, 23=2023S2, 21=2023S1, 19=2022, 17=2021 …
@@ -141,7 +141,8 @@ async function soloHistory(regional, puuid, key) {
   return { oldestTs, total };
 }
 
-// ── 하이브리드 (형 룰): ① 현재 솔랭 ≥200판 → 현재 티어. ② <200판이면 과거 시즌을
+// ── 하이브리드 (형 룰, 2026-07-15 개정): ① 현재 솔랭 ≥200판 → **근 3시즌(현시즌 최고
+// + 직전 2시즌 최고) 중 최고 티어** (개정 전엔 현재 티어). ② <200판이면 과거 시즌을
 // 최근부터 Riot 판수검증 → ≥150판인 "가장 가까운(최근)" 시즌의 티어(최고 아님). ③ 다 부족 → op.gg 최고티어(의심). ──
 const CUR_MIN = 200, SEASON_MIN = 150, MAX_CHECK = 10; // MAX_CHECK=Riot 검증 시즌 수(레이트리밋 보호)
 export async function fetchTierEstimateHybrid(gameName, tagLine, region) {
@@ -156,14 +157,15 @@ export async function fetchTierEstimateHybrid(gameName, tagLine, region) {
 
   const cur = prof.solo, curGames = cur ? (cur.win || 0) + (cur.lose || 0) : 0;
 
-  // ① 현재 시즌 200판+ → 현재 티어
+  // ① 현재 시즌 200판+ → 근 3시즌(현시즌 최고 + 직전 2시즌) 중 최고 티어
   if (cur && cur.tier && curGames >= CUR_MIN) {
-    const k0 = mapTierApexAware(cur.tier, cur.division, cur.lp);
-    const k = nerfCurrentApex(k0); // 현재 시즌 → 마스터+면 ×0.6
-    return { found: true, gameName: prof.gameName, tag: prof.tag,
-      suggestedTier: k,
-      basis: `현재 솔랭 ${cur.tier}${cur.division || ''} ${curGames}판 (≥${CUR_MIN})${k !== k0 ? ` · 내전보정 ×0.6→${k}` : ''}`,
-      games: curGames, confidence: 'high', source: 'hybrid' };
+    const best = bestRecent3(prof);
+    if (best) {
+      return { found: true, gameName: prof.gameName, tag: prof.tag,
+        suggestedTier: best.key,
+        basis: `현재 ${curGames}판 (≥${CUR_MIN}) → 근 3시즌 최고 (${best.label})${best.key !== best.raw ? ` · 내전보정 ×0.6→${best.key}` : ''}`,
+        games: curGames, confidence: 'high', source: 'hybrid' };
+    }
   }
   // Riot 키 없으면 과거 판수검증 불가 → op.gg 단독 로직으로
   if (!acc) return fallbackOpgg(prof, curGames);
