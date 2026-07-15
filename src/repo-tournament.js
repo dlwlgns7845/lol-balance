@@ -115,7 +115,9 @@ export async function getTournament(id) {
   const pool = poolRes.error ? [] : (poolRes.data || []); // 테이블 미생성(경매 SQL 전) → 빈 풀
   const aucRes = await db().from('tournament_auction').select('*').eq('tournament_id', id).maybeSingle();
   const auction = aucRes.error ? null : (aucRes.data || null);
-  return { tournament, teams: teamsWithMembers, matches: matches || [], pool, auction };
+  const gamesRes = await db().from('tournament_games').select('*').eq('tournament_id', id).order('played_at', { ascending: false });
+  const games = gamesRes.error ? [] : (gamesRes.data || []); // 테이블 미생성(마이그레이션 전) → 빈 목록
+  return { tournament, teams: teamsWithMembers, matches: matches || [], pool, auction, games };
 }
 
 export async function applyTeam(tournamentId, b) {
@@ -568,6 +570,28 @@ export async function setTeamStatus(teamId, status) {
   if (!['pending', 'approved', 'rejected'].includes(status)) throw new Error('잘못된 상태');
   const { error } = await db().from('tournament_teams').update({ status }).eq('id', teamId);
   if (error) throw error;
+}
+
+// ── 🎮 멸망전 경기 기록 (스크림/시합) — 내전과 분리, 팀 로스터 자동 귀속 ──
+const MIGRATE_GAMES = '멸망전 경기 마이그레이션(tournament-games-schema.sql)을 먼저 실행하세요';
+export async function saveTournamentGame(tournamentId, b) {
+  const parts = Array.isArray(b.participants) ? b.participants : [];
+  if (parts.length < 2) throw new Error('참가자 정보가 없어요');
+  const row = {
+    tournament_id: tournamentId, kind: b.kind === 'scrim' ? 'scrim' : 'match',
+    uploader_team_id: b.uploader_team_id || null, uploader_user_id: b.uploader_user_id || null,
+    winner: b.winner === 'B' ? 'B' : 'A', duration_sec: Number(b.durationSec) || 0,
+    objectives: b.objectives || null, participants: parts, source: b.source || 'replay',
+    played_at: b.played_at || new Date().toISOString(),
+  };
+  const { error } = await db().from('tournament_games').insert(row);
+  if (error) { if (/tournament_games|does not exist/i.test(error.message || '')) throw new Error(MIGRATE_GAMES); throw error; }
+  return getTournament(tournamentId);
+}
+export async function deleteTournamentGame(tournamentId, gameId) {
+  const { error } = await db().from('tournament_games').delete().eq('id', gameId).eq('tournament_id', tournamentId);
+  if (error) throw error;
+  return getTournament(tournamentId);
 }
 
 export async function deleteTeam(teamId) {

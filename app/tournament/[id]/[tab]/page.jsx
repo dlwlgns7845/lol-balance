@@ -3,6 +3,8 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { useGroup } from '../../../../components/GroupProvider.jsx';
 import { apiFetch } from '../../../../components/api.js';
+import { useDdragon } from '../../../../components/ddragon.js';
+import { parseRofl } from '../../../../components/rofl.js';
 import { normalizeSettings, REGIONS, TIER_BASES, TIER_BASIS_LABEL } from '../../../../src/tournament-settings.js';
 import { groupStandings } from '../../../../src/bracket.js';
 import { TIER_ORDER, TIER_LABEL, POS_KR, POS, TABLE, tierClass } from '../../../../src/table.js';
@@ -49,7 +51,8 @@ export default function TournamentTab() {
   if (!t) return <div className="panel center muted">{err || '불러오는 중…'}</div>;
 
   const S = normalizeSettings(t.settings);
-  const shared = { t, teams, matches, pool, auction, nameOf, canManage, admin, id, reload: load, S, user, login };
+  const games = data?.games || [];
+  const shared = { t, teams, matches, pool, auction, games, nameOf, canManage, admin, id, reload: load, S, user, login };
   return (
     <>
       <div className="page-head"><div className="title">
@@ -59,7 +62,7 @@ export default function TournamentTab() {
       {tab === 'notice' && <Notice {...shared} />}
       {tab === 'apply' && <Apply {...shared} />}
       {tab === 'stats' && <Stats {...shared} />}
-      {tab === 'scrim' && <div className="panel center muted" style={{ padding: '40px 0' }}>🎯 스크림 기능은 준비 중이에요. (연습경기 매칭·일정 — 원하는 형태 알려주면 붙일게요)</div>}
+      {tab === 'scrim' && <Stats {...shared} />}
       {tab === 'scoreboard' && <Scoreboard {...shared} />}
       {tab === 'schedule' && <Schedule {...shared} />}
       {tab === 'auction' && (!user
@@ -708,30 +711,218 @@ function Apply({ t, teams, pool, auction, canManage, admin, id, reload, S, user,
   );
 }
 
-// ─── 📊 통계 ───
-function Stats({ teams, matches, nameOf }) {
-  const done = matches.filter((m) => m.winner);
+// ─── 📊 통계 (멸망전 전용 경기기록 · 팀별/선수별 집계 · 리플 업로드) ───
+const normG = (s) => (s || '').toLowerCase().replace(/[​-‏‪-‮⁠-⁯﻿]/g, '').split('#')[0].replace(/\s+/g, '');
+const r1 = (n) => Math.round(n * 10) / 10;
+const kfmt = (n) => (n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(Math.round(n || 0)));
+function rosterTeamMap(teams) {
+  const map = {};
+  teams.forEach((t) => (t.members || []).forEach((m) => { const key = normG(m.game_name); if (key) map[key] = { id: t.id, name: t.name }; }));
+  return map;
+}
+function pKey(p) { return normG(p.gameName || p.name); }
+// 선수별 집계 (소속팀 = 로스터 매칭)
+function aggregatePlayers(games, rmap) {
+  const by = {};
+  games.forEach((g) => (g.participants || []).forEach((p) => {
+    const key = pKey(p); if (!key) return;
+    const rt = rmap[key];
+    const e = by[key] || (by[key] = { key, name: p.name || p.gameName, teamId: rt?.id || null, teamName: rt?.name || '미배정', g: 0, w: 0, k: 0, d: 0, a: 0, dmg: 0, gold: 0, cs: 0, champs: {} });
+    e.g += 1; if (g.winner === p.team) e.w += 1;
+    e.k += p.k || 0; e.d += p.d || 0; e.a += p.a || 0; e.dmg += p.damage || 0; e.gold += p.gold || 0; e.cs += p.cs || 0;
+    if (p.champion) e.champs[p.champion] = (e.champs[p.champion] || 0) + 1;
+  }));
+  return Object.values(by);
+}
+// 팀별 집계 (팀의 다수 선수가 있는 쪽 = 그 팀의 진영)
+function aggregateTeams(games, teams, rmap) {
+  const by = {};
+  teams.forEach((t) => { by[t.id] = { id: t.id, name: t.name, g: 0, w: 0, k: 0, d: 0, a: 0, gold: 0 }; });
+  games.forEach((g) => {
+    const side = {};
+    (g.participants || []).forEach((p) => { const rt = rmap[pKey(p)]; if (!rt) return; (side[rt.id] = side[rt.id] || { A: 0, B: 0 })[p.team] += 1; });
+    Object.entries(side).forEach(([tid, sc]) => {
+      const e = by[tid]; if (!e) return;
+      const s = sc.A >= sc.B ? 'A' : 'B';
+      e.g += 1; if (g.winner === s) e.w += 1;
+      (g.participants || []).forEach((p) => { if (p.team === s && rmap[pKey(p)]?.id === tid) { e.k += p.k || 0; e.d += p.d || 0; e.a += p.a || 0; e.gold += p.gold || 0; } });
+    });
+  });
+  return Object.values(by).filter((t) => t.g > 0).sort((a, b) => (b.w / b.g) - (a.w / a.g) || b.g - a.g);
+}
+
+function GameUpload({ teams, id, reload, user, login }) {
+  const [kind, setKind] = useState('match');
+  const [myTeam, setMyTeam] = useState('');
+  const [parsed, setParsed] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const roflRef = useRef();
+  const approved = teams.filter((x) => x.status === 'approved' || x.is_captain_team);
+  async function onRofl(e) {
+    const file = e.target.files?.[0]; if (!file) return;
+    setErr(null); setBusy(true);
+    try { setParsed(await parseRofl(file)); } catch (er) { setErr('리플 분석 실패: ' + er.message); }
+    setBusy(false); if (roflRef.current) roflRef.current.value = '';
+  }
+  async function save() {
+    if (!parsed) return;
+    if (!myTeam) { setErr('내 팀을 선택하세요'); return; }
+    setBusy(true); setErr(null);
+    const participants = parsed.players.map((p) => ({ team: p.team, name: p.riotId || p.gameName, gameName: p.gameName, tag: p.tag, champion: p.champion, k: p.k, d: p.d, a: p.a, damage: p.damage, cs: p.cs, gold: p.gold, position: p.position, detail: p.detail }));
+    try {
+      const r = await apiFetch(`/api/tournaments/${id}/games`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, uploader_team_id: myTeam, winner: parsed.winner, durationSec: parsed.durationSec, objectives: parsed.objectives, participants, source: 'replay' }) }).then((x) => x.json());
+      if (!r.ok) throw new Error(r.error);
+      setParsed(null); setMyTeam(''); reload();
+    } catch (e) { setErr('저장 실패: ' + e.message); } finally { setBusy(false); }
+  }
+  if (!user) return <div className="panel center muted" style={{ padding: '18px 0' }}>경기 기록은 <button className="mini" onClick={login}><span className="gg">G</span> 로그인</button> 후 올릴 수 있어요.</div>;
+  return (
+    <div className="panel">
+      <h2>🎬 경기 기록 올리기 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· .rofl 리플 → 팀 자동 귀속</span></h2>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 8 }}>
+        <span style={{ display: 'inline-flex', gap: 4 }}>
+          <button className={`mini ${kind === 'match' ? 'on' : ''}`} onClick={() => setKind('match')}>🏆 실제 시합</button>
+          <button className={`mini ${kind === 'scrim' ? 'on' : ''}`} onClick={() => setKind('scrim')}>🎯 스크림</button>
+        </span>
+        <select value={myTeam} onChange={(e) => setMyTeam(e.target.value)} style={inp}><option value="">내 팀 선택</option>{approved.map((tm) => <option key={tm.id} value={tm.id}>{tm.name}</option>)}</select>
+        <input ref={roflRef} type="file" accept=".rofl" onChange={onRofl} disabled={busy} style={{ width: 'auto' }} />
+        {busy && <span className="muted">처리 중…</span>}
+      </div>
+      {parsed && (
+        <div style={{ marginTop: 10, padding: '9px 12px', background: '#181820', borderRadius: 8, border: '1px solid #2a2a33' }}>
+          <div style={{ fontSize: 13, marginBottom: 6 }}>분석 완료 · {parsed.players.length}명 · <b className="accent">{parsed.winner === 'A' ? '블루' : '레드'} 승</b> {parsed.durationSec ? `· ${Math.floor(parsed.durationSec / 60)}분` : ''}</div>
+          <div className="muted" style={{ fontSize: 11.5 }}>{parsed.players.map((p) => `${p.team === 'A' ? '🟦' : '🟥'}${p.gameName}(${p.champion})`).join(' · ')}</div>
+          <button className="btn" style={{ marginTop: 8 }} disabled={busy || !myTeam} onClick={save}>{busy ? '저장 중…' : `${kind === 'scrim' ? '스크림' : '시합'} 기록 저장`}</button>
+        </div>
+      )}
+      {err && <div className="err" style={{ whiteSpace: 'pre-wrap' }}>{err}</div>}
+    </div>
+  );
+}
+
+function Stats({ teams, games, id, reload, user, login, canManage }) {
+  const dd = useDdragon();
+  const [kindF, setKindF] = useState('all'); // all | match | scrim
+  const [sel, setSel] = useState(null);      // 선택한 선수 key (개인 프로필)
+  const [busy, setBusy] = useState(false);
+  const rmap = rosterTeamMap(teams);
+  const fgames = games.filter((g) => kindF === 'all' || g.kind === kindF);
+  const players = aggregatePlayers(fgames, rmap).sort((a, b) => (b.w / (b.g || 1)) - (a.w / (a.g || 1)) || b.g - a.g);
+  const tstats = aggregateTeams(fgames, teams, rmap);
+  const nameById = Object.fromEntries(teams.map((t) => [t.id, t.name]));
+  const mostChamp = (c) => { const e = Object.entries(c).sort((a, b) => b[1] - a[1])[0]; return e ? e[0] : '-'; };
+  async function del(gameId) {
+    if (!confirm('이 경기 기록을 삭제할까요?')) return;
+    setBusy(true);
+    try { const r = await apiFetch(`/api/tournaments/${id}/games`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gameId }) }).then((x) => x.json()); if (!r.ok) alert('실패: ' + r.error); else reload(); } finally { setBusy(false); }
+  }
+  const selPlayer = sel ? players.find((p) => p.key === sel) : null;
+  const selGames = sel ? fgames.filter((g) => (g.participants || []).some((p) => pKey(p) === sel)) : [];
+
   return (
     <>
+      <GameUpload teams={teams} id={id} reload={reload} user={user} login={login} />
+
       <div className="panel">
-        <h2>참가팀 로스터·티어</h2>
-        {teams.filter((x) => x.status === 'approved').map((tm) => (
-          <div key={tm.id} style={{ borderTop: '1px solid #2a2a33', padding: '8px 0' }}>
-            <b>{tm.name}</b>
-            <div className="muted" style={{ fontSize: 12, marginTop: 3 }}>{tm.members.map((mm) => `${mm.game_name}${mm.tier ? ` (${mm.tier})` : ''}`).join(' · ')}</div>
-          </div>
-        ))}
-        {teams.filter((x) => x.status === 'approved').length === 0 && <div className="muted">승인된 팀이 없어요.</div>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <h2 style={{ margin: 0 }}>📊 통계</h2>
+          <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
+            {[['all', '전체'], ['match', '🏆 시합'], ['scrim', '🎯 스크림']].map(([k, l]) => (
+              <button key={k} className={`mini ${kindF === k ? 'on' : ''}`} onClick={() => setKindF(k)}>{l}</button>
+            ))}
+          </span>
+        </div>
+        {fgames.length === 0 && <div className="muted" style={{ marginTop: 10 }}>아직 기록된 경기가 없어요. 위에서 리플을 올려보세요.</div>}
       </div>
-      <div className="panel">
-        <h2>경기 결과 ({done.length})</h2>
-        {done.length === 0 && <div className="muted">아직 진행된 경기가 없어요.</div>}
-        {done.map((m) => (
-          <div key={m.id} style={{ borderTop: '1px solid #2a2a33', padding: '7px 0', fontSize: 13 }}>
-            <span className="muted" style={{ fontSize: 11 }}>R{m.round}</span>　{nameOf(m.team_a)} vs {nameOf(m.team_b)} → <b className="accent">{nameOf(m.winner)}</b>{m.score_a != null ? ` (${m.score_a}:${m.score_b})` : ''}
-          </div>
-        ))}
-      </div>
+
+      {tstats.length > 0 && (
+        <div className="panel">
+          <h2>🏅 팀 순위 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 승률순</span></h2>
+          <table className="rec-table" style={{ marginTop: 8 }}>
+            <thead><tr><th>#</th><th className="l">팀</th><th>경기</th><th>승</th><th>패</th><th>승률</th><th>KDA</th><th>골드/경기</th></tr></thead>
+            <tbody>
+              {tstats.map((t, i) => (
+                <tr key={t.id}><td>{i + 1}</td><td className="l"><b>{t.name}</b></td><td>{t.g}</td><td>{t.w}</td><td>{t.g - t.w}</td>
+                  <td>{Math.round(t.w / t.g * 100)}%</td><td className="muted">{t.k}/{t.d}/{t.a}</td><td className="muted">{kfmt(t.gold / t.g)}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {players.length > 0 && (
+        <div className="panel">
+          <h2>🧑 선수 통계 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 클릭하면 개인 기록</span></h2>
+          <table className="rec-table" style={{ marginTop: 8 }}>
+            <thead><tr><th className="l">선수</th><th className="l">팀</th><th>경기</th><th>승률</th><th>평균 KDA</th><th>평균딜</th><th>평균골드</th><th className="l">모스트</th></tr></thead>
+            <tbody>
+              {players.map((p) => (
+                <tr key={p.key} className={sel === p.key ? 'win' : ''} style={{ cursor: 'pointer' }} onClick={() => setSel(sel === p.key ? null : p.key)}>
+                  <td className="l"><b>{p.name}</b></td>
+                  <td className="l muted">{p.teamName}</td>
+                  <td>{p.g}</td>
+                  <td>{Math.round(p.w / p.g * 100)}%</td>
+                  <td>{r1(p.k / p.g)} / <span className="red">{r1(p.d / p.g)}</span> / {r1(p.a / p.g)}</td>
+                  <td className="muted">{kfmt(p.dmg / p.g)}</td>
+                  <td className="muted">{kfmt(p.gold / p.g)}</td>
+                  <td className="l muted">{mostChamp(p.champs)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {selPlayer && (
+        <div className="panel">
+          <h2>👤 {selPlayer.name} <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· {selPlayer.teamName} · {selPlayer.g}경기 {selPlayer.w}승 {selPlayer.g - selPlayer.w}패</span></h2>
+          {selGames.map((g) => {
+            const me = (g.participants || []).find((p) => pKey(p) === sel);
+            if (!me) return null;
+            const win = g.winner === me.team;
+            return (
+              <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 10, borderTop: '1px solid #2a2a33', padding: '7px 0', fontSize: 13 }}>
+                <span className={win ? 'accent' : 'red'} style={{ fontWeight: 700, width: 26 }}>{win ? '승' : '패'}</span>
+                {dd.icon(me.champion) ? <img src={dd.icon(me.champion)} alt="" width={22} height={22} style={{ borderRadius: 5 }} /> : null}
+                <span style={{ width: 90 }}>{me.champion}</span>
+                <span>{me.k} / <span className="red">{me.d}</span> / {me.a}</span>
+                <span className="muted" style={{ fontSize: 11.5 }}>딜 {kfmt(me.damage)} · 골드 {kfmt(me.gold)} · CS {me.cs}</span>
+                <span className="muted" style={{ marginLeft: 'auto', fontSize: 11 }}>{g.kind === 'scrim' ? '🎯' : '🏆'}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {fgames.length > 0 && (
+        <div className="panel">
+          <h2>🎮 경기 기록 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· {fgames.length}경기 · 올린 팀 기준</span></h2>
+          {fgames.map((g) => {
+            const A = (g.participants || []).filter((p) => p.team === 'A');
+            const B = (g.participants || []).filter((p) => p.team === 'B');
+            const sum = (arr, f) => arr.reduce((s, p) => s + (p[f] || 0), 0);
+            const teamRow = (arr, side) => (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', opacity: g.winner === side ? 1 : 0.65 }}>
+                <span style={{ width: 30, fontSize: 11 }} className={g.winner === side ? 'accent' : 'muted'}>{side === 'A' ? '🟦' : '🟥'}{g.winner === side ? '승' : ''}</span>
+                {arr.map((p, i) => dd.icon(p.champion) ? <img key={i} src={dd.icon(p.champion)} alt={p.champion} title={`${p.gameName} (${p.champion}) ${p.k}/${p.d}/${p.a}`} width={22} height={22} style={{ borderRadius: 5 }} /> : <span key={i} className="muted" style={{ fontSize: 10 }}>{p.champion}</span>)}
+                <span className="muted" style={{ fontSize: 11, marginLeft: 4 }}>{sum(arr, 'k')}/{sum(arr, 'd')}/{sum(arr, 'a')}</span>
+              </div>
+            );
+            return (
+              <div key={g.id} style={{ borderTop: '1px solid #2a2a33', padding: '9px 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                  <span className="mini" style={{ padding: '1px 7px', fontSize: 10.5 }}>{g.kind === 'scrim' ? '🎯 스크림' : '🏆 시합'}</span>
+                  <span className="muted" style={{ fontSize: 11.5 }}>올린 팀: <b>{nameById[g.uploader_team_id] || '-'}</b>{g.duration_sec ? ` · ${Math.floor(g.duration_sec / 60)}분` : ''}</span>
+                  {(canManage || (user && g.uploader_user_id === user.id)) && <button className="mini" style={{ marginLeft: 'auto' }} disabled={busy} onClick={() => del(g.id)}>🗑</button>}
+                </div>
+                {teamRow(A, 'A')}
+                {teamRow(B, 'B')}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </>
   );
 }
