@@ -146,11 +146,12 @@ function RichRow({ p, dd, color, maxDmg, maxTaken, maxGold, durationMin, byName,
       {bar(p.gold, maxGold, 'gold', false)}
       <div className="mhr-c muted"><b>{det.visionScore || 0}</b><span>👁 {det.wardsPlaced || 0}/{det.wardsKilled || 0}</span></div>
       <div className="mhr-c muted"><b>{p.cs || 0}</b><span>{csm ? csm + '/분' : 'CS'}</span></div>
-      <div className="mhr-items">{[0, 1, 2, 3, 4, 5, 6].map((i) => { const u = itemUrl(items[i]); return <span key={i} className="mhr-item">{u ? <img src={u} alt="" width={30} height={30} /> : null}</span>; })}</div>
-      <div className="mhr-quest-cell" title={questDone ? '역할 퀘스트 완료 · 보상 신발' : (roleItem ? '역할 보상 신발' : '역할 퀘스트 미완료')}>
-        {roleItem
-          ? <span className={`mhr-item mhr-qitem ${questDone ? 'done' : ''}`}>{itemUrl(roleItem) ? <img src={itemUrl(roleItem)} alt="" width={30} height={30} /> : null}</span>
-          : (questDone ? <span className="mhr-qcheck">✓</span> : <span className="mhr-qempty" />)}
+      <div className="mhr-items">
+        {[0, 1, 2, 3, 4, 5, 6].map((i) => { const u = itemUrl(items[i]); return <span key={i} className="mhr-item">{u ? <img src={u} alt="" width={30} height={30} /> : null}</span>; })}
+        <span className="mhr-qdiv" />
+        <span className={`mhr-item mhr-qitem ${questDone ? 'done' : ''}`} title={questDone ? '역할 퀘스트 완료 · 보상 신발' : (roleItem ? '역할 보상 신발' : '역할 퀘스트')}>
+          {roleItem && itemUrl(roleItem) ? <img src={itemUrl(roleItem)} alt="" width={30} height={30} /> : (questDone ? <span className="mhr-qcheck">✓</span> : null)}
+        </span>
       </div>
     </div>
   );
@@ -172,8 +173,7 @@ function RosterRich({ label, players, win, color, dd, maxDmg, maxTaken, maxGold,
         <span>골드</span>
         <span>와드</span>
         <span>CS</span>
-        <span>아이템</span>
-        <span>퀘스트</span>
+        <span>아이템 · 퀘스트</span>
       </div>
       {players.map((p, i) => <RichRow key={i} p={p} dd={dd} color={color} maxDmg={maxDmg} maxTaken={maxTaken} maxGold={maxGold} durationMin={durationMin} byName={byName} onPlayer={onPlayer} itemUrl={itemUrl} highlight={highlight} alt={i % 2 === 1} />)}
     </div>
