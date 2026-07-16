@@ -1272,7 +1272,7 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 @media (max-width: 640px) { .sf-teams { grid-template-columns: 1fr; } }
 
 /* ── op.gg식 본인 참여경기 행 (OpMeRow) ── */
-.mh-opme { display: grid; grid-template-columns: 64px 60px 27px 96px 66px 100px 126px minmax(0,1fr) 330px 14px; align-items: center; column-gap: 8px; padding: 8px 14px; border-radius: 10px; cursor: pointer; border-left: 4px solid transparent; transition: filter .12s; }
+.mh-opme { display: grid; grid-template-columns: 64px 60px 27px 96px 66px 100px 126px minmax(0,1fr) 300px 14px; align-items: center; column-gap: 8px; padding: 8px 14px; border-radius: 10px; cursor: pointer; border-left: 4px solid transparent; transition: filter .12s; }
 .opme-stats { padding-left: 6px; }
 .mh-opme:hover { filter: brightness(1.09); }
 .mh-opme.w { background: linear-gradient(90deg, rgba(77,124,254,.16), rgba(77,124,254,.045)); border-left-color: #4d7cfe; }

@@ -224,14 +224,6 @@ function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshol
   const items = det.items || [];
   const hasLoad = !!(det.level || spells.some(Boolean) || runes.some(Boolean));
   const hasItems = items.some(Boolean) || det.roleItem;
-  // 숫자+짧은막대 셀(펼친 상세와 동일 스타일) — 경기 내 최고치 대비
-  const pct = (v, mx) => Math.min(100, Math.round((v || 0) / (mx || 1) * 100)) + '%';
-  const scell = (label, txt, val, mx, cls) => (
-    <div className="mhr-stat opme-sc">
-      <span><span className="opme-scl muted">{label}</span> {txt}</span>
-      <div className="dmg-bar"><span className={`f ${cls}`} style={{ width: pct(val, mx) }} /></div>
-    </div>
-  );
   const roster = (players) => (
     <div className="opme-rcol">
       {players.map((p, i) => (
@@ -277,15 +269,7 @@ function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshol
           {det.roleItem && itemUrl(det.roleItem) ? <span className="opme-it q"><img src={itemUrl(det.roleItem)} alt="" width={30} height={30} /></span> : (det.questDone ? <span className="opme-it q done"><span className="mhr-qcheck">✓</span></span> : null)}
         </div>
       ) : <div className="opme-items" />}
-      {open ? (
-        <div className="opme-stats">
-          {scell('딜', k(me.damage || 0), me.damage, max.dmg, 'blue')}
-          {det.dmgTaken ? scell('받음', k(det.dmgTaken), det.dmgTaken, max.taken, 'taken') : null}
-          {scell('CS', `${me.cs || 0}${csm ? ` (${csm})` : ''}`, me.cs, max.cs, 'cs')}
-        </div>
-      ) : (
-        <div className="opme-stats"><span className="opme-csv">CS {me.cs || 0}{csm ? ` (${csm})` : ''}</span></div>
-      )}
+      <div className="opme-stats"><span className="opme-csv">CS {me.cs || 0}{csm ? ` (${csm})` : ''}</span></div>
       <div className="opme-rosters">
         {roster(m.A)}
         {roster(m.B)}
