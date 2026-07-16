@@ -696,8 +696,8 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mhr-cr { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
 .mhr-champ { position: relative; width: 32px; height: 32px; flex-shrink: 0; }
 .mhr-lv { position: absolute; right: -3px; bottom: -3px; min-width: 15px; height: 15px; padding: 0 2px; border-radius: 8px; background: #0b0b10; border: 1px solid rgba(255,255,255,.35); color: #e7e7ee; font-size: 9.5px; font-weight: 700; line-height: 15px; text-align: center; }
-/* 스펠·룬: 챔프 옆 세로 2단씩 (op.gg식 로드아웃) */
-.mhr-sp2, .mhr-runes { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; align-items: center; justify-content: center; }
+/* 스펠·룬: 챔프 옆 세로 2단씩 (op.gg식 로드아웃) — 챔프 높이(32px)에 딱 맞춰 정렬 */
+.mhr-sp2, .mhr-runes { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; align-items: center; justify-content: center; height: 32px; }
 .mhr-sp2 .mhr-sr-i { width: 15px; height: 15px; flex: 0 0 15px; border-radius: 4px; }
 .mhr-sp2 .mhr-sr-i img { width: 15px; height: 15px; object-fit: contain; }
 .mhr-runes .mhr-sr-i { width: 15px; height: 15px; flex: 0 0 15px; background: transparent; border-radius: 50%; }
