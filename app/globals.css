@@ -1293,20 +1293,20 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 .opme-slot.rune, .opme-slot.rune img { border-radius: 50%; }
 .opme-sp2 .opme-slot { width: 20px; height: 20px; }
 .opme-nt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.opme-cn { font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.opme-cn { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .opme-kda { display: flex; flex-direction: column; align-items: center; gap: 1px; text-align: center; }
-.opme-kdal { font-size: 14px; font-weight: 700; }
-.opme-ratio { font-size: 12px; font-weight: 700; color: #b9b9c4; }
-.opme-kp { font-size: 10.5px; }
+.opme-kdal { font-size: 15px; font-weight: 700; }
+.opme-ratio { font-size: 13px; font-weight: 700; color: #b9b9c4; }
+.opme-kp { font-size: 12.5px; }
 .opme-mid { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; text-align: center; }
-.opme-tier { font-size: 11px; font-weight: 700; }
+.opme-tier { font-size: 13px; font-weight: 700; }
 .opme-rank { font-size: 11px; color: #c9a24d; font-weight: 700; }
 .opme-items { display: flex; flex-wrap: wrap; gap: 2px; width: 100%; max-width: 126px; align-content: center; }
 /* 중앙 스탯 셀(딜/받음/CS/골드) — 펼친 상세와 동일한 숫자+짧은막대, 가로는 균등분산으로 채움 */
 .opme-stats { display: flex; align-items: center; gap: 16px; }
-.opme-sc { width: 78px; flex: none; font-size: 11.5px; align-items: flex-start; gap: 3px; }
+.opme-sc { width: 90px; flex: none; font-size: 14.5px; align-items: flex-start; gap: 3px; }
 .opme-sc > span { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.opme-scl { font-weight: 400; font-size: 10px; }
+.opme-scl { font-weight: 400; font-size: 11px; }
 .dmg-bar .f.cs { background: linear-gradient(90deg, #3fa66f, #58c19a); }
 .opme-it { width: 22px; height: 22px; border-radius: 4px; background: #131318; display: block; overflow: hidden; }
 .opme-it img { border-radius: 4px; display: block; }
