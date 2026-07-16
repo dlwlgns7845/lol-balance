@@ -565,7 +565,7 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 /* 선수 상세: 좌 사이드바(포지션+모스트, 폭 축소) + 우 참여경기 */
 .pl-layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 14px; align-items: start; }
 .pl-left { display: flex; flex-direction: column; gap: 14px; }
-.pl-right { min-width: 0; }
+.pl-right { min-width: 0; max-width: 1140px; }
 @media (max-width: 1280px) { .pl-layout { grid-template-columns: 1fr; } }
 .pc-duos { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
 .duo-row { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 3px 0; }
@@ -654,7 +654,7 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mhr-head { display: flex; align-items: center; gap: 10px; padding: 6px 12px; font-size: 10px; background: rgba(255,255,255,.02); border-bottom: 1px solid var(--line); }
 .mhr-head .mhf-label { font-weight: 700; }
 /* 항목을 좌우 끝까지 밀고 균일 간격(space-between). 선수=왼쪽끝, 아이템=오른쪽끝 */
-.mhr-row { display: grid; grid-template-columns: 280px 66px 82px 74px 86px 74px 48px 54px 278px; align-items: center; column-gap: 8px; padding: 4px 16px; border-bottom: 1px solid rgba(255,255,255,.04); justify-content: space-between; }
+.mhr-row { display: grid; grid-template-columns: 280px 66px 82px 74px 86px 74px 48px 54px 278px; align-items: center; column-gap: 8px; padding: 4px 16px; border-bottom: 1px solid rgba(255,255,255,.04); }
 .mhr-row:last-child { border-bottom: none; }
 .mhr-row.mhr-alt { background: var(--tint); } /* 지브라: 팀 색 베이스로 한 줄씩 진하게 */
 .mhr-row.clk { cursor: pointer; }
