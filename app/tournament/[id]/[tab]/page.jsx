@@ -8,6 +8,8 @@ import { parseRofl } from '../../../../components/rofl.js';
 import { RichScoreboard } from '../../../../components/MatchHistory.jsx';
 import Avatar from '../../../../components/Avatar.jsx';
 import PlayerCard from '../../../../components/PlayerCard.jsx';
+import ChampImg from '../../../../components/ChampImg.jsx';
+import WinLossBar from '../../../../components/WinLossBar.jsx';
 import { normalizeSettings, REGIONS, TIER_BASES, TIER_BASIS_LABEL } from '../../../../src/tournament-settings.js';
 import { groupStandings } from '../../../../src/bracket.js';
 import { TIER_ORDER, TIER_LABEL, POS_KR, POS, TABLE, tierClass } from '../../../../src/table.js';
@@ -53,6 +55,8 @@ function StatsSearch({ id, teams, games }) {
 
 export default function TournamentTab() {
   const { id, tab } = useParams();
+  const sp = useSearchParams();
+  const onDetailPage = tab === 'stats' && !!(sp.get('player') || sp.get('team')); // 상세 페이지면 대회 제목 숨김
   const { user, isAdmin, login } = useGroup() || {};
   const [data, setData] = useState(null);
   const [myRole, setMyRole] = useState(null); // 서버 판정 역할 (owner/admin/viewer)
@@ -86,10 +90,12 @@ export default function TournamentTab() {
   return (
     <>
       <div className="page-head">
-        <div className="title">
-          <h1>🏆 {t.name} <span className="muted" style={{ fontSize: 14, fontWeight: 400 }}>{STLABEL[t.status]}</span></h1>
-          <p className="sub" style={{ margin: 0 }}>{FORMAT_LABEL[S.format]} · 최대 {t.max_teams}팀 · 시드 {SEED_LABEL[S.seeding]}{S.bestOf > 1 ? ` · BO${S.bestOf}` : ''}{S.bestOfFinalRounds > 0 && S.bestOfFinal !== S.bestOf ? ` (후반 BO${S.bestOfFinal})` : ''}</p>
-        </div>
+        {onDetailPage
+          ? <div className="title"><h1>전적</h1></div>
+          : <div className="title">
+              <h1>🏆 {t.name} <span className="muted" style={{ fontSize: 14, fontWeight: 400 }}>{STLABEL[t.status]}</span></h1>
+              <p className="sub" style={{ margin: 0 }}>{FORMAT_LABEL[S.format]} · 최대 {t.max_teams}팀 · 시드 {SEED_LABEL[S.seeding]}{S.bestOf > 1 ? ` · BO${S.bestOf}` : ''}{S.bestOfFinalRounds > 0 && S.bestOfFinal !== S.bestOf ? ` (후반 BO${S.bestOfFinal})` : ''}</p>
+            </div>}
         {tab === 'stats' && <StatsSearch id={id} teams={teams} games={games} />}
       </div>
       {tab === 'notice' && <Notice {...shared} />}
@@ -1126,68 +1132,77 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
 
       {playerPage && (() => {
         const agg = allAgg.find((x) => x.key === playerPage);
-        if (!agg) return <div className="panel"><button className="mini" onClick={goStats}>← 통계</button><div className="muted" style={{ marginTop: 10 }}>기록 없는 선수예요.</div></div>;
+        if (!agg) return <div className="panel center muted" style={{ padding: "28px 0" }}>기록 없는 선수예요.</div>;
         const bd = playerBreakdown(playerPage, games);
         const g = agg.g || 1;
         const posEntries = POS_ORDER.filter((pp) => bd.positions[pp]).map((pp) => [pp, bd.positions[pp]]);
         const pGames = games.filter((gm) => (gm.participants || []).some((pp) => pKey(pp) === playerPage));
+        const member = teams.flatMap((t) => t.members || []).find((m) => normG(m.game_name) === playerPage);
+        const wr = agg.w / g;
+        const wrCl = wr >= 0.6 ? "green" : wr >= 0.5 ? "yellow" : "red";
+        const kda = agg.d ? (agg.k + agg.a) / agg.d : (agg.k + agg.a);
+        const kpi = (label, val) => <div className="stat-card"><div className="label">{label}</div><div className="value" style={{ fontSize: 20 }}>{val}</div></div>;
         return (
-          <div className="panel">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <button className="mini" onClick={goStats}>← 통계</button>
-              <Avatar name={agg.name} size={44} />
-              <div>
-                <h2 style={{ margin: 0 }}>{agg.name}</h2>
-                <div className="muted" style={{ fontSize: 12.5 }}>{agg.teamName} · {agg.g}경기 · <b className="accent">{Math.round(agg.w / g * 100)}%</b> ({agg.w}승 {agg.g - agg.w}패) · 평균 {r1(agg.k / g)}/{r1(agg.d / g)}/{r1(agg.a / g)} · 딜 {kfmt(agg.dmg / g)}</div>
-              </div>
-              <button className="btn ghost" style={{ marginLeft: 'auto' }} onClick={() => setSel(playerPage)}>카드 보기</button>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14, marginTop: 14, alignItems: 'start' }}>
-              <div>
-                <h3 style={{ margin: '0 0 6px', fontSize: 14 }}>모스트 챔피언</h3>
-                {bd.champs.slice(0, 6).map((c) => (
-                  <div key={c.champion} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', borderTop: '1px solid #23232b', fontSize: 12.5 }}>
-                    {champImg(c.champion) ? <img src={champImg(c.champion)} alt="" width={26} height={26} style={{ borderRadius: 5 }} /> : null}
-                    <span style={{ flex: 1 }}><b>{c.champion}</b> <span className="muted" style={{ fontSize: 11 }}>{c.g}판 · KDA {c.kda}</span></span>
-                    <span className={c.winrate >= 0.5 ? 'accent' : 'red'}>{Math.round(c.winrate * 100)}%</span>
-                  </div>
-                ))}
-              </div>
-              <div>
-                <h3 style={{ margin: '0 0 6px', fontSize: 14 }}>포지션</h3>
-                {posEntries.length === 0 && <div className="muted" style={{ fontSize: 12 }}>포지션 데이터 없음</div>}
-                {posEntries.map(([pp, o]) => (
-                  <div key={pp} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 12.5 }}>
-                    <span style={{ width: 36 }} className="muted">{POS_KR[pp]}</span><span style={{ width: 34 }}>{o.g}판</span>
-                    <div style={{ flex: 1, height: 10, borderRadius: 5, overflow: 'hidden', display: 'flex', background: '#2a2a33' }}><span style={{ width: `${o.w / o.g * 100}%`, background: '#3fa66f' }} /><span style={{ flex: 1, background: '#c15563' }} /></div>
-                    <span style={{ width: 40, textAlign: 'right' }} className={o.w / o.g >= 0.5 ? 'accent' : 'red'}>{Math.round(o.w / o.g * 100)}%</span>
-                  </div>
-                ))}
+          <>
+            <div className="panel prof-top">
+              <div className="prof-name">
+                <span className="prof-av" style={{ background: "none", padding: 0 }}><Avatar name={agg.name} size={48} /></span>
+                <div>
+                  <div className="prof-nm">{agg.name}</div>
+                  <div className="prof-sub">{member?.tier ? <span className={tierClass(member.tier)}>{TIER_LABEL[member.tier] || member.tier}</span> : agg.teamName} · {agg.g}게임 · <b className={wrCl}>{Math.round(wr * 100)}%</b> ({agg.w}승 {agg.g - agg.w}패)</div>
+                </div>
               </div>
             </div>
-            {bd.champs.length > 0 && (<>
-              <h3 style={{ margin: '16px 0 4px', fontSize: 14 }}>챔피언 상세</h3>
-              <div style={{ overflowX: 'auto' }}><table className="rec-table">
-                <thead><tr><th className="l">챔피언</th><th>판</th><th>승률</th><th>KDA</th><th className="l">평균K/D/A</th><th>딜(분당)</th><th>CS(분당)</th><th>골드(분당)</th><th>멀티킬</th></tr></thead>
-                <tbody>{bd.champs.map((c) => (
-                  <tr key={c.champion}>
-                    <td className="l"><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{champImg(c.champion) ? <img src={champImg(c.champion)} alt="" width={22} height={22} style={{ borderRadius: 5 }} /> : null}{c.champion}</span></td>
-                    <td>{c.g}</td><td className={c.winrate >= 0.6 ? 'accent' : c.winrate < 0.4 ? 'red' : ''}>{Math.round(c.winrate * 100)}%</td><td><b>{c.kda}</b></td>
-                    <td className="l muted">{c.avgK}/<span className="red">{c.avgD}</span>/{c.avgA}</td>
-                    <td>{c.hasDetail ? <>{kfmt(c.avgDmg)} <span className="muted">({c.dmgPerMin})</span></> : <span className="muted">-</span>}</td>
-                    <td>{c.hasDetail ? <>{c.avgCs} <span className="muted">({c.csPerMin})</span></> : <span className="muted">-</span>}</td>
-                    <td>{c.hasDetail ? <>{kfmt(c.avgGold)} <span className="muted">({c.goldPerMin})</span></> : <span className="muted">-</span>}</td>
-                    <td>{c.multikills ? <b className="gold">{c.multikills}</b> : <span className="muted">-</span>}</td>
-                  </tr>
-                ))}</tbody>
-              </table></div>
-            </>)}
-            {[['scrim', '🎯 스크림'], ['match', '🏆 실제경기']].map(([grp, label]) => {
+            <div className="stat-grid" style={{ gridTemplateColumns: "repeat(6, 1fr)" }}>
+              {kpi("KDA", kda.toFixed(2))}
+              {kpi("총 K/D/A", agg.k + "/" + agg.d + "/" + agg.a)}
+              {kpi("평균 딜량", Math.round(agg.dmg / g).toLocaleString())}
+              {kpi("평균 CS", Math.round(agg.cs / g))}
+              {kpi("평균 골드", kfmt(agg.gold / g))}
+              {kpi("챔프 폭", Object.keys(agg.champs).length)}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 14, alignItems: "start" }}>
+              <div className="panel">
+                <h2>모스트 챔피언</h2>
+                <div className="pc-champs">
+                  {bd.champs.slice(0, 6).map((c) => (
+                    <div className="pc-champ" key={c.champion}>
+                      <ChampImg name={c.champion} iconUrl={dd.icon} size={32} />
+                      <div className="pcc-info">
+                        <span className="pcc-name">{c.champion}</span>
+                        <span className="muted" style={{ fontSize: 11 }}>{c.g}판 · KDA {c.kda} · {c.k}/<span className="red">{c.d}</span>/{c.a}</span>
+                      </div>
+                      <WinLossBar wins={c.w} losses={c.g - c.w} showText />
+                      <span className={"pcc-wr " + (c.winrate >= 0.6 ? "green" : c.winrate >= 0.5 ? "yellow" : "red")}>{Math.round(c.winrate * 100)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {posEntries.length > 0 && (
+                <div className="panel">
+                  <h2>포지션</h2>
+                  {posEntries.map(([pp, o]) => (
+                    <div key={pp} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", fontSize: 13 }}>
+                      <span style={{ width: 40 }} className="muted">{POS_KR[pp]}</span><span style={{ width: 40 }}>{o.g}판</span>
+                      <div style={{ flex: 1, height: 12, borderRadius: 6, overflow: "hidden", display: "flex", background: "#2a2a33" }}><span style={{ width: (o.w / o.g * 100) + "%", background: "#3fa66f" }} /><span style={{ flex: 1, background: "#c15563" }} /></div>
+                      <span style={{ width: 44, textAlign: "right" }} className={o.w / o.g >= 0.5 ? "accent" : "red"}>{Math.round(o.w / o.g * 100)}%</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <h2 style={{ fontSize: 15, margin: "4px 2px 10px" }}>참여 경기 <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>· 배너 눌러 펼치면 그 경기 전체 상세</span></h2>
+            {[["scrim", "🎯 스크림"], ["match", "🏆 실제경기"]].map(([grp, label]) => {
               const kg = pGames.filter((gm) => kindGroup(gm) === grp);
               if (!kg.length) return null;
-              return (<div key={grp}><h3 style={{ margin: '16px 0 2px', fontSize: 14 }}>{label} <span className="muted" style={{ fontSize: 11.5, fontWeight: 400 }}>{kg.length}경기</span></h3>{kg.map((gm) => <GameRow key={gm.id} g={gm} />)}</div>);
+              return (
+                <div key={grp} className="panel">
+                  <h3 style={{ margin: "0 0 4px", fontSize: 14 }}>{label} <span className="muted" style={{ fontSize: 11.5, fontWeight: 400 }}>{kg.length}경기</span></h3>
+                  {kg.map((gm) => <GameRow key={gm.id} g={gm} />)}
+                </div>
+              );
             })}
-          </div>
+          </>
         );
       })()}
 
@@ -1199,8 +1214,7 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
         const tGames = games.filter((g) => (g.participants || []).some((p) => rmap[pKey(p)]?.id === teamPage));
         return (
           <div className="panel">
-            <button className="mini" onClick={goStats}>← 통계</button>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
               <h2 style={{ margin: 0 }}>🛡 {t.name}</h2>
               {ts && <span className="muted">{ts.g}경기 · <b className="accent">{Math.round(ts.w / ts.g * 100)}%</b> ({ts.w}승 {ts.g - ts.w}패) · KDA {ts.k}/{ts.d}/{ts.a} · 골드/경기 {kfmt(ts.gold / ts.g)}</span>}
             </div>
