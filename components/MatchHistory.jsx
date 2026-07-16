@@ -277,11 +277,15 @@ function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshol
           {det.roleItem && itemUrl(det.roleItem) ? <span className="opme-it q"><img src={itemUrl(det.roleItem)} alt="" width={30} height={30} /></span> : (det.questDone ? <span className="opme-it q done"><span className="mhr-qcheck">✓</span></span> : null)}
         </div>
       ) : <div className="opme-items" />}
-      <div className="opme-stats">
-        {scell('딜', k(me.damage || 0), me.damage, max.dmg, 'blue')}
-        {det.dmgTaken ? scell('받음', k(det.dmgTaken), det.dmgTaken, max.taken, 'taken') : null}
-        {scell('CS', `${me.cs || 0}${csm ? ` (${csm})` : ''}`, me.cs, max.cs, 'cs')}
-      </div>
+      {open ? (
+        <div className="opme-stats">
+          {scell('딜', k(me.damage || 0), me.damage, max.dmg, 'blue')}
+          {det.dmgTaken ? scell('받음', k(det.dmgTaken), det.dmgTaken, max.taken, 'taken') : null}
+          {scell('CS', `${me.cs || 0}${csm ? ` (${csm})` : ''}`, me.cs, max.cs, 'cs')}
+        </div>
+      ) : (
+        <div className="opme-stats"><span className="opme-csv">CS {me.cs || 0}{csm ? ` (${csm})` : ''}</span></div>
+      )}
       <div className="opme-rosters">
         {roster(m.A)}
         {roster(m.B)}
