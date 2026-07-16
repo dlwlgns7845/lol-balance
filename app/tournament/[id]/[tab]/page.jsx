@@ -755,15 +755,44 @@ function aggregateTeams(games, teams, rmap) {
 const GKINDS = [['open', '🎯 자유 스크림', '팀 확정 전 자유 경기'], ['team', '🛡 팀 스크림', '팀 확정 후 팀별 연습'], ['match', '🏆 실제 경기', '본선 시합']];
 const GKIND_LABEL = { open: '자유 스크림', team: '팀 스크림', match: '실제 경기' };
 const kindOf = (g) => (g.kind === 'team' ? 'team' : g.kind === 'match' ? 'match' : 'open');
-// 챔피언 집계
-function aggregateChamps(games) {
+// 통계용 2분류: 스크림(자유+팀) vs 실제경기
+const kindGroup = (g) => (kindOf(g) === 'match' ? 'match' : 'scrim');
+const POS_ORDER = ['top', 'jungle', 'mid', 'adc', 'sup'];
+// 챔피언 상세 집계 (딜/CS/골드 분당 · 시야 · 멀티킬 — 내전 챔피언 상세와 동일 축)
+function champStat(rows, games) {
+  // rows: [{p, min}] 참가자+경기시간
   const by = {};
-  games.forEach((g) => (g.participants || []).forEach((p) => {
+  rows.forEach(({ p, min, win }) => {
     if (!p.champion) return;
-    const c = by[p.champion] || (by[p.champion] = { champion: p.champion, g: 0, w: 0, k: 0, d: 0, a: 0 });
-    c.g += 1; if (g.winner === p.team) c.w += 1; c.k += p.k || 0; c.d += p.d || 0; c.a += p.a || 0;
-  }));
-  return Object.values(by).sort((a, b) => b.g - a.g || (b.w / b.g) - (a.w / a.g));
+    const c = by[p.champion] || (by[p.champion] = { champion: p.champion, g: 0, w: 0, k: 0, d: 0, a: 0, dmg: 0, cs: 0, gold: 0, sec: 0, vision: 0, wards: 0, mk: 0, penta: 0 });
+    c.g += 1; if (win) c.w += 1; c.k += p.k || 0; c.d += p.d || 0; c.a += p.a || 0;
+    c.dmg += p.damage || 0; c.cs += p.cs || 0; c.gold += p.gold || 0; c.sec += min * 60;
+    const det = p.detail || {};
+    c.vision += det.visionScore || 0; c.wards += det.wardsPlaced || 0;
+    c.mk += (det.double || 0) + (det.triple || 0) + (det.quadra || 0) + (det.penta || 0); c.penta += det.penta || 0;
+  });
+  return Object.values(by).map((c) => { const m = c.sec / 60, n = c.g || 1; return {
+    champion: c.champion, g: c.g, w: c.w, winrate: c.g ? c.w / c.g : 0, k: c.k, d: c.d, a: c.a,
+    kda: c.d ? r1((c.k + c.a) / c.d) : c.k + c.a, avgK: r1(c.k / n), avgD: r1(c.d / n), avgA: r1(c.a / n),
+    avgDmg: Math.round(c.dmg / n), dmgPerMin: m ? Math.round(c.dmg / m) : 0, avgCs: Math.round(c.cs / n), csPerMin: m ? r1(c.cs / m) : 0,
+    avgGold: Math.round(c.gold / n), goldPerMin: m ? Math.round(c.gold / m) : 0, avgVision: r1(c.vision / n), avgWards: r1(c.wards / n),
+    multikills: c.mk, pentas: c.penta, hasDetail: c.dmg > 0 || c.sec > 0 || c.vision > 0,
+  }; }).sort((a, b) => b.g - a.g || b.winrate - a.winrate || b.kda - a.kda);
+}
+function aggregateChamps(games) {
+  const rows = [];
+  games.forEach((g) => { const min = g.duration_sec ? g.duration_sec / 60 : 0; (g.participants || []).forEach((p) => rows.push({ p, min, win: g.winner === p.team })); });
+  return champStat(rows, games);
+}
+// 특정 선수(key)의 챔프 상세 + 포지션 집계
+function playerBreakdown(key, games) {
+  const rows = [], pos = {};
+  games.forEach((g) => { const min = g.duration_sec ? g.duration_sec / 60 : 0; (g.participants || []).forEach((p) => {
+    if (pKey(p) !== key) return;
+    rows.push({ p, min, win: g.winner === p.team });
+    const ps = p.position; if (ps && POS_ORDER.includes(ps)) { const o = pos[ps] || (pos[ps] = { g: 0, w: 0 }); o.g += 1; if (g.winner === p.team) o.w += 1; }
+  }); });
+  return { champs: champStat(rows, games), positions: pos };
 }
 // 리치 스코어보드용 변환 (내전 표시 컴포넌트 재사용)
 function gameToMatch(g) {
@@ -837,7 +866,7 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
   const [sel, setSel] = useState(null);         // 선택 선수 key
   const [busy, setBusy] = useState(false);
   const rmap = rosterTeamMap(teams);
-  const fgames = kindF === 'all' ? games : games.filter((g) => kindOf(g) === kindF);
+  const fgames = kindF === 'all' ? games : games.filter((g) => kindGroup(g) === kindF);
   const players = aggregatePlayers(fgames, rmap).sort((a, b) => (b.w / (b.g || 1)) - (a.w / (a.g || 1)) || b.g - a.g);
   const tstats = aggregateTeams(fgames, teams, rmap);
   const champs = aggregateChamps(fgames);
@@ -880,7 +909,7 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
           ))}
         </span>
         <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
-          {[['all', '전체'], ['open', '자유'], ['team', '팀'], ['match', '실제']].map(([k, l]) => (
+          {[['all', '전체'], ['scrim', '🎯 스크림'], ['match', '🏆 실제경기']].map(([k, l]) => (
             <button key={k} className={`mini ${kindF === k ? 'on' : ''}`} onClick={() => setKindF(k)}>{l}</button>
           ))}
         </span>
@@ -888,7 +917,7 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
 
       {games.length === 0 && <div className="panel center muted" style={{ padding: '26px 0' }}>아직 기록된 경기가 없어요. 위에서 리플을 올려보세요.</div>}
 
-      {view === 'records' && (kindF === 'all' ? ['open', 'team', 'match'] : [kindF]).map((kind) => {
+      {view === 'records' && (kindF === 'all' ? ['open', 'team', 'match'] : kindF === 'scrim' ? ['open', 'team'] : ['match']).map((kind) => {
         const gs = games.filter((g) => kindOf(g) === kind);
         if (!gs.length) return null;
         const info = GKINDS.find((x) => x[0] === kind);
@@ -932,13 +961,21 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
 
       {view === 'champs' && (
         <div className="panel">
-          <h2>🥷 챔피언 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 픽·승률·KDA</span></h2>
+          <h2>🥷 챔피언 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 픽·승률·KDA·딜/CS/골드(분당)·시야·멀티킬</span></h2>
           {champs.length === 0 && <div className="muted" style={{ marginTop: 8 }}>데이터가 없어요.</div>}
           {champs.length > 0 && <div style={{ overflowX: 'auto' }}><table className="rec-table" style={{ marginTop: 8 }}>
-            <thead><tr><th className="l">챔피언</th><th>픽</th><th>승</th><th>승률</th><th>KDA</th></tr></thead>
+            <thead><tr><th className="l">챔피언</th><th>픽</th><th>승률</th><th>KDA</th><th className="l">평균 K/D/A</th><th>딜(분당)</th><th>CS(분당)</th><th>골드(분당)</th><th>시야</th><th>멀티킬</th></tr></thead>
             <tbody>{champs.map((c) => (
-              <tr key={c.champion}><td className="l"><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{champImg(c.champion) ? <img src={champImg(c.champion)} alt="" width={22} height={22} style={{ borderRadius: 5 }} /> : null}<b>{c.champion}</b></span></td>
-                <td>{c.g}</td><td>{c.w}</td><td>{Math.round(c.w / c.g * 100)}%</td><td className="muted">{c.d ? r1((c.k + c.a) / c.d) : (c.k + c.a)}</td></tr>
+              <tr key={c.champion}>
+                <td className="l"><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{champImg(c.champion) ? <img src={champImg(c.champion)} alt="" width={24} height={24} style={{ borderRadius: 5 }} /> : null}<b>{c.champion}</b></span></td>
+                <td>{c.g}</td><td className={c.winrate >= 0.6 ? 'accent' : c.winrate < 0.4 ? 'red' : ''}>{Math.round(c.winrate * 100)}%</td>
+                <td><b>{c.kda}</b></td><td className="l muted">{c.avgK}/<span className="red">{c.avgD}</span>/{c.avgA}</td>
+                <td>{c.hasDetail ? <><b>{kfmt(c.avgDmg)}</b> <span className="muted">({c.dmgPerMin})</span></> : <span className="muted">-</span>}</td>
+                <td>{c.hasDetail ? <><b>{c.avgCs}</b> <span className="muted">({c.csPerMin})</span></> : <span className="muted">-</span>}</td>
+                <td>{c.hasDetail ? <><b>{kfmt(c.avgGold)}</b> <span className="muted">({c.goldPerMin})</span></> : <span className="muted">-</span>}</td>
+                <td className="muted">{c.hasDetail ? <>{c.avgVision} <span style={{ fontSize: 10.5 }}>👁{c.avgWards}</span></> : '-'}</td>
+                <td>{c.multikills ? <b className="gold">{c.multikills}{c.pentas ? ` · P${c.pentas}` : ''}</b> : <span className="muted">-</span>}</td>
+              </tr>
             ))}</tbody>
           </table></div>}
         </div>
@@ -960,7 +997,11 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
         </div>
       )}
 
-      {view === 'players' && sel && selPlayer && (
+      {view === 'players' && sel && selPlayer && (() => {
+        const bd = playerBreakdown(sel, games);
+        const posEntries = POS_ORDER.filter((pp) => bd.positions[pp]).map((pp) => [pp, bd.positions[pp]]);
+        const chDetail = bd.champs;
+        return (
         <div className="panel">
           <button className="mini" onClick={() => setSel(null)}>← 선수 목록</button>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
@@ -968,17 +1009,57 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
             <span className="muted">{selPlayer.teamName} · {selPlayer.g}경기 <b className="accent">{Math.round(selPlayer.w / selPlayer.g * 100)}%</b> ({selPlayer.w}승 {selPlayer.g - selPlayer.w}패)</span>
             <span className="muted">평균 {r1(selPlayer.k / selPlayer.g)}/{r1(selPlayer.d / selPlayer.g)}/{r1(selPlayer.a / selPlayer.g)} · 딜 {kfmt(selPlayer.dmg / selPlayer.g)} · 골드 {kfmt(selPlayer.gold / selPlayer.g)}</span>
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
-            {Object.entries(selPlayer.champs).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([c, n]) => (
-              <span key={c} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#1c1c22', borderRadius: 6, padding: '3px 8px', fontSize: 12 }}>{champImg(c) ? <img src={champImg(c)} alt="" width={20} height={20} style={{ borderRadius: 4 }} /> : null}{c} <b className="muted">{n}</b></span>
-            ))}
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14, marginTop: 12, alignItems: 'start' }}>
+            <div>
+              <h3 style={{ margin: '0 0 6px', fontSize: 14 }}>모스트 챔피언</h3>
+              {chDetail.slice(0, 6).map((c) => (
+                <div key={c.champion} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', borderTop: '1px solid #23232b', fontSize: 12.5 }}>
+                  {champImg(c.champion) ? <img src={champImg(c.champion)} alt="" width={26} height={26} style={{ borderRadius: 5 }} /> : null}
+                  <span style={{ flex: 1 }}><b>{c.champion}</b> <span className="muted" style={{ fontSize: 11 }}>{c.g}판 · KDA {c.kda}</span></span>
+                  <span className={c.winrate >= 0.5 ? 'accent' : 'red'}>{Math.round(c.winrate * 100)}%</span>
+                </div>
+              ))}
+            </div>
+            <div>
+              <h3 style={{ margin: '0 0 6px', fontSize: 14 }}>포지션</h3>
+              {posEntries.length === 0 && <div className="muted" style={{ fontSize: 12 }}>포지션 데이터 없음</div>}
+              {posEntries.map(([pp, o]) => (
+                <div key={pp} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 12.5 }}>
+                  <span style={{ width: 36 }} className="muted">{POS_KR[pp]}</span><span style={{ width: 34 }}>{o.g}판</span>
+                  <div style={{ flex: 1, height: 10, borderRadius: 5, overflow: 'hidden', display: 'flex', background: '#2a2a33' }}><span style={{ width: `${o.w / o.g * 100}%`, background: '#3fa66f' }} /><span style={{ flex: 1, background: '#c15563' }} /></div>
+                  <span style={{ width: 40, textAlign: 'right' }} className={o.w / o.g >= 0.5 ? 'accent' : 'red'}>{Math.round(o.w / o.g * 100)}%</span>
+                </div>
+              ))}
+            </div>
           </div>
-          {['open', 'team', 'match'].map((kind) => {
-            const kg = selGames.filter((g) => kindOf(g) === kind);
+
+          {chDetail.length > 0 && (
+            <>
+              <h3 style={{ margin: '16px 0 4px', fontSize: 14 }}>챔피언 상세</h3>
+              <div style={{ overflowX: 'auto' }}><table className="rec-table">
+                <thead><tr><th className="l">챔피언</th><th>판</th><th>승률</th><th>KDA</th><th className="l">평균K/D/A</th><th>딜(분당)</th><th>CS(분당)</th><th>골드(분당)</th><th>멀티킬</th></tr></thead>
+                <tbody>{chDetail.map((c) => (
+                  <tr key={c.champion}>
+                    <td className="l"><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{champImg(c.champion) ? <img src={champImg(c.champion)} alt="" width={22} height={22} style={{ borderRadius: 5 }} /> : null}{c.champion}</span></td>
+                    <td>{c.g}</td><td className={c.winrate >= 0.6 ? 'accent' : c.winrate < 0.4 ? 'red' : ''}>{Math.round(c.winrate * 100)}%</td><td><b>{c.kda}</b></td>
+                    <td className="l muted">{c.avgK}/<span className="red">{c.avgD}</span>/{c.avgA}</td>
+                    <td>{c.hasDetail ? <>{kfmt(c.avgDmg)} <span className="muted">({c.dmgPerMin})</span></> : <span className="muted">-</span>}</td>
+                    <td>{c.hasDetail ? <>{c.avgCs} <span className="muted">({c.csPerMin})</span></> : <span className="muted">-</span>}</td>
+                    <td>{c.hasDetail ? <>{kfmt(c.avgGold)} <span className="muted">({c.goldPerMin})</span></> : <span className="muted">-</span>}</td>
+                    <td>{c.multikills ? <b className="gold">{c.multikills}</b> : <span className="muted">-</span>}</td>
+                  </tr>
+                ))}</tbody>
+              </table></div>
+            </>
+          )}
+
+          {[['scrim', '🎯 스크림'], ['match', '🏆 실제경기']].map(([grp, label]) => {
+            const kg = selGames.filter((g) => kindGroup(g) === grp);
             if (!kg.length) return null;
             return (
-              <div key={kind} style={{ marginTop: 14 }}>
-                <h3 style={{ margin: '0 0 4px', fontSize: 14 }}>{GKIND_LABEL[kind]} <span className="muted" style={{ fontSize: 11.5, fontWeight: 400 }}>{kg.length}경기</span></h3>
+              <div key={grp} style={{ marginTop: 14 }}>
+                <h3 style={{ margin: '0 0 4px', fontSize: 14 }}>{label} <span className="muted" style={{ fontSize: 11.5, fontWeight: 400 }}>{kg.length}경기</span></h3>
                 {kg.map((g) => {
                   const me = (g.participants || []).find((p) => pKey(p) === sel);
                   if (!me) return null;
@@ -990,6 +1071,7 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
                       <span style={{ width: 96 }}>{me.champion}</span>
                       <span>{me.k} / <span className="red">{me.d}</span> / {me.a}</span>
                       <span className="muted" style={{ fontSize: 11.5 }}>딜 {kfmt(me.damage)} · 골드 {kfmt(me.gold)} · CS {me.cs}</span>
+                      <span className="muted" style={{ marginLeft: 'auto', fontSize: 10.5 }}>{GKIND_LABEL[kindOf(g)]}</span>
                     </div>
                   );
                 })}
@@ -997,7 +1079,8 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
             );
           })}
         </div>
-      )}
+        );
+      })()}
     </>
   );
 }
