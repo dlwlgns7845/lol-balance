@@ -6,3 +6,7 @@ out/
 .DS_Store
 
 .vercel
+
+# 로컬 전용(개인 리플레이 경로 포함) — 커밋 금지
+scripts/inspect-replay.mjs
+scripts/seed-tournament-demo.mjs

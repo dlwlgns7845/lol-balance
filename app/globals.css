@@ -1089,6 +1089,7 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 .rh-res { font-weight: 800; }
 .rh-res.g { color: #6fa8dc; } .rh-res.r { color: #e08a94; }
 .rh-champ { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.ch-rank { min-width: 18px; text-align: center; font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .rh-kda { font-weight: 600; }
 .rh-num { color: var(--text); }
 @media (max-width: 720px) { .stat-grid { grid-template-columns: repeat(2, 1fr) !important; } }

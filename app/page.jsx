@@ -255,7 +255,7 @@ function ChampionTab({ champs, dd }) {
           {byPick.slice(0, 8).map((c) => (
             <div className="bar-row" key={c.champion}>
               <ChampImg name={c.champion} iconUrl={dd.icon} size={22} />
-              <span className="bar-name">{c.champion}</span>
+              <span className="bar-name">{dd.label(c.champion)}</span>
               <div className="bar-track"><span className="bar-fill pick" style={{ width: (c.games / maxGames) * 100 + '%' }} /></div>
               <span className="bar-val">{c.games}판</span>
             </div>
@@ -266,7 +266,7 @@ function ChampionTab({ champs, dd }) {
           {byWr.slice(0, 8).map((c) => (
             <div className="bar-row" key={c.champion}>
               <ChampImg name={c.champion} iconUrl={dd.icon} size={22} />
-              <span className="bar-name">{c.champion}</span>
+              <span className="bar-name">{dd.label(c.champion)}</span>
               <div className="bar-track"><span className={`bar-fill ${wrClass(c.winrate)}`} style={{ width: Math.round(c.winrate * 100) + '%' }} /></div>
               <span className="bar-val">{Math.round(c.winrate * 100)}%</span>
             </div>
@@ -280,7 +280,7 @@ function ChampionTab({ champs, dd }) {
             <div className="champ-card" key={c.champion}>
               <ChampImg name={c.champion} iconUrl={dd.icon} size={44} />
               <div className="cc-body">
-                <div className="cc-name">{c.champion}</div>
+                <div className="cc-name">{dd.label(c.champion)}</div>
                 <div className="cc-meta"><span>{c.games}판</span><span className={wrClass(c.winrate)}>{Math.round(c.winrate * 100)}%</span><span className="muted">KDA {c.kda}</span></div>
               </div>
             </div>

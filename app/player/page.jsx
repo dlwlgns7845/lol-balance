@@ -111,7 +111,7 @@ export default function PlayerRecordPage() {
                     <div className="pc-champ" key={c.champion}>
                       <ChampImg name={c.champion} iconUrl={dd.icon} size={32} />
                       <div className="pcc-info">
-                        <span className="pcc-name">{c.champion}</span>
+                        <span className="pcc-name">{dd.label(c.champion)}</span>
                         <span className="muted" style={{ fontSize: 11 }}>{c.games}판 · KDA {c.kda} · {c.k}/<span className="red">{c.d}</span>/{c.a}</span>
                       </div>
                       <WinLossBar wins={c.wins} losses={c.games - c.wins} showText />

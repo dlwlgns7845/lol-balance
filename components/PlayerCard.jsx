@@ -83,7 +83,7 @@ export default function PlayerCard({ player: p, gid, max, dd, onClose, detail: d
                 <div className="pc-champ" key={c.champion}>
                   <ChampImg name={c.champion} iconUrl={dd.icon} size={32} />
                   <div className="pcc-info">
-                    <span className="pcc-name">{c.champion}</span>
+                    <span className="pcc-name">{dd.label(c.champion)}</span>
                     <span className="muted" style={{ fontSize: 11 }}>{c.games}판 · KDA {c.kda} · {c.k}/<span className="red">{c.d}</span>/{c.a}</span>
                   </div>
                   <WinLossBar wins={c.wins} losses={c.games - c.wins} showText />
@@ -119,7 +119,7 @@ export default function PlayerCard({ player: p, gid, max, dd, onClose, detail: d
                     <span className={`pch-res ${m.win ? 'g' : 'r'}`}>{m.win ? '승' : '패'}</span>
                     <ChampImg name={m.champion} iconUrl={dd.icon} size={30} />
                     <div className="pch-mid">
-                      <span className="pch-champ">{m.champion || '?'}</span>
+                      <span className="pch-champ">{dd.label(m.champion) || '?'}</span>
                       <span className="pch-kda">{m.k}/<span className="red">{m.d}</span>/{m.a} <span className={`pch-ratio ${kdaClass(+ratio)}`}>{ratio}</span></span>
                     </div>
                     <span className="pch-date muted">{fmtD(m.played_at)}</span>
@@ -133,8 +133,8 @@ export default function PlayerCard({ player: p, gid, max, dd, onClose, detail: d
 
             {detail?.records && (detail.records.maxKill || detail.records.maxKda) && (
               <div className="pc-records">
-                {detail.records.maxKill && <span>🗡 최다 킬 <b>{detail.records.maxKill.kills}</b> <span className="muted">{detail.records.maxKill.champion}</span></span>}
-                {detail.records.maxKda && <span>📈 최고 KDA <b>{detail.records.maxKda.v}</b> <span className="muted">{detail.records.maxKda.champion}</span></span>}
+                {detail.records.maxKill && <span>🗡 최다 킬 <b>{detail.records.maxKill.kills}</b> <span className="muted">{dd.label(detail.records.maxKill.champion)}</span></span>}
+                {detail.records.maxKda && <span>📈 최고 KDA <b>{detail.records.maxKda.v}</b> <span className="muted">{dd.label(detail.records.maxKda.champion)}</span></span>}
               </div>
             )}
           </div>

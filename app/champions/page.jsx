@@ -69,9 +69,9 @@ export default function ChampionsPage() {
                   <th>딜 <span className="muted">(분당)</span></th><th>CS <span className="muted">(분당)</span></th><th>골드 <span className="muted">(분당)</span></th><th>시야</th><th>멀티킬</th>
                 </tr></thead>
                 <tbody>
-                  {champs.map((c) => (
+                  {champs.map((c, i) => (
                     <tr key={c.champion}>
-                      <td className="l"><span className="rh-champ"><ChampImg name={c.champion} iconUrl={dd.icon} size={30} /><b>{c.champion}</b></span></td>
+                      <td className="l"><span className="rh-champ"><span className="ch-rank muted">{i + 1}</span><ChampImg name={c.champion} iconUrl={dd.icon} size={30} /><b>{dd.label(c.champion)}</b></span></td>
                       <td className="ct-games">{c.games}판</td>
                       <td><div className="wr-cell"><b className={wrCls(c.winrate)}>{Math.round(c.winrate * 100)}%</b><WinLossBar wins={c.wins} losses={c.games - c.wins} width={110} showText /></div></td>
                       <td className={kdaCls(c.kda)}><b>{c.kda}</b></td>

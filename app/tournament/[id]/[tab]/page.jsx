@@ -1084,7 +1084,7 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
             <thead><tr><th className="l">챔피언</th><th>픽</th><th>승률</th><th>KDA</th><th className="l">평균 K/D/A</th><th>딜(분당)</th><th>CS(분당)</th><th>골드(분당)</th><th>시야</th><th>멀티킬</th></tr></thead>
             <tbody>{champs.map((c) => (
               <tr key={c.champion}>
-                <td className="l"><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{champImg(c.champion) ? <img src={champImg(c.champion)} alt="" width={24} height={24} style={{ borderRadius: 5 }} /> : null}<b>{c.champion}</b></span></td>
+                <td className="l"><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{champImg(c.champion) ? <img src={champImg(c.champion)} alt="" width={24} height={24} style={{ borderRadius: 5 }} /> : null}<b>{dd.label(c.champion)}</b></span></td>
                 <td>{c.g}</td><td className={c.winrate >= 0.6 ? 'accent' : c.winrate < 0.4 ? 'red' : ''}>{Math.round(c.winrate * 100)}%</td>
                 <td><b>{c.kda}</b></td><td className="l muted">{c.avgK}/<span className="red">{c.avgD}</span>/{c.avgA}</td>
                 <td>{c.hasDetail ? <><b>{kfmt(c.avgDmg)}</b> <span className="muted">({c.dmgPerMin})</span></> : <span className="muted">-</span>}</td>
@@ -1169,7 +1169,7 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
                     <div className="pc-champ" key={c.champion}>
                       <ChampImg name={c.champion} iconUrl={dd.icon} size={32} />
                       <div className="pcc-info">
-                        <span className="pcc-name">{c.champion}</span>
+                        <span className="pcc-name">{dd.label(c.champion)}</span>
                         <span className="muted" style={{ fontSize: 11 }}>{c.g}판 · KDA {c.kda} · {c.k}/<span className="red">{c.d}</span>/{c.a}</span>
                       </div>
                       <WinLossBar wins={c.w} losses={c.g - c.w} showText />

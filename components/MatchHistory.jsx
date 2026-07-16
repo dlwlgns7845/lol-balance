@@ -63,7 +63,7 @@ function RosterFull({ label, players, win, cs, dd, color, maxDmg, byName, highli
           <ChampImg name={p.champion} iconUrl={dd.icon} size={34} />
           <div className="mhf-id">
             <span className="mhf-name">{p.name}<TitleBadges titles={byName?.[normNm(p.name)]} max={3} />{p.mvp && <span className={`mbadge mvp ${(p.score || 0) >= carryThreshold ? 'rainbow' : ''}`}>MVP</span>}{p.ace && <span className="mbadge ace">ACE</span>}</span>
-            <span className="muted mhf-sub">{p.champion}</span>
+            <span className="muted mhf-sub">{dd.label(p.champion)}</span>
           </div>
           <div className="mhf-kdacell">
             <span className="mhf-kda">{p.k} / <span className="red">{p.d}</span> / {p.a}</span>
@@ -147,7 +147,7 @@ function RichRow({ p, dd, color, maxDmg, maxTaken, maxGold, durationMin, byName,
         </div>
         <div className="mhr-name">
           <span className="mhr-nm">{p.name}<TitleBadges titles={byName?.[normNm(p.name)]} max={2} />{p.mvp && <span className="mbadge mvp">MVP</span>}{p.ace && <span className="mbadge ace">ACE</span>}</span>
-          <span className="mhr-sub"><span className="muted">{p.champion}</span>{p.tier && <span className={tierClass(p.tier)}> · {TIER_LABEL[p.tier] || p.tier}</span>}{riotNick && riotNick !== p.name && <span className="mhr-riot muted"> · {riotNick}</span>}</span>
+          <span className="mhr-sub"><span className="muted">{dd.label(p.champion)}</span>{p.tier && <span className={tierClass(p.tier)}> · {TIER_LABEL[p.tier] || p.tier}</span>}{riotNick && riotNick !== p.name && <span className="mhr-riot muted"> · {riotNick}</span>}</span>
         </div>
       </div>
       <div className="mhr-spells">{[0, 1].map((i) => { const u = dd.spell?.(spells[i]); return <span key={i} className="mhr-sr-i">{u ? <img src={u} alt="" width={16} height={16} /> : null}</span>; })}</div>
@@ -259,7 +259,7 @@ function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshol
         ? <div className="opme-ru">{runes.map((pid, i) => { const u = dd.rune?.(pid); return <span key={i} className={`opme-slot rune ${i ? 'sub' : ''}`}>{u ? <img src={u} alt="" width={25} height={25} /> : null}</span>; })}</div>
         : <div className="opme-ru" />}
       <div className="opme-nt">
-        <span className="opme-cn">{me.champion}</span>
+        <span className="opme-cn">{dd.label(me.champion)}</span>
         {me.tier && <span className={`opme-tier ${tierClass(me.tier)}`}>{TIER_LABEL[me.tier] || me.tier}</span>}
       </div>
       {hasLoad
@@ -381,7 +381,7 @@ function MatchCard({ m, dd, open, onToggle, onDelete, onSwap, byName, highlight,
           <div className={`mh-mvp ${mvpCarry ? 'carry' : ''}`}>
             <span className={`mbadge mvp mh-mvp-badge ${mvpCarry ? 'rainbow' : ''}`}>👑 MVP</span>
             <ChampImg name={mvp.champion} iconUrl={dd.icon} size={42} />
-            <div className="mh-mvp-id"><b>{mvp.name}</b><span className="muted">{mvp.champion} · {mvp.k}/{mvp.d}/{mvp.a}</span></div>
+            <div className="mh-mvp-id"><b>{mvp.name}</b><span className="muted">{dd.label(mvp.champion)} · {mvp.k}/{mvp.d}/{mvp.a}</span></div>
           </div>
         )}
         <div className="mh-hero-actions">

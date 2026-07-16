@@ -36,8 +36,13 @@ async function loadMap() {
   }
   Object.assign(byKey, { wukong: 'MonkeyKing', mf: 'MissFortune', ww: 'Warwick', tf: 'TwistedFate', 원숭이왕: 'MonkeyKing' });
   const id = (champ) => byKey[norm(champ)] || null;
+  // 표시명: 내부 ID/오타/한글 → 영문 표시명(예: MonkeyKing → Wukong)
+  const labelByKey = {};
+  for (const c of Object.values(en.data)) { labelByKey[norm(c.id)] = c.name; labelByKey[norm(c.name)] = c.name; }
+  if (ko) for (const c of Object.values(ko.data)) labelByKey[norm(c.name)] = en.data[c.id]?.name || c.name;
+  const label = (champ) => labelByKey[norm(champ)] || champ;
   _cache = {
-    version: v, id,
+    version: v, id, label,
     icon: (c) => (id(c) ? `https://ddragon.leagueoflegends.com/cdn/${v}/img/champion/${id(c)}.png` : null),
     splash: (c) => (id(c) ? `https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${id(c)}_0.jpg` : null),
     loading: (c) => (id(c) ? `https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${id(c)}_0.jpg` : null),
@@ -49,7 +54,7 @@ async function loadMap() {
 
 const NOOP = () => null;
 export function useDdragon() {
-  const [dd, setDd] = useState({ icon: NOOP, splash: NOOP, loading: NOOP, spell: NOOP, rune: NOOP, ready: false });
+  const [dd, setDd] = useState({ icon: NOOP, splash: NOOP, loading: NOOP, spell: NOOP, rune: NOOP, label: (c) => c, ready: false });
   useEffect(() => { loadMap().then((m) => setDd({ ...m, ready: true })).catch(() => {}); }, []);
   return dd;
 }
