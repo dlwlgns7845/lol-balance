@@ -23,6 +23,20 @@ function fmtDateTime(s) {
   return { date: `${p2(d.getMonth() + 1)}-${p2(d.getDate())} (${WD[d.getDay()]})`, time: `${p2(d.getHours())}:${p2(d.getMinutes())}` };
 }
 const fmtDur = (sec) => { if (!sec) return ''; const s = Math.round(sec); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+const fmtDurKo = (sec) => { if (!sec) return ''; const s = Math.round(sec); return `${Math.floor(s / 60)}분 ${s % 60}초`; };
+function fmtAgo(s) {
+  if (!s) return '';
+  const diff = Date.now() - new Date(s).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return '방금';
+  if (m < 60) return `${m}분 전`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}시간 전`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d}일 전`;
+  const mo = Math.floor(d / 30);
+  return mo < 12 ? `${mo}개월 전` : `${Math.floor(mo / 12)}년 전`;
+}
 const k = (n) => (n >= 1000 ? (n / 1000).toFixed(1) + 'k' : n);
 const kdaRatio = (p) => (p.d ? ((p.k + p.a) / p.d) : (p.k + p.a)).toFixed(2);
 const rClass = (r) => (r >= 5 ? 'kv-5' : r >= 4 ? 'kv-4' : r >= 3 ? 'kv-3' : '');
@@ -196,6 +210,77 @@ export function RichScoreboard({ m, dd, onPlayer, byName }) {
   );
 }
 
+// ── op.gg식 "본인 중심" 접힌 행 (내전 참여경기·멸망전 재사용) ──
+// m=경기, me=본인 참가자, teamKills=본인팀 총킬, itemUrl=아이템 URL 함수
+function OpMeRow({ m, me, myWin, teamKills, dd, itemUrl, carryThreshold = 20, kindLabel = '내전', onToggle }) {
+  const det = me.detail || {};
+  const r = kdaRatio(me);
+  const carry = me.mvp && (me.score || 0) >= carryThreshold;
+  const durMin = m.durationMin || (m.durationSec ? m.durationSec / 60 : 0);
+  const csm = durMin ? (me.cs / durMin).toFixed(1) : null;
+  const kp = teamKills ? Math.round((me.k + me.a) / teamKills * 100) : null;
+  const spells = det.spells || [];
+  const runes = [det.keystone, det.subStyle];
+  const items = det.items || [];
+  const hasLoad = !!(det.level || spells.some(Boolean) || runes.some(Boolean));
+  const hasItems = items.some(Boolean) || det.roleItem;
+  const roster = (players) => (
+    <div className="opme-rcol">
+      {players.map((p, i) => (
+        <div className={`opme-pp ${normNm(p.name) === normNm(me.name) ? 'me' : ''}`} key={i} title={`${p.name} · ${p.champion}`}>
+          <ChampImg name={p.champion} iconUrl={dd.icon} size={16} />
+          <span className="opme-pn">{p.name}</span>
+        </div>
+      ))}
+    </div>
+  );
+  return (
+    <div className={`mh-opme ${myWin ? 'w' : 'l'} ${carry ? 'carry' : ''}`} onClick={onToggle}>
+      <div className="opme-meta">
+        <span className="opme-kind">{kindLabel}</span>
+        <span className="opme-ago muted">{fmtAgo(m.played_at)}</span>
+        <span className="opme-div" />
+        <span className={`opme-res ${myWin ? 'g' : 'r'}`}>{myWin ? '승리' : '패배'}</span>
+        {m.durationSec ? <span className="opme-dur muted">{fmtDurKo(m.durationSec)}</span> : null}
+      </div>
+      <div className="opme-load">
+        <div className="opme-champ mhr-champ">
+          <ChampImg name={me.champion} iconUrl={dd.icon} size={40} />
+          {det.level ? <span className="mhr-lv">{det.level}</span> : null}
+        </div>
+        {hasLoad && (
+          <>
+            <div className="opme-sp">{[0, 1].map((i) => { const u = dd.spell?.(spells[i]); return <span key={i} className="opme-slot">{u ? <img src={u} alt="" width={18} height={18} /> : null}</span>; })}</div>
+            <div className="opme-ru">{runes.map((pid, i) => { const u = dd.rune?.(pid); return <span key={i} className={`opme-slot rune ${i ? 'sub' : ''}`}>{u ? <img src={u} alt="" width={18} height={18} /> : null}</span>; })}</div>
+          </>
+        )}
+      </div>
+      <div className="opme-kda">
+        <span className="opme-kdal">{me.k} / <span className="red">{me.d}</span> / {me.a}</span>
+        <span className={`opme-ratio ${rClass(+r)}`}>{r} 평점</span>
+        {kp != null && <span className="opme-kp muted">킬관여 {kp}%</span>}
+      </div>
+      <div className="opme-mid">
+        {me.tier && <span className={`opme-tier ${tierClass(me.tier)}`}>{TIER_LABEL[me.tier] || me.tier}</span>}
+        <span className="muted">CS {me.cs || 0}{csm ? ` (${csm})` : ''}</span>
+        <span className="muted">딜 {k(me.damage || 0)}</span>
+        {me.mvp ? <span className={`mbadge mvp ${carry ? 'rainbow' : ''}`}>MVP</span> : me.ace ? <span className="mbadge ace">ACE</span> : me.rank ? <span className="opme-rank">{me.rank}위</span> : null}
+      </div>
+      {hasItems ? (
+        <div className="opme-items">
+          {[0, 1, 2, 3, 4, 5, 6].map((i) => { const u = itemUrl(items[i]); return <span key={i} className="opme-it">{u ? <img src={u} alt="" width={22} height={22} /> : null}</span>; })}
+          {det.roleItem && itemUrl(det.roleItem) ? <span className="opme-it q"><img src={itemUrl(det.roleItem)} alt="" width={22} height={22} /></span> : (det.questDone ? <span className="opme-it q done"><span className="mhr-qcheck">✓</span></span> : null)}
+        </div>
+      ) : <div className="opme-items" />}
+      <div className="opme-rosters">
+        {roster(m.A)}
+        {roster(m.B)}
+      </div>
+      <span className="mh-chev">▾</span>
+    </div>
+  );
+}
+
 function MatchCard({ m, dd, open, onToggle, onDelete, onSwap, byName, highlight, carryThreshold = 20, onPlayer }) {
   const aWin = m.winner === 'A';
   const mvp = [...m.A, ...m.B].find((p) => p.mvp);
@@ -214,27 +299,8 @@ function MatchCard({ m, dd, open, onToggle, onDelete, onSwap, byName, highlight,
     const me = inA || inB;
     if (me) {
       const myWin = inA ? aWin : !aWin;
-      const r = kdaRatio(me);
-      const carry = me.mvp && (me.score || 0) >= carryThreshold; // 완전 캐리 MVP → 무지개 (기록 분포 기준)
-      return (
-        <div className={`mh-compact mhc-me-row ${myWin ? 'w' : 'l'} ${carry ? 'carry' : ''}`} onClick={onToggle}>
-          <span className={`mh-win-tag ${myWin ? 'g' : 'r'}`}>{myWin ? '승' : '패'}</span>
-          <ChampImg name={me.champion} iconUrl={dd.icon} size={40} />
-          <div className="mhc-me">
-            <span className="mhc-champ">{me.champion || '?'}
-              {me.mvp ? <span className={`mbadge mvp ${carry ? 'rainbow' : ''}`}>MVP</span> : me.ace ? <span className="mbadge ace">ACE</span> : me.rank ? <span className="mhc-rank">{me.rank}위</span> : null}
-            </span>
-            <span className="mhc-kda">{me.k} / <span className="red">{me.d}</span> / {me.a} <span className={`mhc-ratio ${rClass(+r)}`}>{r} 평점</span></span>
-          </div>
-          <span className="mhc-stat muted">딜 {k(me.damage || 0)}</span>
-          <span className="mhc-stat muted">CS {me.cs || 0}</span>
-          <div className="mh-icons">{m.A.map((p, i) => <ChampImg key={i} name={p.champion} iconUrl={dd.icon} size={22} />)}</div>
-          <span className="muted vs">vs</span>
-          <div className="mh-icons">{m.B.map((p, i) => <ChampImg key={i} name={p.champion} iconUrl={dd.icon} size={22} />)}</div>
-          <span className="mh-date muted">📅 {fmtDate(m.played_at)}</span>
-          <span className="mh-chev">▾</span>
-        </div>
-      );
+      const teamKills = (inA ? m.killsA : m.killsB) || sum(inA ? m.A : m.B, 'k');
+      return <OpMeRow m={m} me={me} myWin={myWin} teamKills={teamKills} dd={dd} itemUrl={itemUrl} carryThreshold={carryThreshold} onToggle={onToggle} />;
     }
     const dt = fmtDateTime(m.played_at);
     const dur = fmtDur(m.durationSec);

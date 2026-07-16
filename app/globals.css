@@ -1263,3 +1263,51 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
   .sf-poolcol, .sf-tablecol { max-height: 260px; }
 }
 @media (max-width: 640px) { .sf-teams { grid-template-columns: 1fr; } }
+
+/* ── op.gg식 본인 참여경기 행 (OpMeRow) ── */
+.mh-opme { display: grid; grid-template-columns: 112px 100px 96px 116px 126px minmax(0,1fr) 14px; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; cursor: pointer; border-left: 4px solid transparent; transition: filter .12s; }
+.mh-opme:hover { filter: brightness(1.09); }
+.mh-opme.w { background: linear-gradient(90deg, rgba(77,124,254,.16), rgba(77,124,254,.045)); border-left-color: #4d7cfe; }
+.mh-opme.l { background: linear-gradient(90deg, rgba(224,87,107,.16), rgba(224,87,107,.045)); border-left-color: #e0576b; }
+.mh-opme.carry.w { background: linear-gradient(90deg, rgba(255,196,77,.2), rgba(77,124,254,.05)); border-left-color: #ffc44d; }
+.opme-meta { display: flex; flex-direction: column; gap: 1px; font-size: 11.5px; line-height: 1.32; min-width: 0; }
+.opme-kind { font-weight: 700; }
+.mh-opme.w .opme-kind { color: #7ea2ff; }
+.mh-opme.l .opme-kind { color: #f08698; }
+.opme-ago { font-size: 11px; }
+.opme-div { height: 1px; width: 30px; background: #3a3a44; margin: 3px 0; }
+.opme-res { font-weight: 800; font-size: 13px; }
+.opme-res.g { color: #5cc98d; }
+.opme-res.r { color: #e0576b; }
+.opme-dur { font-size: 11px; }
+.opme-load { display: flex; align-items: center; gap: 5px; }
+.opme-champ { position: relative; flex-shrink: 0; }
+.opme-champ img { border-radius: 7px; }
+.opme-sp, .opme-ru { display: flex; flex-direction: column; gap: 2px; }
+.opme-slot { width: 18px; height: 18px; border-radius: 4px; background: #16161c; display: block; overflow: hidden; }
+.opme-slot img { border-radius: 4px; display: block; }
+.opme-slot.rune, .opme-slot.rune img { border-radius: 50%; }
+.opme-kda { display: flex; flex-direction: column; align-items: center; gap: 1px; text-align: center; }
+.opme-kdal { font-size: 14px; font-weight: 700; }
+.opme-ratio { font-size: 12px; font-weight: 700; color: #b9b9c4; }
+.opme-kp { font-size: 10.5px; }
+.opme-mid { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; text-align: center; }
+.opme-tier { font-size: 11px; font-weight: 700; }
+.opme-rank { font-size: 11px; color: #c9a24d; font-weight: 700; }
+.opme-items { display: flex; flex-wrap: wrap; gap: 2px; width: 100%; max-width: 126px; align-content: center; }
+.opme-it { width: 22px; height: 22px; border-radius: 4px; background: #131318; display: block; overflow: hidden; }
+.opme-it img { border-radius: 4px; display: block; }
+.opme-it.q { outline: 1px solid rgba(255,196,77,.5); }
+.opme-it.q.done { display: grid; place-items: center; color: #ffc44d; font-size: 12px; }
+.opme-rosters { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 10px; min-width: 0; }
+.opme-rcol { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.opme-pp { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.opme-pp img { border-radius: 3px; flex-shrink: 0; }
+.opme-pn { font-size: 10.5px; color: #9a9aa6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opme-pp.me .opme-pn { color: #fff; font-weight: 700; }
+.mh-opme .mh-chev { color: #6a6a76; font-size: 13px; text-align: center; }
+@media (max-width: 900px) {
+  .mh-opme { grid-template-columns: 100px 92px 84px 1fr 14px; row-gap: 6px; }
+  .opme-items, .opme-rosters { grid-column: 1 / -1; }
+  .opme-items { max-width: none; }
+}
