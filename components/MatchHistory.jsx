@@ -263,7 +263,7 @@ function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshol
         {me.tier && <span className={`opme-tier ${tierClass(me.tier)}`}>{TIER_LABEL[me.tier] || me.tier}</span>}
       </div>
       {hasLoad
-        ? <div className="opme-sp2">{[0, 1].map((i) => { const u = dd.spell?.(spells[i]); return <span key={i} className="opme-slot">{u ? <img src={u} alt="" width={20} height={20} /> : null}</span>; })}</div>
+        ? <div className="opme-sp2">{[0, 1].map((i) => { const u = dd.spell?.(spells[i]); return <span key={i} className="opme-slot">{u ? <img src={u} alt="" width={30} height={30} /> : null}</span>; })}</div>
         : <div className="opme-sp2" />}
       <div className="opme-kda">
         <span className="opme-kdal">{me.k} / <span className="red">{me.d}</span> / {me.a}</span>
@@ -273,15 +273,14 @@ function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshol
       </div>
       {hasItems ? (
         <div className="opme-items">
-          {[0, 1, 2, 3, 4, 5, 6].map((i) => { const u = itemUrl(items[i]); return <span key={i} className="opme-it">{u ? <img src={u} alt="" width={22} height={22} /> : null}</span>; })}
-          {det.roleItem && itemUrl(det.roleItem) ? <span className="opme-it q"><img src={itemUrl(det.roleItem)} alt="" width={22} height={22} /></span> : (det.questDone ? <span className="opme-it q done"><span className="mhr-qcheck">✓</span></span> : null)}
+          {[0, 1, 2, 3, 4, 5, 6].map((i) => { const u = itemUrl(items[i]); return <span key={i} className="opme-it">{u ? <img src={u} alt="" width={30} height={30} /> : null}</span>; })}
+          {det.roleItem && itemUrl(det.roleItem) ? <span className="opme-it q"><img src={itemUrl(det.roleItem)} alt="" width={30} height={30} /></span> : (det.questDone ? <span className="opme-it q done"><span className="mhr-qcheck">✓</span></span> : null)}
         </div>
       ) : <div className="opme-items" />}
       <div className="opme-stats">
         {scell('딜', k(me.damage || 0), me.damage, max.dmg, 'blue')}
         {det.dmgTaken ? scell('받음', k(det.dmgTaken), det.dmgTaken, max.taken, 'taken') : null}
         {scell('CS', `${me.cs || 0}${csm ? ` (${csm})` : ''}`, me.cs, max.cs, 'cs')}
-        {me.gold ? scell('골드', k(me.gold), me.gold, max.gold, 'gold') : null}
       </div>
       <div className="opme-rosters">
         {roster(m.A)}
