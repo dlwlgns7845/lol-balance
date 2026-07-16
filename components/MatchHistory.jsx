@@ -179,6 +179,23 @@ function RosterRich({ label, players, win, color, dd, maxDmg, maxTaken, maxGold,
   );
 }
 
+// 재사용 가능한 리치 스코어보드(블루/레드 표 + 중앙바) — 멸망전 등에서 경기 상세 표시용.
+// m = { A:[..], B:[..], winner, objectives, killsA, killsB, goldA, goldB, durationMin }
+export function RichScoreboard({ m, dd, onPlayer, byName }) {
+  const aWin = m.winner === 'A';
+  const maxDmg = Math.max(1, ...[...m.A, ...m.B].map((p) => p.damage || 0));
+  const maxTaken = Math.max(1, ...[...m.A, ...m.B].map((p) => p.detail?.dmgTaken || 0));
+  const maxGold = Math.max(1, ...[...m.A, ...m.B].map((p) => p.gold || 0));
+  const itemUrl = (id) => (id && dd.version ? `https://ddragon.leagueoflegends.com/cdn/${dd.version}/img/item/${id}.png` : null);
+  return (
+    <div className="mhr-teams">
+      <RosterRich label="블루" players={m.A} win={aWin} color="blue" dd={dd} maxDmg={maxDmg} maxTaken={maxTaken} maxGold={maxGold} durationMin={m.durationMin} byName={byName || {}} onPlayer={onPlayer} itemUrl={itemUrl} highlight={null} />
+      <MiddleBar objectives={m.objectives} killsA={m.killsA} killsB={m.killsB} goldA={m.goldA} goldB={m.goldB} />
+      <RosterRich label="레드" players={m.B} win={!aWin} color="red" dd={dd} maxDmg={maxDmg} maxTaken={maxTaken} maxGold={maxGold} durationMin={m.durationMin} byName={byName || {}} onPlayer={onPlayer} itemUrl={itemUrl} highlight={null} />
+    </div>
+  );
+}
+
 function MatchCard({ m, dd, open, onToggle, onDelete, onSwap, byName, highlight, carryThreshold = 20, onPlayer }) {
   const aWin = m.winner === 'A';
   const mvp = [...m.A, ...m.B].find((p) => p.mvp);

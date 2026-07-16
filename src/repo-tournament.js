@@ -578,7 +578,7 @@ export async function saveTournamentGame(tournamentId, b) {
   const parts = Array.isArray(b.participants) ? b.participants : [];
   if (parts.length < 2) throw new Error('참가자 정보가 없어요');
   const row = {
-    tournament_id: tournamentId, kind: b.kind === 'scrim' ? 'scrim' : 'match',
+    tournament_id: tournamentId, kind: ['open', 'team', 'match'].includes(b.kind) ? b.kind : 'open',
     uploader_team_id: b.uploader_team_id || null, uploader_user_id: b.uploader_user_id || null,
     winner: b.winner === 'B' ? 'B' : 'A', duration_sec: Number(b.durationSec) || 0,
     objectives: b.objectives || null, participants: parts, source: b.source || 'replay',
