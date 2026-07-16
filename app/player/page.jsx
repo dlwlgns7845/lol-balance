@@ -99,38 +99,41 @@ export default function PlayerRecordPage() {
             {kpi('⭐ ACE', p.ace)}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 14, alignItems: 'start' }}>
-            {detail?.champions?.length > 0 && (
-              <div className="panel">
-                <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  모스트 챔피언
-                  {detail.champions.length > 5 && <Link href={`/champions?id=${p.id}`} className="accent" style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 600 }}>상세보기 →</Link>}
-                </h2>
-                <div className="pc-champs">
-                  {detail.champions.slice(0, 6).map((c) => (
-                    <div className="pc-champ" key={c.champion}>
-                      <ChampImg name={c.champion} iconUrl={dd.icon} size={32} />
-                      <div className="pcc-info">
-                        <span className="pcc-name">{c.champion}</span>
-                        <span className="muted" style={{ fontSize: 11 }}>{c.games}판 · KDA {c.kda} · {c.k}/<span className="red">{c.d}</span>/{c.a}</span>
-                      </div>
-                      <WinLossBar wins={c.wins} losses={c.games - c.wins} showText />
-                      <span className={`pcc-wr ${wrCls(c.winrate)}`}>{Math.round(c.winrate * 100)}%</span>
-                    </div>
-                  ))}
+          <div className="pl-layout">
+            <div className="pl-left">
+              {p.positions && Object.values(p.positions).some((n) => n > 0) && (
+                <div className="panel">
+                  <h2>포지션 <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>· 주 라인 {p.mainPos ? { top: '탑', jungle: '정글', mid: '미드', adc: '원딜', sup: '서폿' }[p.mainPos] : '-'}</span></h2>
+                  <PositionBar positions={p.positions} stats={p.positionStats} />
                 </div>
-              </div>
-            )}
-            {p.positions && Object.values(p.positions).some((n) => n > 0) && (
-              <div className="panel">
-                <h2>포지션 <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>· 주 라인 {p.mainPos ? { top: '탑', jungle: '정글', mid: '미드', adc: '원딜', sup: '서폿' }[p.mainPos] : '-'}</span></h2>
-                <PositionBar positions={p.positions} stats={p.positionStats} />
-              </div>
-            )}
+              )}
+              {detail?.champions?.length > 0 && (
+                <div className="panel">
+                  <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    모스트 챔피언
+                    {detail.champions.length > 5 && <Link href={`/champions?id=${p.id}`} className="accent" style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 600 }}>상세보기 →</Link>}
+                  </h2>
+                  <div className="pc-champs">
+                    {detail.champions.slice(0, 6).map((c) => (
+                      <div className="pc-champ" key={c.champion}>
+                        <ChampImg name={c.champion} iconUrl={dd.icon} size={32} />
+                        <div className="pcc-info">
+                          <span className="pcc-name">{c.champion}</span>
+                          <span className="muted" style={{ fontSize: 11 }}>{c.games}판 · KDA {c.kda} · {c.k}/<span className="red">{c.d}</span>/{c.a}</span>
+                        </div>
+                        <WinLossBar wins={c.wins} losses={c.games - c.wins} showText />
+                        <span className={`pcc-wr ${wrCls(c.winrate)}`}>{Math.round(c.winrate * 100)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="pl-right">
+              <h2 style={{ fontSize: 15, margin: '0 2px 10px' }}>참여 경기 <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>· 배너 눌러 펼치면 그 경기 10명 전체 상세, 본인은 하이라이트</span></h2>
+              <MatchHistory gid={gid} dd={dd} filterName={p.nickname || p.name} />
+            </div>
           </div>
-
-          <h2 style={{ fontSize: 15, margin: '4px 2px 10px' }}>참여 경기 <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>· 배너 눌러 펼치면 그 경기 10명 전체 상세, 본인은 하이라이트</span></h2>
-          <MatchHistory gid={gid} dd={dd} filterName={p.nickname || p.name} />
         </>
       )}
     </div>
