@@ -651,7 +651,7 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mhr-team { background: var(--panel2); border-radius: 10px; overflow: hidden; }
 .mhr-team.t-blue { box-shadow: inset 3px 0 0 #4d7de8; background: rgba(77,125,232,.05); --tint: rgba(77,125,232,.12); }
 .mhr-team.t-red { box-shadow: inset 3px 0 0 #e84d4d; background: rgba(224,77,77,.05); --tint: rgba(224,77,77,.11); }
-.mhr-head { display: flex; align-items: center; gap: 10px; padding: 6px 12px; font-size: 12px; background: rgba(255,255,255,.02); border-bottom: 1px solid var(--line); }
+.mhr-head { display: flex; align-items: center; gap: 10px; padding: 6px 12px; font-size: 10px; background: rgba(255,255,255,.02); border-bottom: 1px solid var(--line); }
 .mhr-head .mhf-label { font-weight: 700; }
 /* 항목을 좌우 끝까지 밀고 균일 간격(space-between). 선수=왼쪽끝, 아이템=오른쪽끝 */
 .mhr-row { display: grid; grid-template-columns: 280px 66px 82px 74px 86px 74px 48px 54px 278px; align-items: center; column-gap: 8px; padding: 4px 16px; border-bottom: 1px solid rgba(255,255,255,.04); justify-content: space-between; }
@@ -661,10 +661,10 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mhr-row.clk:hover { background: rgba(79,182,214,.16); }
 .mhr-row.me { background: rgba(79,182,214,.2); }
 .mhr-name { min-width: 0; display: flex; flex-direction: column; }
-.mhr-nm { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 3px; }
-.mhr-sub { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mhr-kda { display: flex; flex-direction: column; font-size: 15px; white-space: nowrap; }
-.mhr-ratio { font-size: 13px; font-weight: 700; }
+.mhr-nm { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 3px; }
+.mhr-sub { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mhr-kda { display: flex; flex-direction: column; font-size: 13px; white-space: nowrap; }
+.mhr-ratio { font-size: 11px; font-weight: 700; }
 .mhr-dmg { display: flex; gap: 6px; font-size: 10px; }
 .mhr-dmg-c { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; text-align: center; }
 .mhr-dmg-c .dmg-bar { height: 5px; }
@@ -676,10 +676,10 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 /* 스펠·KDA·피해량·받은피해량·골드·와드·CS(2~8번째) 가운데 정렬 */
 .mhr-colhead > span:nth-child(n+2):nth-child(-n+8) { text-align: center; }
 .mhr-c { display: flex; flex-direction: column; align-items: center; line-height: 1.2; }
-.mhr-c b { font-size: 15px; color: var(--text); }
-.mhr-c span { font-size: 12.5px; }
+.mhr-c b { font-size: 13px; color: var(--text); }
+.mhr-c span { font-size: 10.5px; }
 .mhr-items { display: flex; gap: 3px; align-items: center; }
-.mhr-item { width: 30px; height: 30px; border-radius: 5px; background: rgba(255,255,255,.045); overflow: hidden; flex-shrink: 0; }
+.mhr-item { width: 28px; height: 28px; border-radius: 5px; background: rgba(255,255,255,.045); overflow: hidden; flex-shrink: 0; }
 /* 퀘스트: 아이템 묶음 오른쪽 끝(별도 위치) 역할 보상 신발 + 완료 시 금테 */
 .mhr-qitem { position: relative; margin-left: auto; }
 .mhr-ihead { display: flex; justify-content: space-between; }
@@ -687,7 +687,7 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mhr-qcheck { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; color: #6b7280; font-size: 14px; font-weight: 800; }
 .mhr-item img { border-radius: 4px; display: block; }
 /* 피해량·받은피해량·골드량: 숫자 + 막대 (가운데) */
-.mhr-stat { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 14.5px; min-width: 0; }
+.mhr-stat { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 12.5px; min-width: 0; }
 .mhr-stat > span { white-space: nowrap; }
 .mhr-stat .dmg-bar { width: 100%; height: 5px; }
 .dmg-bar .f.gold { background: linear-gradient(90deg, #c8942f, #f0c860); }
@@ -707,7 +707,7 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mhr-sr-i { border-radius: 3px; background: rgba(255,255,255,.05); overflow: hidden; display: flex; align-items: center; justify-content: center; }
 .mhr-sr-i img { display: block; border-radius: 3px; }
 .mhr-quest { font-size: 12px; }
-.mhr-riot { font-size: 11.5px; }
+.mhr-riot { font-size: 9.5px; }
 /* 두 팀 사이 중앙 바: 좌=블루 오브젝트 · 중앙 Total Kill/Gold · 우=레드 오브젝트 */
 .mhmid { display: grid; grid-template-columns: 1fr minmax(260px, 400px) 1fr; align-items: center; gap: 14px; padding: 5px 16px; }
 .mhmid-obj { display: flex; gap: 4px; font-size: 10.5px; align-items: center; white-space: nowrap; flex-wrap: wrap; }
@@ -1278,45 +1278,45 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 .mh-opme.w { background: linear-gradient(90deg, rgba(77,124,254,.16), rgba(77,124,254,.045)); border-left-color: #4d7cfe; }
 .mh-opme.l { background: linear-gradient(90deg, rgba(224,87,107,.16), rgba(224,87,107,.045)); border-left-color: #e0576b; }
 .mh-opme.carry.w { background: linear-gradient(90deg, rgba(255,196,77,.2), rgba(77,124,254,.05)); border-left-color: #ffc44d; }
-.opme-meta { display: flex; flex-direction: column; gap: 1px; font-size: 11.5px; line-height: 1.32; min-width: 0; }
+.opme-meta { display: flex; flex-direction: column; gap: 1px; font-size: 9.5px; line-height: 1.32; min-width: 0; }
 .opme-kind { font-weight: 700; }
 .mh-opme.w .opme-kind { color: #7ea2ff; }
 .mh-opme.l .opme-kind { color: #f08698; }
-.opme-ago { font-size: 11px; }
+.opme-ago { font-size: 9px; }
 .opme-div { height: 1px; width: 30px; background: #3a3a44; margin: 3px 0; }
-.opme-res { font-weight: 800; font-size: 13px; }
+.opme-res { font-weight: 800; font-size: 11px; }
 .opme-res.g { color: #5cc98d; }
 .opme-res.r { color: #e0576b; }
-.opme-dur { font-size: 11px; }
+.opme-dur { font-size: 9px; }
 .opme-champ { position: relative; flex-shrink: 0; }
 .opme-champ img { border-radius: 7px; }
 .opme-champ.big, .opme-champ.big img { width: 56px; height: 56px; }
 .opme-champ.big { margin-left: -4px; } /* 메타 텍스트 안 건드리는 선에서 살짝 더 왼쪽 */
 .opme-ru { display: flex; flex-direction: column; gap: 2px; align-items: center; transform: translateY(12px); }
-.opme-ru .opme-slot { width: 25px; height: 25px; }
+.opme-ru .opme-slot { width: 23px; height: 23px; }
 .opme-sp2 { display: flex; gap: 3px; align-items: center; }
 .opme-slot { width: 18px; height: 18px; border-radius: 4px; background: #16161c; display: block; overflow: hidden; }
 .opme-slot img { border-radius: 4px; display: block; }
 .opme-slot.rune, .opme-slot.rune img { border-radius: 50%; }
 .opme-sp2 .opme-slot { width: 30px; height: 30px; border-radius: 5px; }
 .opme-nt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.opme-cn { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.opme-cn { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .opme-kda { display: flex; flex-direction: column; align-items: center; gap: 1px; text-align: center; }
-.opme-kdal { font-size: 15px; font-weight: 700; }
-.opme-ratio { font-size: 13px; font-weight: 700; color: #b9b9c4; }
-.opme-kp { font-size: 12.5px; }
+.opme-kdal { font-size: 13px; font-weight: 700; }
+.opme-ratio { font-size: 11px; font-weight: 700; color: #b9b9c4; }
+.opme-kp { font-size: 10.5px; }
 .opme-mid { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; text-align: center; }
-.opme-tier { font-size: 13px; font-weight: 700; }
-.opme-rank { font-size: 11px; color: #c9a24d; font-weight: 700; }
+.opme-tier { font-size: 11px; font-weight: 700; }
+.opme-rank { font-size: 9px; color: #c9a24d; font-weight: 700; }
 .opme-items { display: flex; flex-wrap: wrap; gap: 2px; width: 100%; max-width: 126px; align-content: center; }
 /* 중앙 스탯 셀(딜/받음/CS/골드) — 펼친 상세와 동일한 숫자+짧은막대, 가로는 균등분산으로 채움 */
 .opme-stats { display: flex; align-items: center; gap: 16px; }
 .opme-sc { width: 90px; flex: none; font-size: 14.5px; align-items: flex-start; gap: 3px; }
 .opme-sc > span { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .opme-scl { font-weight: 400; font-size: 11px; }
-.opme-csv { font-size: 14.5px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.opme-csv { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dmg-bar .f.cs { background: linear-gradient(90deg, #3fa66f, #58c19a); }
-.opme-it { width: 30px; height: 30px; border-radius: 5px; background: #131318; display: block; overflow: hidden; }
+.opme-it { width: 28px; height: 28px; border-radius: 5px; background: #131318; display: block; overflow: hidden; }
 .opme-it img { border-radius: 4px; display: block; }
 .opme-it.q { outline: 1px solid rgba(255,196,77,.5); }
 .opme-it.q.done { display: grid; place-items: center; color: #ffc44d; font-size: 12px; }

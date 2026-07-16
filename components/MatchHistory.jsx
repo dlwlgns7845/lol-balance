@@ -161,9 +161,9 @@ function RichRow({ p, dd, color, maxDmg, maxTaken, maxGold, durationMin, byName,
       <div className="mhr-c muted"><b>{det.visionScore || 0}</b><span>👁 {det.wardsPlaced || 0}/{det.wardsKilled || 0}</span></div>
       <div className="mhr-c muted"><b>{p.cs || 0}</b><span>{csm ? csm + '/분' : 'CS'}</span></div>
       <div className="mhr-items">
-        {[0, 1, 2, 3, 4, 5, 6].map((i) => { const u = itemUrl(items[i]); return <span key={i} className="mhr-item">{u ? <img src={u} alt="" width={30} height={30} /> : null}</span>; })}
+        {[0, 1, 2, 3, 4, 5, 6].map((i) => { const u = itemUrl(items[i]); return <span key={i} className="mhr-item">{u ? <img src={u} alt="" width={28} height={28} /> : null}</span>; })}
         <span className={`mhr-item mhr-qitem ${questDone ? 'done' : ''}`} title={questDone ? '역할 퀘스트 완료 · 보상 신발' : (roleItem ? '역할 보상 신발' : '역할 퀘스트')}>
-          {roleItem && itemUrl(roleItem) ? <img src={itemUrl(roleItem)} alt="" width={30} height={30} /> : (questDone ? <span className="mhr-qcheck">✓</span> : null)}
+          {roleItem && itemUrl(roleItem) ? <img src={itemUrl(roleItem)} alt="" width={28} height={28} /> : (questDone ? <span className="mhr-qcheck">✓</span> : null)}
         </span>
       </div>
     </div>
@@ -248,7 +248,7 @@ function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshol
         {det.level ? <span className="mhr-lv">{det.level}</span> : null}
       </div>
       {hasLoad
-        ? <div className="opme-ru">{runes.map((pid, i) => { const u = dd.rune?.(pid); return <span key={i} className={`opme-slot rune ${i ? 'sub' : ''}`}>{u ? <img src={u} alt="" width={25} height={25} /> : null}</span>; })}</div>
+        ? <div className="opme-ru">{runes.map((pid, i) => { const u = dd.rune?.(pid); return <span key={i} className={`opme-slot rune ${i ? 'sub' : ''}`}>{u ? <img src={u} alt="" width={23} height={23} /> : null}</span>; })}</div>
         : <div className="opme-ru" />}
       <div className="opme-nt">
         <span className="opme-cn">{dd.label(me.champion)}</span>
@@ -265,8 +265,8 @@ function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshol
       </div>
       {hasItems ? (
         <div className="opme-items">
-          {[0, 1, 2, 3, 4, 5, 6].map((i) => { const u = itemUrl(items[i]); return <span key={i} className="opme-it">{u ? <img src={u} alt="" width={30} height={30} /> : null}</span>; })}
-          {det.roleItem && itemUrl(det.roleItem) ? <span className="opme-it q"><img src={itemUrl(det.roleItem)} alt="" width={30} height={30} /></span> : (det.questDone ? <span className="opme-it q done"><span className="mhr-qcheck">✓</span></span> : null)}
+          {[0, 1, 2, 3, 4, 5, 6].map((i) => { const u = itemUrl(items[i]); return <span key={i} className="opme-it">{u ? <img src={u} alt="" width={28} height={28} /> : null}</span>; })}
+          {det.roleItem && itemUrl(det.roleItem) ? <span className="opme-it q"><img src={itemUrl(det.roleItem)} alt="" width={28} height={28} /></span> : (det.questDone ? <span className="opme-it q done"><span className="mhr-qcheck">✓</span></span> : null)}
         </div>
       ) : <div className="opme-items" />}
       <div className="opme-stats"><span className="opme-csv">CS {me.cs || 0}{csm ? ` (${csm})` : ''}</span></div>
