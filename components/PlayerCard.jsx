@@ -45,6 +45,7 @@ export default function PlayerCard({ player: p, gid, max, dd, onClose, detail: d
                 <span className={`ph-tag ${kdaClass(p.kda || 0)}`}>KDA {p.kda != null ? p.kda.toFixed(2) : '-'}</span>
                 <span className={`ph-tag ${wrClass(p.winrate)}`}>승률 {Math.round(p.winrate * 100)}%</span>
                 <span className="ph-tag"><b className="green">{p.wins}</b>승 <b className="red">{p.losses}</b>패</span>
+                {onDetail && <button className="ph-tag" onClick={onDetail} style={{ cursor: 'pointer', background: 'rgba(79,182,214,.18)', border: '1px solid rgba(79,182,214,.45)', color: '#8fd6ec', fontWeight: 700 }}>📄 상세보기 →</button>}
               </div>
             </div>
           </div>
