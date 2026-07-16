@@ -6,6 +6,7 @@ import { apiFetch } from '../../../../components/api.js';
 import { useDdragon } from '../../../../components/ddragon.js';
 import { parseRofl } from '../../../../components/rofl.js';
 import { RichScoreboard } from '../../../../components/MatchHistory.jsx';
+import Avatar from '../../../../components/Avatar.jsx';
 import { normalizeSettings, REGIONS, TIER_BASES, TIER_BASIS_LABEL } from '../../../../src/tournament-settings.js';
 import { groupStandings } from '../../../../src/bracket.js';
 import { TIER_ORDER, TIER_LABEL, POS_KR, POS, TABLE, tierClass } from '../../../../src/table.js';
@@ -870,6 +871,17 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
   const players = aggregatePlayers(fgames, rmap).sort((a, b) => (b.w / (b.g || 1)) - (a.w / (a.g || 1)) || b.g - a.g);
   const tstats = aggregateTeams(fgames, teams, rmap);
   const champs = aggregateChamps(fgames);
+  // 리더보드: 내전과 동일 점수 공식 (보정승률×0.9 + ln(판수)×10 + √KDA×12 + 딜(k)×0.4)
+  const scoreOf = (g, w, kda, avgDmg) => { if (!g) return 0; const adj = (w + 2) / (g + 4); return Math.round((adj * 100 * 0.9 + Math.log(g) * 10 + Math.sqrt(kda || 0) * 12 + (avgDmg || 0) / 1000 * 0.4) * 10) / 10; };
+  const lbPlayers = players.map((p) => {
+    const kda = p.d ? (p.k + p.a) / p.d : (p.k + p.a);
+    const avgDamage = p.dmg / p.g;
+    const topChamps = Object.entries(p.champs).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([champion, gm]) => ({ champion, games: gm }));
+    return { ...p, kAvg: r1(p.k / p.g), dAvg: r1(p.d / p.g), aAvg: r1(p.a / p.g), kda, avgDamage, winrate: p.w / p.g, wins: p.w, losses: p.g - p.w, topChamps, score: scoreOf(p.g, p.w, kda, avgDamage) };
+  }).sort((a, b) => b.score - a.score);
+  const maxDmg = Math.max(1, ...lbPlayers.map((p) => p.avgDamage || 0));
+  const medal = (i) => ['🥇', '🥈', '🥉'][i] || null;
+  const wrCls = (w) => (w >= 0.6 ? 'green' : w >= 0.5 ? 'yellow' : 'red');
   const mostChamp = (c) => { const e = Object.entries(c).sort((a, b) => b[1] - a[1])[0]; return e ? e[0] : '-'; };
   const champImg = (c) => dd.icon(c);
   const canDel = (g) => canManage || (user && g.uploader_user_id === user.id);
@@ -904,7 +916,7 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
 
       <div className="panel" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <span style={{ display: 'inline-flex', gap: 4 }}>
-          {[['records', '🎮 경기기록'], ['rank', '🏆 리더보드'], ['champs', '🥷 챔피언'], ['players', '🧑 선수']].map(([k, l]) => (
+          {[['records', '🎮 경기기록'], ['rank', '🏆 리더보드'], ['champs', '🥷 챔피언']].map(([k, l]) => (
             <button key={k} className={`mini ${view === k ? 'on' : ''}`} onClick={() => { setView(k); setSel(null); }}>{l}</button>
           ))}
         </span>
@@ -917,7 +929,7 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
 
       {games.length === 0 && <div className="panel center muted" style={{ padding: '26px 0' }}>아직 기록된 경기가 없어요. 위에서 리플을 올려보세요.</div>}
 
-      {view === 'records' && (kindF === 'all' ? ['open', 'team', 'match'] : kindF === 'scrim' ? ['open', 'team'] : ['match']).map((kind) => {
+      {!sel && view === 'records' && (kindF === 'all' ? ['open', 'team', 'match'] : kindF === 'scrim' ? ['open', 'team'] : ['match']).map((kind) => {
         const gs = games.filter((g) => kindOf(g) === kind);
         if (!gs.length) return null;
         const info = GKINDS.find((x) => x[0] === kind);
@@ -929,7 +941,7 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
         );
       })}
 
-      {view === 'rank' && (
+      {!sel && view === 'rank' && (
         <>
           {tstats.length > 0 && (
             <div className="panel">
@@ -942,24 +954,53 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
               </table></div>
             </div>
           )}
-          {players.length > 0 && (
-            <div className="panel">
-              <h2>🧑 선수 순위 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 클릭 → 카드·상세</span></h2>
-              <div style={{ overflowX: 'auto' }}><table className="rec-table" style={{ marginTop: 8 }}>
-                <thead><tr><th>#</th><th className="l">선수</th><th className="l">팀</th><th>경기</th><th>승률</th><th>평균KDA</th><th>평균딜</th><th className="l">모스트</th></tr></thead>
-                <tbody>{players.map((p, i) => (
-                  <tr key={p.key} style={{ cursor: 'pointer' }} onClick={() => { setView('players'); setSel(p.key); }}>
-                    <td>{i + 1}</td><td className="l"><b>{p.name}</b></td><td className="l muted">{p.teamName}</td><td>{p.g}</td><td>{Math.round(p.w / p.g * 100)}%</td>
-                    <td>{r1(p.k / p.g)}/<span className="red">{r1(p.d / p.g)}</span>/{r1(p.a / p.g)}</td><td className="muted">{kfmt(p.dmg / p.g)}</td><td className="l muted">{mostChamp(p.champs)}</td>
-                  </tr>
-                ))}</tbody>
-              </table></div>
+          {lbPlayers.length > 0 && (
+            <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
+              <div className="lb-head">
+                <h2 style={{ margin: 0 }}>리더보드 <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>· 내전 점수순 (라플라스 보정)</span></h2>
+                <span className="formula">보정승률×0.9 + ln(판수)×10 + √KDA×12 + 딜(k)×0.4</span>
+              </div>
+              <div className="lbx">
+                <div className="lbx-row lbx-hd lbx-hd-static">
+                  <div /><div>선수</div><div className="hd-c">KDA</div><div className="hd-c">딜량</div><div className="lbx-badges">팀</div><div className="hd-c">승률</div><div className="lbx-most">모스트</div><div className="hd-c">점수</div>
+                </div>
+                {lbPlayers.map((p, i) => {
+                  const splash = dd.splash(p.topChamps?.[0]?.champion);
+                  return (
+                    <div key={p.key} className={`lbx-row ${i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : ''}`} style={{ cursor: 'pointer' }} onClick={() => setSel(p.key)}>
+                      {splash && <div className="lbx-splash" style={{ backgroundImage: `url(${splash})` }} />}
+                      <div className="lbx-rank">{medal(i) || <span className="num">{i + 1}</span>}</div>
+                      <div className="lbx-name">
+                        <Avatar name={p.name} size={30} />
+                        <div className="lbx-nm-txt"><b>{p.name}</b><span className="muted">{p.teamName}</span></div>
+                      </div>
+                      <div className="lbx-kda">
+                        <div className="kda-line">{p.kAvg}/<span className="red">{p.dAvg}</span>/{p.aAvg}</div>
+                        <div className={`kda-val ${p.kda >= 5 ? 'kv-5' : p.kda >= 4 ? 'kv-4' : p.kda >= 3 ? 'kv-3' : ''}`}>{p.kda != null ? p.kda.toFixed(2) : '-'} KDA</div>
+                      </div>
+                      <div className="lbx-dmg" title="평균 딜량">
+                        <span className="dnum">{p.avgDamage ? (p.avgDamage / 1000).toFixed(1) + 'k' : '-'}</span>
+                        {p.avgDamage ? <div className="dbar"><span style={{ width: Math.round((p.avgDamage / maxDmg) * 100) + '%' }} /></div> : null}
+                      </div>
+                      <div className="lbx-badges"><span className="muted" style={{ fontSize: 10.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.teamName}</span></div>
+                      <div className="lbx-wr">
+                        <div className="wrbar"><span className={wrCls(p.winrate)} style={{ width: Math.round(p.winrate * 100) + '%' }} /></div>
+                        <span className="wrpct">{Math.round(p.winrate * 100)}% <span className="muted">{p.wins}-{p.losses}</span></span>
+                      </div>
+                      <div className="lbx-most">
+                        {p.topChamps?.map((c) => (champImg(c.champion) ? <img key={c.champion} src={champImg(c.champion)} alt="" title={`${c.champion} ${c.games}판`} width={26} height={26} style={{ borderRadius: 5 }} /> : null))}
+                      </div>
+                      <div className="lbx-score"><b>{p.score}</b><span>점</span></div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </>
       )}
 
-      {view === 'champs' && (
+      {!sel && view === 'champs' && (
         <div className="panel">
           <h2>🥷 챔피언 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 픽·승률·KDA·딜/CS/골드(분당)·시야·멀티킬</span></h2>
           {champs.length === 0 && <div className="muted" style={{ marginTop: 8 }}>데이터가 없어요.</div>}
@@ -981,23 +1022,7 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
         </div>
       )}
 
-      {view === 'players' && !sel && (
-        <div className="panel">
-          <h2>🧑 선수 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 클릭하면 카드·상세</span></h2>
-          {players.length === 0 && <div className="muted" style={{ marginTop: 8 }}>데이터가 없어요.</div>}
-          {players.length > 0 && <div style={{ overflowX: 'auto' }}><table className="rec-table" style={{ marginTop: 8 }}>
-            <thead><tr><th className="l">선수</th><th className="l">팀</th><th>경기</th><th>승률</th><th>평균KDA</th><th>평균딜</th><th>평균골드</th><th className="l">모스트</th></tr></thead>
-            <tbody>{players.map((p) => (
-              <tr key={p.key} style={{ cursor: 'pointer' }} onClick={() => setSel(p.key)}>
-                <td className="l"><b>{p.name}</b></td><td className="l muted">{p.teamName}</td><td>{p.g}</td><td>{Math.round(p.w / p.g * 100)}%</td>
-                <td>{r1(p.k / p.g)}/<span className="red">{r1(p.d / p.g)}</span>/{r1(p.a / p.g)}</td><td className="muted">{kfmt(p.dmg / p.g)}</td><td className="muted">{kfmt(p.gold / p.g)}</td><td className="l muted">{mostChamp(p.champs)}</td>
-              </tr>
-            ))}</tbody>
-          </table></div>}
-        </div>
-      )}
-
-      {view === 'players' && sel && selPlayer && (() => {
+      {sel && selPlayer && (() => {
         const bd = playerBreakdown(sel, games);
         const posEntries = POS_ORDER.filter((pp) => bd.positions[pp]).map((pp) => [pp, bd.positions[pp]]);
         const chDetail = bd.champs;
