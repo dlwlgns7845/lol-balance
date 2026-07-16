@@ -977,24 +977,27 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
     );
   }
 
+  const onDetailPage = !!(playerPage || teamPage); // 개인/팀 상세 = 단독 페이지 (업로드·탭·필터 숨김)
   return (
     <>
-      <GameUpload teams={teams} id={id} reload={reload} user={user} login={login} />
+      {!onDetailPage && <GameUpload teams={teams} id={id} reload={reload} user={user} login={login} />}
 
-      <div className="panel" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <span style={{ display: 'inline-flex', gap: 4 }}>
-          {[['records', '🎮 경기기록'], ['rank', '🏆 리더보드'], ['champs', '🥷 챔피언']].map(([k, l]) => (
-            <button key={k} className={`mini ${view === k ? 'on' : ''}`} onClick={() => { setView(k); setSel(null); setSelTeam(null); if (playerPage || teamPage) goStats(); }}>{l}</button>
-          ))}
-        </span>
-        <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
-          {[['all', '전체'], ['scrim', '🎯 스크림'], ['match', '🏆 실제경기']].map(([k, l]) => (
-            <button key={k} className={`mini ${kindF === k ? 'on' : ''}`} onClick={() => setKindF(k)}>{l}</button>
-          ))}
-        </span>
-      </div>
+      {!onDetailPage && (
+        <div className="panel" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ display: 'inline-flex', gap: 4 }}>
+            {[['records', '🎮 경기기록'], ['rank', '🏆 리더보드'], ['champs', '🥷 챔피언']].map(([k, l]) => (
+              <button key={k} className={`mini ${view === k ? 'on' : ''}`} onClick={() => { setView(k); setSel(null); setSelTeam(null); }}>{l}</button>
+            ))}
+          </span>
+          <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
+            {[['all', '전체'], ['scrim', '🎯 스크림'], ['match', '🏆 실제경기']].map(([k, l]) => (
+              <button key={k} className={`mini ${kindF === k ? 'on' : ''}`} onClick={() => setKindF(k)}>{l}</button>
+            ))}
+          </span>
+        </div>
+      )}
 
-      {games.length === 0 && <div className="panel center muted" style={{ padding: '26px 0' }}>아직 기록된 경기가 없어요. 위에서 리플을 올려보세요.</div>}
+      {!onDetailPage && games.length === 0 && <div className="panel center muted" style={{ padding: '26px 0' }}>아직 기록된 경기가 없어요. 위에서 리플을 올려보세요.</div>}
 
       {!sel && !teamPage && !playerPage && view ==='records' && (kindF === 'all' ? ['open', 'team', 'match'] : kindF === 'scrim' ? ['open', 'team'] : ['match']).map((kind) => {
         const gs = games.filter((g) => kindOf(g) === kind);
