@@ -111,7 +111,7 @@ export default function TournamentLayout({ children }) {
         </aside>}
         {!navOpen && <button className="btn ghost" onClick={() => setNavOpen(true)} style={{ alignSelf: 'flex-start', margin: '12px 0 0 10px', fontSize: 12, padding: '5px 10px', flexShrink: 0 }} title="대회 목록 펴기">☰ 목록</button>}
         <main className="main" style={{ flex: 1, minWidth: 0 }}>
-          <div className="content" style={{ maxWidth: navOpen ? 1320 : 1680 }}>{children}</div>
+          <div className="content">{children}</div>
         </main>
       </div>
       <footer className="site-credit">티어·전적 데이터 제공: <a href="https://op.gg" target="_blank" rel="noreferrer">OP.GG</a></footer>
