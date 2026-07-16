@@ -1189,16 +1189,29 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
               {kpi("평균 골드", kfmt(agg.gold / g))}
               {kpi("챔프 폭", Object.keys(agg.champs).length)}
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 14, alignItems: "start" }}>
+            <div className="pl-layout">
+            <div className="pl-left">
+              {posEntries.length > 0 && (
+                <div className="panel">
+                  <h2>포지션</h2>
+                  {posEntries.map(([pp, o]) => (
+                    <div key={pp} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", fontSize: 13 }}>
+                      <span style={{ width: 40 }} className="muted">{POS_KR[pp]}</span><span style={{ width: 36 }}>{o.g}판</span>
+                      <div style={{ flex: 1, height: 12, borderRadius: 6, overflow: "hidden", display: "flex", background: "#2a2a33" }}><span style={{ width: (o.w / o.g * 100) + "%", background: "#3fa66f" }} /><span style={{ flex: 1, background: "#c15563" }} /></div>
+                      <span style={{ width: 44, textAlign: "right" }} className={o.w / o.g >= 0.5 ? "accent" : "red"}>{Math.round(o.w / o.g * 100)}%</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="panel">
                 <h2>모스트 챔피언</h2>
                 <div className="pc-champs">
                   {bd.champs.slice(0, 6).map((c) => (
                     <div className="pc-champ" key={c.champion}>
-                      <ChampImg name={c.champion} iconUrl={dd.icon} size={32} />
+                      <ChampImg name={c.champion} iconUrl={dd.icon} size={30} />
                       <div className="pcc-info">
                         <span className="pcc-name">{dd.label(c.champion)}</span>
-                        <span className="muted" style={{ fontSize: 11 }}>{c.g}판 · KDA {c.kda} · {c.k}/<span className="red">{c.d}</span>/{c.a}</span>
+                        <span className="muted" style={{ fontSize: 11 }}>{c.g}판 · KDA {c.kda}</span>
                       </div>
                       <WinLossBar wins={c.w} losses={c.g - c.w} showText />
                       <span className={"pcc-wr " + (c.winrate >= 0.6 ? "green" : c.winrate >= 0.5 ? "yellow" : "red")}>{Math.round(c.winrate * 100)}%</span>
@@ -1206,20 +1219,9 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
                   ))}
                 </div>
               </div>
-              {posEntries.length > 0 && (
-                <div className="panel">
-                  <h2>포지션</h2>
-                  {posEntries.map(([pp, o]) => (
-                    <div key={pp} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", fontSize: 13 }}>
-                      <span style={{ width: 40 }} className="muted">{POS_KR[pp]}</span><span style={{ width: 40 }}>{o.g}판</span>
-                      <div style={{ flex: 1, height: 12, borderRadius: 6, overflow: "hidden", display: "flex", background: "#2a2a33" }}><span style={{ width: (o.w / o.g * 100) + "%", background: "#3fa66f" }} /><span style={{ flex: 1, background: "#c15563" }} /></div>
-                      <span style={{ width: 44, textAlign: "right" }} className={o.w / o.g >= 0.5 ? "accent" : "red"}>{Math.round(o.w / o.g * 100)}%</span>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
-            <h2 style={{ fontSize: 15, margin: "4px 2px 10px" }}>참여 경기 <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>· 배너 눌러 펼치면 그 경기 전체 상세</span></h2>
+            <div className="pl-right">
+            <h2 style={{ fontSize: 15, margin: "0 2px 10px" }}>참여 경기 <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>· 배너 눌러 펼치면 그 경기 전체 상세</span></h2>
             {[["scrim", "🎯 스크림"], ["match", "🏆 실제경기"]].map(([grp, label]) => {
               const kg = pGames.filter((gm) => kindGroup(gm) === grp);
               if (!kg.length) return null;
@@ -1230,6 +1232,8 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
                 </div>
               );
             })}
+            </div>
+            </div>
           </>
         );
       })()}
