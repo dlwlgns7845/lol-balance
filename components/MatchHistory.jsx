@@ -256,7 +256,7 @@ function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshol
         {det.level ? <span className="mhr-lv">{det.level}</span> : null}
       </div>
       {hasLoad
-        ? <div className="opme-ru">{runes.map((pid, i) => { const u = dd.rune?.(pid); return <span key={i} className={`opme-slot rune ${i ? 'sub' : ''}`}>{u ? <img src={u} alt="" width={18} height={18} /> : null}</span>; })}</div>
+        ? <div className="opme-ru">{runes.map((pid, i) => { const u = dd.rune?.(pid); return <span key={i} className={`opme-slot rune ${i ? 'sub' : ''}`}>{u ? <img src={u} alt="" width={22} height={22} /> : null}</span>; })}</div>
         : <div className="opme-ru" />}
       <div className="opme-nt">
         <span className="opme-cn">{me.champion}</span>
