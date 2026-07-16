@@ -48,7 +48,7 @@ export default function TournamentLayout({ children }) {
       <header className="topbar">
         <div className="tb-brand">
           <a href="/" style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span className="tb-logo" style={{ display: 'grid', placeItems: 'center', fontSize: 20, background: 'transparent' }}>🏆</span>
+            <span className="tb-logo" style={{ display: 'grid', placeItems: 'center', fontSize: 24, background: 'transparent', width: 40, height: 40 }}>🏆</span>
             <div className="tb-title"><div className="tb-name">멸망전</div><div className="tb-sub">COMMUNITY TOURNAMENT</div></div>
           </a>
         </div>
@@ -88,7 +88,7 @@ export default function TournamentLayout({ children }) {
         </div>
       </header>
 
-      <div style={{ display: 'flex', minHeight: 'calc(100vh - 56px)' }}>
+      <div style={{ display: 'flex', minHeight: 'calc(100vh - 62px)', position: 'relative' }}>
         {navOpen && <aside style={{ width: 220, flexShrink: 0, borderRight: '1px solid #1e1e26', background: '#0f0f14', padding: '14px 10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px 8px' }}>
             <span className="muted" style={{ fontSize: 11, fontWeight: 700 }}>대회 목록</span>
@@ -109,7 +109,8 @@ export default function TournamentLayout({ children }) {
             </div>
           )}
         </aside>}
-        {!navOpen && <button className="btn ghost" onClick={() => setNavOpen(true)} style={{ alignSelf: 'flex-start', margin: '12px 0 0 10px', fontSize: 12, padding: '5px 10px', flexShrink: 0 }} title="대회 목록 펴기">☰ 목록</button>}
+        {/* 접었을 때는 흐름에서 빼서(absolute) 콘텐츠가 내전과 동일하게 뷰포트 정중앙에 오도록 */}
+        {!navOpen && <button className="btn ghost" onClick={() => setNavOpen(true)} style={{ position: 'absolute', left: 10, top: 12, zIndex: 5, fontSize: 12, padding: '5px 10px' }} title="대회 목록 펴기">☰ 목록</button>}
         <main className="main" style={{ flex: 1, minWidth: 0 }}>
           <div className="content">{children}</div>
         </main>
