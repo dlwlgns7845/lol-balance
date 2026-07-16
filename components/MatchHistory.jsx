@@ -143,14 +143,14 @@ function RichRow({ p, dd, color, maxDmg, maxTaken, maxGold, durationMin, byName,
             <ChampImg name={p.champion} iconUrl={dd.icon} size={32} />
             {det.level ? <span className="mhr-lv">{det.level}</span> : null}
           </div>
-          <div className="mhr-runes">{[det.keystone, det.subStyle].map((pid, i) => { const u = dd.rune?.(pid); return u ? <span key={i} className={`mhr-sr-i ${i ? 'sub' : ''}`}><img src={u} alt="" width={14} height={14} /></span> : null; })}</div>
+          <div className="mhr-sp2">{[0, 1].map((i) => { const u = dd.spell?.(spells[i]); return <span key={i} className="mhr-sr-i">{u ? <img src={u} alt="" width={15} height={15} /> : null}</span>; })}</div>
+          <div className="mhr-runes">{[det.keystone, det.subStyle].map((pid, i) => { const u = dd.rune?.(pid); return <span key={i} className={`mhr-sr-i ${i ? 'sub' : ''}`}>{u ? <img src={u} alt="" width={15} height={15} /> : null}</span>; })}</div>
         </div>
         <div className="mhr-name">
           <span className="mhr-nm">{p.name}<TitleBadges titles={byName?.[normNm(p.name)]} max={2} />{p.mvp && <span className="mbadge mvp">MVP</span>}{p.ace && <span className="mbadge ace">ACE</span>}</span>
           <span className="mhr-sub"><span className="muted">{dd.label(p.champion)}</span>{p.tier && <span className={tierClass(p.tier)}> · {TIER_LABEL[p.tier] || p.tier}</span>}{riotNick && riotNick !== p.name && <span className="mhr-riot muted"> · {riotNick}</span>}</span>
         </div>
       </div>
-      <div className="mhr-spells">{[0, 1].map((i) => { const u = dd.spell?.(spells[i]); return <span key={i} className="mhr-sr-i">{u ? <img src={u} alt="" width={16} height={16} /> : null}</span>; })}</div>
       <div className="mhr-kda">
         <span>{p.k} / <span className="red">{p.d}</span> / {p.a}</span>
         <span className={`muted mhr-ratio ${rClass(+kdaRatio(p))}`}>{kdaRatio(p)}</span>
@@ -179,7 +179,6 @@ function RosterRich({ label, players, win, color, dd, maxDmg, maxTaken, maxGold,
       </div>
       <div className="mhr-row mhr-colhead muted">
         <span>선수</span>
-        <span>스펠</span>
         <span>KDA</span>
         <span>피해량</span>
         <span>받은피해량</span>
@@ -248,15 +247,15 @@ function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshol
         {det.level ? <span className="mhr-lv">{det.level}</span> : null}
       </div>
       {hasLoad
-        ? <div className="opme-ru">{runes.map((pid, i) => { const u = dd.rune?.(pid); return <span key={i} className={`opme-slot rune ${i ? 'sub' : ''}`}>{u ? <img src={u} alt="" width={23} height={23} /> : null}</span>; })}</div>
+        ? <div className="opme-sp2">{[0, 1].map((i) => { const u = dd.spell?.(spells[i]); return <span key={i} className="opme-slot">{u ? <img src={u} alt="" width={25} height={25} /> : null}</span>; })}</div>
+        : <div className="opme-sp2" />}
+      {hasLoad
+        ? <div className="opme-ru">{runes.map((pid, i) => { const u = dd.rune?.(pid); return <span key={i} className={`opme-slot rune ${i ? 'sub' : ''}`}>{u ? <img src={u} alt="" width={25} height={25} /> : null}</span>; })}</div>
         : <div className="opme-ru" />}
       <div className="opme-nt">
         <span className="opme-cn">{dd.label(me.champion)}</span>
         {me.tier && <span className={`opme-tier ${tierClass(me.tier)}`}>{TIER_LABEL[me.tier] || me.tier}</span>}
       </div>
-      {hasLoad
-        ? <div className="opme-sp2">{[0, 1].map((i) => { const u = dd.spell?.(spells[i]); return <span key={i} className="opme-slot">{u ? <img src={u} alt="" width={30} height={30} /> : null}</span>; })}</div>
-        : <div className="opme-sp2" />}
       <div className="opme-kda">
         <span className="opme-kdal">{me.k} / <span className="red">{me.d}</span> / {me.a}</span>
         <span className={`opme-ratio ${rClass(+r)}`}>{r} 평점</span>
