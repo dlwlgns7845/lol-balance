@@ -654,7 +654,7 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mhr-head { display: flex; align-items: center; gap: 10px; padding: 6px 12px; font-size: 10px; background: rgba(255,255,255,.02); border-bottom: 1px solid var(--line); }
 .mhr-head .mhf-label { font-weight: 700; }
 /* 항목을 좌우 끝까지 밀고 균일 간격(space-between). 선수=왼쪽끝, 아이템=오른쪽끝 */
-.mhr-row { display: grid; grid-template-columns: minmax(288px, 1fr) 84px 60px 68px 60px 50px 56px 300px; align-items: center; column-gap: 8px; padding: 4px 14px; border-bottom: 1px solid rgba(255,255,255,.04); }
+.mhr-row { display: grid; grid-template-columns: minmax(288px, 1fr) 84px 60px 68px 60px 50px 56px 252px; align-items: center; column-gap: 8px; padding: 4px 14px; border-bottom: 1px solid rgba(255,255,255,.04); }
 .mhr-row:last-child { border-bottom: none; }
 .mhr-row.mhr-alt { background: var(--tint); } /* 지브라: 팀 색 베이스로 한 줄씩 진하게 */
 .mhr-row.clk { cursor: pointer; }
@@ -1271,8 +1271,7 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 @media (max-width: 640px) { .sf-teams { grid-template-columns: 1fr; } }
 
 /* ── op.gg식 본인 참여경기 행 (OpMeRow) ── */
-.mh-opme { display: grid; grid-template-columns: 64px 58px 27px 27px 116px 100px 138px minmax(0,1fr) 300px 14px; align-items: center; column-gap: 8px; padding: 8px 12px; border-radius: 10px; cursor: pointer; border-left: 4px solid transparent; transition: filter .12s; }
-.opme-stats { padding-left: 6px; }
+.mh-opme { display: grid; grid-template-columns: 64px 58px 27px 27px 116px 100px 144px minmax(0,1fr) 300px 14px; align-items: center; column-gap: 8px; padding: 8px 12px; border-radius: 10px; cursor: pointer; border-left: 4px solid transparent; transition: filter .12s; }
 .mh-opme:hover { filter: brightness(1.09); }
 .mh-opme.w { background: linear-gradient(90deg, rgba(77,124,254,.16), rgba(77,124,254,.045)); border-left-color: #4d7cfe; }
 .mh-opme.l { background: linear-gradient(90deg, rgba(224,87,107,.16), rgba(224,87,107,.045)); border-left-color: #e0576b; }
@@ -1307,9 +1306,11 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 .opme-mid { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; text-align: center; }
 .opme-tier { font-size: 11px; font-weight: 700; }
 .opme-rank { font-size: 9px; color: #c9a24d; font-weight: 700; }
-.opme-items { display: flex; flex-wrap: wrap; gap: 2px; width: 100%; max-width: 126px; align-content: center; }
+.opme-items { display: flex; flex-wrap: wrap; gap: 2px; width: 100%; max-width: 140px; align-content: center; }
 /* 중앙 스탯 셀(딜/받음/CS/골드) — 펼친 상세와 동일한 숫자+짧은막대, 가로는 균등분산으로 채움 */
-.opme-stats { display: flex; align-items: center; gap: 16px; }
+.opme-stats { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.opme-sum { white-space: nowrap; color: #cfcfd8; }
+.opme-suml { color: var(--muted); font-weight: 400; font-size: 10.5px; margin-right: 4px; }
 .opme-sc { width: 90px; flex: none; font-size: 14.5px; align-items: flex-start; gap: 3px; }
 .opme-sc > span { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .opme-scl { font-weight: 400; font-size: 11px; }
