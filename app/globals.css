@@ -1290,8 +1290,8 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 .opme-champ img { border-radius: 7px; }
 .opme-champ.big, .opme-champ.big img { width: 56px; height: 56px; }
 .opme-champ.big { margin-left: -4px; } /* 메타 텍스트 안 건드리는 선에서 살짝 더 왼쪽 */
-.opme-ru { display: flex; flex-direction: column; gap: 2px; align-items: center; transform: translateY(12px); }
-.opme-ru .opme-slot { width: 23px; height: 23px; }
+.opme-ru { display: flex; flex-direction: column; gap: 2px; align-items: center; }
+.opme-ru .opme-slot { width: 25px; height: 25px; }
 .opme-sp2 { display: flex; flex-direction: column; gap: 2px; align-items: center; }
 .opme-slot { width: 18px; height: 18px; border-radius: 4px; background: #16161c; display: block; overflow: hidden; }
 .opme-slot img { border-radius: 4px; display: block; }
