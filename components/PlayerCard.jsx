@@ -12,13 +12,14 @@ function wrClass(w) { return w >= 0.6 ? 'green' : w >= 0.5 ? 'yellow' : 'red'; }
 function kdaClass(r) { return r >= 5 ? 'kv-5' : r >= 4 ? 'kv-4' : r >= 3 ? 'kv-3' : ''; }
 function fmtD(s) { if (!s) return ''; const d = new Date(s); return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 
-export default function PlayerCard({ player: p, gid, max, dd, onClose }) {
-  const [detail, setDetail] = useState(null);
+export default function PlayerCard({ player: p, gid, max, dd, onClose, detail: detailProp }) {
+  const [detailState, setDetail] = useState(null);
+  const detail = detailProp || detailState; // detail을 직접 주면(멸망전 등) fetch 안 함
   useEffect(() => {
-    if (!gid || !p) return;
+    if (detailProp || !gid || !p) return;
     setDetail(null);
     fetch(`/api/player/${p.id}?gid=${gid}`).then((x) => x.json()).then((r) => r.ok && setDetail(r));
-  }, [gid, p]);
+  }, [gid, p, detailProp]);
 
   const hero = dd.splash(p.topChamps?.[0]?.champion);
   const radar = [

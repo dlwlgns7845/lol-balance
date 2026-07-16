@@ -7,6 +7,7 @@ import { useDdragon } from '../../../../components/ddragon.js';
 import { parseRofl } from '../../../../components/rofl.js';
 import { RichScoreboard } from '../../../../components/MatchHistory.jsx';
 import Avatar from '../../../../components/Avatar.jsx';
+import PlayerCard from '../../../../components/PlayerCard.jsx';
 import { normalizeSettings, REGIONS, TIER_BASES, TIER_BASIS_LABEL } from '../../../../src/tournament-settings.js';
 import { groupStandings } from '../../../../src/bracket.js';
 import { TIER_ORDER, TIER_LABEL, POS_KR, POS, TABLE, tierClass } from '../../../../src/table.js';
@@ -795,6 +796,31 @@ function playerBreakdown(key, games) {
   }); });
   return { champs: champStat(rows, games), positions: pos };
 }
+// 멸망전 선수 → 내전 PlayerCard 형식으로 변환 (컴포넌트 재사용)
+function tPlayerCardData(key, games, rmap, teams) {
+  const agg = aggregatePlayers(games, rmap).find((p) => p.key === key);
+  if (!agg) return null;
+  const bd = playerBreakdown(key, games);
+  const g = agg.g || 1;
+  const member = teams.flatMap((t) => t.members || []).find((m) => normG(m.game_name) === key);
+  const kda = agg.d ? (agg.k + agg.a) / agg.d : (agg.k + agg.a);
+  const positions = {}, positionStats = {};
+  POS_ORDER.forEach((pp) => { if (bd.positions[pp]) { positions[pp] = bd.positions[pp].g; positionStats[pp] = { games: bd.positions[pp].g, wins: bd.positions[pp].w }; } });
+  const mainPos = Object.entries(positions).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  const topChamps = bd.champs.slice(0, 3).map((c) => ({ champion: c.champion, games: c.g }));
+  const champions = bd.champs.map((c) => ({ champion: c.champion, games: c.g, wins: c.w, winrate: c.winrate, k: c.k, d: c.d, a: c.a, kda: c.kda }));
+  const history = games.filter((gm) => (gm.participants || []).some((p) => pKey(p) === key)).map((gm) => { const me = gm.participants.find((p) => pKey(p) === key); return { champion: me.champion, k: me.k, d: me.d, a: me.a, win: gm.winner === me.team, cs: me.cs, damage: me.damage, played_at: gm.played_at }; }).sort((a, b) => new Date(b.played_at || 0) - new Date(a.played_at || 0));
+  const maxKill = history.reduce((b, m) => (!b || (m.k || 0) > b.kills ? { kills: m.k, champion: m.champion } : b), null);
+  const maxKda = history.reduce((b, m) => { const v = m.d ? (m.k + m.a) / m.d : (m.k + m.a); return (!b || v > b.v ? { v: Math.round(v * 100) / 100, champion: m.champion } : b); }, null);
+  const player = {
+    id: key, name: agg.name, nickname: null, profile: null, base_tier: member?.tier || null,
+    games: agg.g, kda, winrate: agg.w / g, wins: agg.w, losses: agg.g - agg.w, mvp: 0, ace: 0,
+    avgDamage: Math.round(agg.dmg / g), avgCs: Math.round(agg.cs / g), champPool: Object.keys(agg.champs).length,
+    positions, positionStats, totalK: agg.k, totalD: agg.d, totalA: agg.a, statGames: agg.g, topChamps, mainPos,
+  };
+  const detail = { champions, best: [], worst: [], history, recent: history.slice(0, 12), records: { maxKill, maxKda } };
+  return { player, detail };
+}
 // 리치 스코어보드용 변환 (내전 표시 컴포넌트 재사용)
 function gameToMatch(g) {
   const sum = (arr, f) => arr.reduce((s, p) => s + (p[f] || 0), 0);
@@ -884,6 +910,8 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
   const maxDmg = Math.max(1, ...lbPlayers.map((p) => p.avgDamage || 0));
   const medal = (i) => ['🥇', '🥈', '🥉'][i] || null;
   const wrCls = (w) => (w >= 0.6 ? 'green' : w >= 0.5 ? 'yellow' : 'red');
+  const allAgg = aggregatePlayers(games, rmap);
+  const pcMax = { kda: Math.max(1, ...allAgg.map((p) => (p.d ? (p.k + p.a) / p.d : (p.k + p.a)))), dmg: Math.max(1, ...allAgg.map((p) => p.dmg / (p.g || 1))), cs: Math.max(1, ...allAgg.map((p) => p.cs / (p.g || 1))), pool: Math.max(1, ...allAgg.map((p) => Object.keys(p.champs).length)) };
   const mostChamp = (c) => { const e = Object.entries(c).sort((a, b) => b[1] - a[1])[0]; return e ? e[0] : '-'; };
   const champImg = (c) => dd.icon(c);
   const canDel = (g) => canManage || (user && g.uploader_user_id === user.id);
@@ -1085,95 +1113,9 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
         );
       })()}
 
-      {sel && selPlayer && (() => {
-        const bd = playerBreakdown(sel, games);
-        const posEntries = POS_ORDER.filter((pp) => bd.positions[pp]).map((pp) => [pp, bd.positions[pp]]);
-        const chDetail = bd.champs;
-        return (
-        <div className="modal-back" onClick={() => setSel(null)}>
-          <div className="pcard" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 960 }}>
-            <button className="pcard-x" onClick={() => setSel(null)}>✕</button>
-            <div style={{ padding: '20px 22px', maxHeight: '86vh', overflowY: 'auto' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <Avatar name={selPlayer.name} size={46} />
-                <div>
-                  <h2 style={{ margin: 0 }}>{selPlayer.name}</h2>
-                  <div className="muted" style={{ fontSize: 12.5 }}>{selPlayer.teamName} · {selPlayer.g}경기 · <b className="accent">{Math.round(selPlayer.w / selPlayer.g * 100)}%</b> ({selPlayer.w}승 {selPlayer.g - selPlayer.w}패) · 평균 {r1(selPlayer.k / selPlayer.g)}/{r1(selPlayer.d / selPlayer.g)}/{r1(selPlayer.a / selPlayer.g)} · 딜 {kfmt(selPlayer.dmg / selPlayer.g)}</div>
-                </div>
-              </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14, marginTop: 12, alignItems: 'start' }}>
-            <div>
-              <h3 style={{ margin: '0 0 6px', fontSize: 14 }}>모스트 챔피언</h3>
-              {chDetail.slice(0, 6).map((c) => (
-                <div key={c.champion} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', borderTop: '1px solid #23232b', fontSize: 12.5 }}>
-                  {champImg(c.champion) ? <img src={champImg(c.champion)} alt="" width={26} height={26} style={{ borderRadius: 5 }} /> : null}
-                  <span style={{ flex: 1 }}><b>{c.champion}</b> <span className="muted" style={{ fontSize: 11 }}>{c.g}판 · KDA {c.kda}</span></span>
-                  <span className={c.winrate >= 0.5 ? 'accent' : 'red'}>{Math.round(c.winrate * 100)}%</span>
-                </div>
-              ))}
-            </div>
-            <div>
-              <h3 style={{ margin: '0 0 6px', fontSize: 14 }}>포지션</h3>
-              {posEntries.length === 0 && <div className="muted" style={{ fontSize: 12 }}>포지션 데이터 없음</div>}
-              {posEntries.map(([pp, o]) => (
-                <div key={pp} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 12.5 }}>
-                  <span style={{ width: 36 }} className="muted">{POS_KR[pp]}</span><span style={{ width: 34 }}>{o.g}판</span>
-                  <div style={{ flex: 1, height: 10, borderRadius: 5, overflow: 'hidden', display: 'flex', background: '#2a2a33' }}><span style={{ width: `${o.w / o.g * 100}%`, background: '#3fa66f' }} /><span style={{ flex: 1, background: '#c15563' }} /></div>
-                  <span style={{ width: 40, textAlign: 'right' }} className={o.w / o.g >= 0.5 ? 'accent' : 'red'}>{Math.round(o.w / o.g * 100)}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {chDetail.length > 0 && (
-            <>
-              <h3 style={{ margin: '16px 0 4px', fontSize: 14 }}>챔피언 상세</h3>
-              <div style={{ overflowX: 'auto' }}><table className="rec-table">
-                <thead><tr><th className="l">챔피언</th><th>판</th><th>승률</th><th>KDA</th><th className="l">평균K/D/A</th><th>딜(분당)</th><th>CS(분당)</th><th>골드(분당)</th><th>멀티킬</th></tr></thead>
-                <tbody>{chDetail.map((c) => (
-                  <tr key={c.champion}>
-                    <td className="l"><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{champImg(c.champion) ? <img src={champImg(c.champion)} alt="" width={22} height={22} style={{ borderRadius: 5 }} /> : null}{c.champion}</span></td>
-                    <td>{c.g}</td><td className={c.winrate >= 0.6 ? 'accent' : c.winrate < 0.4 ? 'red' : ''}>{Math.round(c.winrate * 100)}%</td><td><b>{c.kda}</b></td>
-                    <td className="l muted">{c.avgK}/<span className="red">{c.avgD}</span>/{c.avgA}</td>
-                    <td>{c.hasDetail ? <>{kfmt(c.avgDmg)} <span className="muted">({c.dmgPerMin})</span></> : <span className="muted">-</span>}</td>
-                    <td>{c.hasDetail ? <>{c.avgCs} <span className="muted">({c.csPerMin})</span></> : <span className="muted">-</span>}</td>
-                    <td>{c.hasDetail ? <>{kfmt(c.avgGold)} <span className="muted">({c.goldPerMin})</span></> : <span className="muted">-</span>}</td>
-                    <td>{c.multikills ? <b className="gold">{c.multikills}</b> : <span className="muted">-</span>}</td>
-                  </tr>
-                ))}</tbody>
-              </table></div>
-            </>
-          )}
-
-          {[['scrim', '🎯 스크림'], ['match', '🏆 실제경기']].map(([grp, label]) => {
-            const kg = selGames.filter((g) => kindGroup(g) === grp);
-            if (!kg.length) return null;
-            return (
-              <div key={grp} style={{ marginTop: 14 }}>
-                <h3 style={{ margin: '0 0 4px', fontSize: 14 }}>{label} <span className="muted" style={{ fontSize: 11.5, fontWeight: 400 }}>{kg.length}경기</span></h3>
-                {kg.map((g) => {
-                  const me = (g.participants || []).find((p) => pKey(p) === sel);
-                  if (!me) return null;
-                  const win = g.winner === me.team;
-                  return (
-                    <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 10, borderTop: '1px solid #23232b', padding: '6px 0', fontSize: 13 }}>
-                      <span className={win ? 'accent' : 'red'} style={{ fontWeight: 700, width: 24 }}>{win ? '승' : '패'}</span>
-                      {champImg(me.champion) ? <img src={champImg(me.champion)} alt="" width={24} height={24} style={{ borderRadius: 5 }} /> : null}
-                      <span style={{ width: 96 }}>{me.champion}</span>
-                      <span>{me.k} / <span className="red">{me.d}</span> / {me.a}</span>
-                      <span className="muted" style={{ fontSize: 11.5 }}>딜 {kfmt(me.damage)} · 골드 {kfmt(me.gold)} · CS {me.cs}</span>
-                      <span className="muted" style={{ marginLeft: 'auto', fontSize: 10.5 }}>{GKIND_LABEL[kindOf(g)]}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
-            </div>
-          </div>
-        </div>
-        );
+      {sel && (() => {
+        const pc = tPlayerCardData(sel, games, rmap, teams);
+        return pc ? <PlayerCard player={pc.player} detail={pc.detail} max={pcMax} dd={dd} onClose={() => setSel(null)} /> : null;
       })()}
     </>
   );
