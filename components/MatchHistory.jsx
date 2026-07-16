@@ -211,7 +211,7 @@ export function RichScoreboard({ m, dd, onPlayer, byName }) {
 
 // ── op.gg식 "본인 중심" 접힌 행 (내전 참여경기·멸망전 재사용) ──
 // m=경기, me=본인 참가자, teamKills=본인팀 총킬, itemUrl=아이템 URL 함수
-function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshold = 20, kindLabel = '내전', onToggle, open = false }) {
+export function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshold = 20, kindLabel = '내전', rosterLabels = null, onToggle, open = false }) {
   const det = me.detail || {};
   const r = kdaRatio(me);
   const carry = me.mvp && (me.score || 0) >= carryThreshold;
@@ -223,8 +223,9 @@ function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshol
   const items = det.items || [];
   const hasLoad = !!(det.level || spells.some(Boolean) || runes.some(Boolean));
   const hasItems = items.some(Boolean) || det.roleItem;
-  const roster = (players) => (
+  const roster = (players, label) => (
     <div className="opme-rcol">
+      {label ? <span className="opme-rlbl" title={label}>{label}</span> : null}
       {players.map((p, i) => (
         <div className={`opme-pp ${normNm(p.name) === normNm(me.name) ? 'me' : ''}`} key={i} title={`${p.name} · ${p.champion}`}>
           <ChampImg name={p.champion} iconUrl={dd.icon} size={16} />
@@ -274,8 +275,8 @@ function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshol
         {me.gold ? <span className="opme-sum"><span className="opme-suml">골드</span><span className="opme-sumv">{k(me.gold)}</span></span> : null}
       </div>
       <div className="opme-rosters">
-        {roster(m.A)}
-        {roster(m.B)}
+        {roster(m.A, rosterLabels?.[0])}
+        {roster(m.B, rosterLabels?.[1])}
       </div>
       <span className="mh-chev">{open ? '▴' : '▾'}</span>
     </div>

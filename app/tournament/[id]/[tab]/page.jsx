@@ -5,7 +5,7 @@ import { useGroup } from '../../../../components/GroupProvider.jsx';
 import { apiFetch } from '../../../../components/api.js';
 import { useDdragon } from '../../../../components/ddragon.js';
 import { parseRofl } from '../../../../components/rofl.js';
-import { RichScoreboard } from '../../../../components/MatchHistory.jsx';
+import { RichScoreboard, OpMeRow } from '../../../../components/MatchHistory.jsx';
 import Avatar from '../../../../components/Avatar.jsx';
 import PlayerCard from '../../../../components/PlayerCard.jsx';
 import ChampImg from '../../../../components/ChampImg.jsx';
@@ -863,7 +863,7 @@ function gameToMatch(g) {
   const toRow = (p) => ({ name: p.name || p.gameName, champion: p.champion, k: p.k || 0, d: p.d || 0, a: p.a || 0, damage: p.damage || 0, cs: p.cs || 0, gold: p.gold || 0, detail: p.detail || null, tier: p.tier || null, personId: pKey(p), mvp: false, ace: false });
   const A = (g.participants || []).filter((p) => p.team === 'A').map(toRow);
   const B = (g.participants || []).filter((p) => p.team === 'B').map(toRow);
-  return { A, B, winner: g.winner, objectives: g.objectives, killsA: sum(A, 'k'), killsB: sum(B, 'k'), goldA: sum(A, 'gold'), goldB: sum(B, 'gold'), durationMin: g.duration_sec ? g.duration_sec / 60 : null };
+  return { A, B, winner: g.winner, objectives: g.objectives, killsA: sum(A, 'k'), killsB: sum(B, 'k'), goldA: sum(A, 'gold'), goldB: sum(B, 'gold'), durationMin: g.duration_sec ? g.duration_sec / 60 : null, durationSec: g.duration_sec || null, played_at: g.played_at || g.created_at || null };
 }
 // 경기의 한 진영 팀 이름 (로스터 다수결)
 function sideTeamName(g, side, rmap) {
@@ -979,6 +979,34 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
           <span className="muted" style={{ marginLeft: canDel(g) ? 6 : 'auto', fontSize: 12 }}>{open ? '▴' : '▾'}</span>
         </div>
         {open && <div style={{ padding: '2px 0 10px' }}><RichScoreboard m={gameToMatch(g)} dd={dd} onPlayer={(key) => setSel(key)} /></div>}
+      </div>
+    );
+  }
+
+  // 선수 상세용 — 내전과 동일한 본인중심 행(OpMeRow) + 팀 이름(자유 스크림은 팀 없음)
+  const itemUrl = (iid) => (iid && dd.version ? `https://ddragon.leagueoflegends.com/cdn/${dd.version}/img/item/${iid}.png` : null);
+  function MyGameRow({ g, meKey }) {
+    const open = openG === g.id;
+    const m = gameToMatch(g);
+    const inA = m.A.find((p) => p.personId === meKey);
+    const me = inA || m.B.find((p) => p.personId === meKey);
+    if (!me) return null;
+    const myWin = inA ? g.winner === 'A' : g.winner === 'B';
+    const teamKills = inA ? m.killsA : m.killsB;
+    const all = [...m.A, ...m.B];
+    const mx = {
+      dmg: Math.max(1, ...all.map((p) => p.damage || 0)),
+      taken: Math.max(1, ...all.map((p) => p.detail?.dmgTaken || 0)),
+      gold: Math.max(1, ...all.map((p) => p.gold || 0)),
+      cs: Math.max(1, ...all.map((p) => p.cs || 0)),
+    };
+    const kd = kindOf(g);
+    const labels = kd === 'open' ? null : [sideTeamName(g, 'A', rmap), sideTeamName(g, 'B', rmap)];
+    return (
+      <div>
+        <OpMeRow m={m} me={me} myWin={myWin} teamKills={teamKills} max={mx} dd={dd} itemUrl={itemUrl}
+          kindLabel={GKIND_LABEL[kd]} rosterLabels={labels} open={open} onToggle={() => setOpenG(open ? null : g.id)} />
+        {open && <div style={{ padding: '2px 0 10px' }}><RichScoreboard m={m} dd={dd} onPlayer={(key) => setSel(key)} /></div>}
       </div>
     );
   }
@@ -1198,7 +1226,7 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
               return (
                 <div key={grp} className="panel">
                   <h3 style={{ margin: "0 0 4px", fontSize: 14 }}>{label} <span className="muted" style={{ fontSize: 11.5, fontWeight: 400 }}>{kg.length}경기</span></h3>
-                  {kg.map((gm) => <GameRow key={gm.id} g={gm} />)}
+                  {kg.map((gm) => <MyGameRow key={gm.id} g={gm} meKey={playerPage} />)}
                 </div>
               );
             })}
