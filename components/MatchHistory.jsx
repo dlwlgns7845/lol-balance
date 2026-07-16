@@ -253,22 +253,22 @@ function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshol
         ? <div className="opme-ru">{runes.map((pid, i) => { const u = dd.rune?.(pid); return <span key={i} className={`opme-slot rune ${i ? 'sub' : ''}`}>{u ? <img src={u} alt="" width={25} height={25} /> : null}</span>; })}</div>
         : <div className="opme-ru" />}
       <div className="opme-nt">
-        <span className="opme-cn">{dd.label(me.champion)}</span>
+        <span className="opme-cn">{dd.label(me.champion)}{me.mvp ? <span className={`mbadge mvp ${carry ? 'rainbow' : ''}`}>MVP</span> : me.ace ? <span className="mbadge ace">ACE</span> : me.rank ? <span className="opme-rank"> {me.rank}위</span> : null}</span>
         {me.tier && <span className={`opme-tier ${tierClass(me.tier)}`}>{TIER_LABEL[me.tier] || me.tier}</span>}
       </div>
       <div className="opme-kda">
         <span className="opme-kdal">{me.k} / <span className="red">{me.d}</span> / {me.a}</span>
         <span className={`opme-ratio ${rClass(+r)}`}>{r} 평점</span>
         {kp != null && <span className="opme-kp muted">킬관여 {kp}%</span>}
-        {me.mvp ? <span className={`mbadge mvp ${carry ? 'rainbow' : ''}`}>MVP</span> : me.ace ? <span className="mbadge ace">ACE</span> : me.rank ? <span className="opme-rank">{me.rank}위</span> : null}
+        <span className="opme-kp opme-kcs">CS {me.cs || 0}{csm ? ` (${csm})` : ''}</span>
       </div>
       {hasItems ? (
         <div className="opme-items">
-          {[0, 1, 2, 3, 4, 5, 6].map((i) => { const u = itemUrl(items[i]); return <span key={i} className="opme-it">{u ? <img src={u} alt="" width={28} height={28} /> : null}</span>; })}
-          {det.roleItem && itemUrl(det.roleItem) ? <span className="opme-it q"><img src={itemUrl(det.roleItem)} alt="" width={28} height={28} /></span> : (det.questDone ? <span className="opme-it q done"><span className="mhr-qcheck">✓</span></span> : null)}
+          {[0, 1, 2, 3, 4, 5, 6].map((i) => { const u = itemUrl(items[i]); return <span key={i} className="opme-it">{u ? <img src={u} alt="" width={30} height={30} /> : null}</span>; })}
+          {det.roleItem && itemUrl(det.roleItem) ? <span className="opme-it q"><img src={itemUrl(det.roleItem)} alt="" width={30} height={30} /></span> : (det.questDone ? <span className="opme-it q done"><span className="mhr-qcheck">✓</span></span> : null)}
         </div>
       ) : <div className="opme-items" />}
-      <div className="opme-stats"><span className="opme-csv">CS {me.cs || 0}{csm ? ` (${csm})` : ''}</span></div>
+      <div className="opme-stats" />
       <div className="opme-rosters">
         {roster(m.A)}
         {roster(m.B)}

@@ -700,6 +700,7 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mhr-sp2, .mhr-runes { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; align-items: center; justify-content: center; height: 32px; }
 .mhr-sp2 .mhr-sr-i { width: 15px; height: 15px; flex: 0 0 15px; border-radius: 4px; }
 .mhr-sp2 .mhr-sr-i img { width: 15px; height: 15px; object-fit: contain; }
+.mhr-runes { transform: translateY(8px); }
 .mhr-runes .mhr-sr-i { width: 15px; height: 15px; flex: 0 0 15px; background: transparent; border-radius: 50%; }
 .mhr-runes .mhr-sr-i img { width: 15px; height: 15px; object-fit: contain; }
 .mhr-sr-i { border-radius: 3px; background: rgba(255,255,255,.05); overflow: hidden; display: flex; align-items: center; justify-content: center; }
@@ -1270,7 +1271,7 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 @media (max-width: 640px) { .sf-teams { grid-template-columns: 1fr; } }
 
 /* ── op.gg식 본인 참여경기 행 (OpMeRow) ── */
-.mh-opme { display: grid; grid-template-columns: 64px 58px 27px 27px 96px 100px 126px minmax(0,1fr) 300px 14px; align-items: center; column-gap: 8px; padding: 8px 12px; border-radius: 10px; cursor: pointer; border-left: 4px solid transparent; transition: filter .12s; }
+.mh-opme { display: grid; grid-template-columns: 64px 58px 27px 27px 116px 100px 132px minmax(0,1fr) 300px 14px; align-items: center; column-gap: 8px; padding: 8px 12px; border-radius: 10px; cursor: pointer; border-left: 4px solid transparent; transition: filter .12s; }
 .opme-stats { padding-left: 6px; }
 .mh-opme:hover { filter: brightness(1.09); }
 .mh-opme.w { background: linear-gradient(90deg, rgba(77,124,254,.16), rgba(77,124,254,.045)); border-left-color: #4d7cfe; }
@@ -1314,7 +1315,9 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 .opme-scl { font-weight: 400; font-size: 11px; }
 .opme-csv { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dmg-bar .f.cs { background: linear-gradient(90deg, #3fa66f, #58c19a); }
-.opme-it { width: 28px; height: 28px; border-radius: 5px; background: #131318; display: block; overflow: hidden; }
+.opme-it { width: 30px; height: 30px; border-radius: 5px; background: #131318; display: block; overflow: hidden; }
+.opme-kcs { color: #cfcfd8; }
+.opme-cn .mbadge, .opme-cn .opme-rank { margin-left: 4px; }
 .opme-it img { border-radius: 4px; display: block; }
 .opme-it.q { outline: 1px solid rgba(255,196,77,.5); }
 .opme-it.q.done { display: grid; place-items: center; color: #ffc44d; font-size: 12px; }
