@@ -864,7 +864,9 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
   const [view, setView] = useState('records'); // records | rank | champs | players
   const [kindF, setKindF] = useState('all');    // all | open | team | match
   const [openG, setOpenG] = useState(null);     // 펼친 경기 id
-  const [sel, setSel] = useState(null);         // 선택 선수 key
+  const [sel, setSel] = useState(null);         // 선택 선수 key (카드 모달)
+  const [selTeam, setSelTeam] = useState(null); // 선택 팀 id (카드 모달)
+  const [teamPage, setTeamPage] = useState(null); // 팀 상세 페이지
   const [busy, setBusy] = useState(false);
   const rmap = rosterTeamMap(teams);
   const fgames = kindF === 'all' ? games : games.filter((g) => kindGroup(g) === kindF);
@@ -917,7 +919,7 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
       <div className="panel" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <span style={{ display: 'inline-flex', gap: 4 }}>
           {[['records', '🎮 경기기록'], ['rank', '🏆 리더보드'], ['champs', '🥷 챔피언']].map(([k, l]) => (
-            <button key={k} className={`mini ${view === k ? 'on' : ''}`} onClick={() => { setView(k); setSel(null); }}>{l}</button>
+            <button key={k} className={`mini ${view === k ? 'on' : ''}`} onClick={() => { setView(k); setSel(null); setSelTeam(null); setTeamPage(null); }}>{l}</button>
           ))}
         </span>
         <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
@@ -929,7 +931,7 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
 
       {games.length === 0 && <div className="panel center muted" style={{ padding: '26px 0' }}>아직 기록된 경기가 없어요. 위에서 리플을 올려보세요.</div>}
 
-      {!sel && view === 'records' && (kindF === 'all' ? ['open', 'team', 'match'] : kindF === 'scrim' ? ['open', 'team'] : ['match']).map((kind) => {
+      {!sel && !teamPage && view ==='records' && (kindF === 'all' ? ['open', 'team', 'match'] : kindF === 'scrim' ? ['open', 'team'] : ['match']).map((kind) => {
         const gs = games.filter((g) => kindOf(g) === kind);
         if (!gs.length) return null;
         const info = GKINDS.find((x) => x[0] === kind);
@@ -941,7 +943,7 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
         );
       })}
 
-      {!sel && view === 'rank' && (
+      {!sel && !teamPage && view ==='rank' && (
         <>
           {tstats.length > 0 && (
             <div className="panel">
@@ -949,7 +951,7 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
               <div style={{ overflowX: 'auto' }}><table className="rec-table" style={{ marginTop: 8 }}>
                 <thead><tr><th>#</th><th className="l">팀</th><th>경기</th><th>승</th><th>패</th><th>승률</th><th>KDA</th><th>골드/경기</th></tr></thead>
                 <tbody>{tstats.map((t, i) => (
-                  <tr key={t.id}><td>{i + 1}</td><td className="l"><b>{t.name}</b></td><td>{t.g}</td><td>{t.w}</td><td>{t.g - t.w}</td><td>{Math.round(t.w / t.g * 100)}%</td><td className="muted">{t.k}/{t.d}/{t.a}</td><td className="muted">{kfmt(t.gold / t.g)}</td></tr>
+                  <tr key={t.id} style={{ cursor: 'pointer' }} onClick={() => setSelTeam(t.id)}><td>{i + 1}</td><td className="l"><b>{t.name}</b></td><td>{t.g}</td><td>{t.w}</td><td>{t.g - t.w}</td><td>{Math.round(t.w / t.g * 100)}%</td><td className="muted">{t.k}/{t.d}/{t.a}</td><td className="muted">{kfmt(t.gold / t.g)}</td></tr>
                 ))}</tbody>
               </table></div>
             </div>
@@ -1000,7 +1002,7 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
         </>
       )}
 
-      {!sel && view === 'champs' && (
+      {!sel && !teamPage && view ==='champs' && (
         <div className="panel">
           <h2>🥷 챔피언 <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>· 픽·승률·KDA·딜/CS/골드(분당)·시야·멀티킬</span></h2>
           {champs.length === 0 && <div className="muted" style={{ marginTop: 8 }}>데이터가 없어요.</div>}
@@ -1022,18 +1024,83 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
         </div>
       )}
 
+      {selTeam && (() => {
+        const t = teams.find((x) => x.id === selTeam);
+        if (!t) return null;
+        const ts = aggregateTeams(games, teams, rmap).find((x) => x.id === selTeam);
+        const allP = aggregatePlayers(games, rmap);
+        return (
+          <div className="modal-back" onClick={() => setSelTeam(null)}>
+            <div className="pcard" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
+              <button className="pcard-x" onClick={() => setSelTeam(null)}>✕</button>
+              <div style={{ padding: '20px 22px' }}>
+                <h2 style={{ margin: 0 }}>{t.name}</h2>
+                {ts ? <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>{ts.g}경기 · <b className="accent">{Math.round(ts.w / ts.g * 100)}%</b> ({ts.w}승 {ts.g - ts.w}패) · KDA {ts.k}/{ts.d}/{ts.a} · 골드/경기 {kfmt(ts.gold / ts.g)}</div> : <div className="muted" style={{ marginTop: 4, fontSize: 12.5 }}>경기 기록 없음</div>}
+                <h3 style={{ margin: '14px 0 6px', fontSize: 14 }}>로스터</h3>
+                {(t.members || []).length === 0 && <div className="muted" style={{ fontSize: 12 }}>로스터 없음</div>}
+                {(t.members || []).map((m, i) => {
+                  const k = normG(m.game_name); const has = allP.find((pp) => pp.key === k);
+                  return (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderTop: '1px solid #23232b', fontSize: 13, cursor: has ? 'pointer' : 'default' }} onClick={() => { if (has) { setSelTeam(null); setSel(k); } }}>
+                      <span className="muted" style={{ width: 34 }}>{POS_KR[m.role] || ''}</span>
+                      <b style={{ flex: 1 }}>{m.game_name}</b>
+                      {m.tier && <span className="muted" style={{ fontSize: 11 }}>{TIER_LABEL[m.tier] || m.tier}</span>}
+                      {has && <span className="accent" style={{ fontSize: 11 }}>{has.g}경기 {Math.round(has.w / has.g * 100)}%</span>}
+                    </div>
+                  );
+                })}
+                <button className="btn" style={{ marginTop: 14, width: '100%' }} onClick={() => { setTeamPage(selTeam); setSelTeam(null); }}>팀 상세보기 →</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {teamPage && (() => {
+        const t = teams.find((x) => x.id === teamPage);
+        if (!t) return null;
+        const ts = aggregateTeams(games, teams, rmap).find((x) => x.id === teamPage);
+        const tPlayers = aggregatePlayers(games, rmap).filter((p) => p.teamId === teamPage).sort((a, b) => (b.w / (b.g || 1)) - (a.w / (a.g || 1)) || b.g - a.g);
+        const tGames = games.filter((g) => (g.participants || []).some((p) => rmap[pKey(p)]?.id === teamPage));
+        return (
+          <div className="panel">
+            <button className="mini" onClick={() => setTeamPage(null)}>← 통계</button>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
+              <h2 style={{ margin: 0 }}>🛡 {t.name}</h2>
+              {ts && <span className="muted">{ts.g}경기 · <b className="accent">{Math.round(ts.w / ts.g * 100)}%</b> ({ts.w}승 {ts.g - ts.w}패) · KDA {ts.k}/{ts.d}/{ts.a} · 골드/경기 {kfmt(ts.gold / ts.g)}</span>}
+            </div>
+            <h3 style={{ margin: '14px 0 4px', fontSize: 14 }}>팀원 통계 <span className="muted" style={{ fontSize: 11.5, fontWeight: 400 }}>· 클릭 → 선수 카드</span></h3>
+            <div style={{ overflowX: 'auto' }}><table className="rec-table">
+              <thead><tr><th className="l">선수</th><th>경기</th><th>승률</th><th>평균KDA</th><th>평균딜</th><th className="l">모스트</th></tr></thead>
+              <tbody>{tPlayers.map((p) => (
+                <tr key={p.key} style={{ cursor: 'pointer' }} onClick={() => setSel(p.key)}>
+                  <td className="l"><b>{p.name}</b></td><td>{p.g}</td><td>{Math.round(p.w / p.g * 100)}%</td>
+                  <td>{r1(p.k / p.g)}/<span className="red">{r1(p.d / p.g)}</span>/{r1(p.a / p.g)}</td><td className="muted">{kfmt(p.dmg / p.g)}</td><td className="l muted">{mostChamp(p.champs)}</td>
+                </tr>
+              ))}</tbody>
+            </table></div>
+            <h3 style={{ margin: '16px 0 4px', fontSize: 14 }}>경기 <span className="muted" style={{ fontSize: 11.5, fontWeight: 400 }}>{tGames.length}경기</span></h3>
+            {tGames.map((g) => <GameRow key={g.id} g={g} />)}
+          </div>
+        );
+      })()}
+
       {sel && selPlayer && (() => {
         const bd = playerBreakdown(sel, games);
         const posEntries = POS_ORDER.filter((pp) => bd.positions[pp]).map((pp) => [pp, bd.positions[pp]]);
         const chDetail = bd.champs;
         return (
-        <div className="panel">
-          <button className="mini" onClick={() => setSel(null)}>← 선수 목록</button>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
-            <h2 style={{ margin: 0 }}>👤 {selPlayer.name}</h2>
-            <span className="muted">{selPlayer.teamName} · {selPlayer.g}경기 <b className="accent">{Math.round(selPlayer.w / selPlayer.g * 100)}%</b> ({selPlayer.w}승 {selPlayer.g - selPlayer.w}패)</span>
-            <span className="muted">평균 {r1(selPlayer.k / selPlayer.g)}/{r1(selPlayer.d / selPlayer.g)}/{r1(selPlayer.a / selPlayer.g)} · 딜 {kfmt(selPlayer.dmg / selPlayer.g)} · 골드 {kfmt(selPlayer.gold / selPlayer.g)}</span>
-          </div>
+        <div className="modal-back" onClick={() => setSel(null)}>
+          <div className="pcard" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 960 }}>
+            <button className="pcard-x" onClick={() => setSel(null)}>✕</button>
+            <div style={{ padding: '20px 22px', maxHeight: '86vh', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <Avatar name={selPlayer.name} size={46} />
+                <div>
+                  <h2 style={{ margin: 0 }}>{selPlayer.name}</h2>
+                  <div className="muted" style={{ fontSize: 12.5 }}>{selPlayer.teamName} · {selPlayer.g}경기 · <b className="accent">{Math.round(selPlayer.w / selPlayer.g * 100)}%</b> ({selPlayer.w}승 {selPlayer.g - selPlayer.w}패) · 평균 {r1(selPlayer.k / selPlayer.g)}/{r1(selPlayer.d / selPlayer.g)}/{r1(selPlayer.a / selPlayer.g)} · 딜 {kfmt(selPlayer.dmg / selPlayer.g)}</div>
+                </div>
+              </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14, marginTop: 12, alignItems: 'start' }}>
             <div>
@@ -1103,6 +1170,8 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
               </div>
             );
           })}
+            </div>
+          </div>
         </div>
         );
       })()}
