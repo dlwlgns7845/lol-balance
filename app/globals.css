@@ -1265,7 +1265,7 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 @media (max-width: 640px) { .sf-teams { grid-template-columns: 1fr; } }
 
 /* ── op.gg식 본인 참여경기 행 (OpMeRow) ── */
-.mh-opme { display: grid; grid-template-columns: 112px 100px 96px 116px 126px minmax(0,1fr) 14px; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; cursor: pointer; border-left: 4px solid transparent; transition: filter .12s; }
+.mh-opme { display: grid; grid-template-columns: 108px 96px 92px 78px 126px minmax(140px,1fr) 340px 14px; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; cursor: pointer; border-left: 4px solid transparent; transition: filter .12s; }
 .mh-opme:hover { filter: brightness(1.09); }
 .mh-opme.w { background: linear-gradient(90deg, rgba(77,124,254,.16), rgba(77,124,254,.045)); border-left-color: #4d7cfe; }
 .mh-opme.l { background: linear-gradient(90deg, rgba(224,87,107,.16), rgba(224,87,107,.045)); border-left-color: #e0576b; }
@@ -1291,10 +1291,21 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 .opme-kdal { font-size: 14px; font-weight: 700; }
 .opme-ratio { font-size: 12px; font-weight: 700; color: #b9b9c4; }
 .opme-kp { font-size: 10.5px; }
-.opme-mid { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; text-align: center; }
+.opme-mid { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; text-align: center; }
 .opme-tier { font-size: 11px; font-weight: 700; }
 .opme-rank { font-size: 11px; color: #c9a24d; font-weight: 700; }
 .opme-items { display: flex; flex-wrap: wrap; gap: 2px; width: 100%; max-width: 126px; align-content: center; }
+/* 중앙 스탯 막대(딜/받음/CS/골드) — 경기 내 최고치 대비, 비는 폭 채움 */
+.opme-stats { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.opme-sbar { display: grid; grid-template-columns: 30px minmax(40px, 1fr) auto; align-items: center; gap: 6px; font-size: 10.5px; }
+.opme-sbl { text-align: right; }
+.opme-sbtrack { height: 7px; border-radius: 4px; background: rgba(255,255,255,.07); overflow: hidden; }
+.opme-sbf { display: block; height: 100%; border-radius: 4px; }
+.opme-sbf.dmg { background: #d9576a; }
+.opme-sbf.taken { background: #8a8f99; }
+.opme-sbf.cs { background: #58c19a; }
+.opme-sbf.gold { background: #e0b24d; }
+.opme-sbv { font-variant-numeric: tabular-nums; color: #cfcfd8; min-width: 46px; }
 .opme-it { width: 22px; height: 22px; border-radius: 4px; background: #131318; display: block; overflow: hidden; }
 .opme-it img { border-radius: 4px; display: block; }
 .opme-it.q { outline: 1px solid rgba(255,196,77,.5); }
@@ -1306,8 +1317,9 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 .opme-pn { font-size: 10.5px; color: #9a9aa6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .opme-pp.me .opme-pn { color: #fff; font-weight: 700; }
 .mh-opme .mh-chev { color: #6a6a76; font-size: 13px; text-align: center; }
-@media (max-width: 900px) {
-  .mh-opme { grid-template-columns: 100px 92px 84px 1fr 14px; row-gap: 6px; }
-  .opme-items, .opme-rosters { grid-column: 1 / -1; }
+@media (max-width: 1100px) {
+  .mh-opme { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+  .opme-stats { flex: 1 1 100%; }
+  .opme-rosters { flex: 1 1 100%; grid-template-columns: repeat(4, 1fr); }
   .opme-items { max-width: none; }
 }

@@ -212,7 +212,7 @@ export function RichScoreboard({ m, dd, onPlayer, byName }) {
 
 // ── op.gg식 "본인 중심" 접힌 행 (내전 참여경기·멸망전 재사용) ──
 // m=경기, me=본인 참가자, teamKills=본인팀 총킬, itemUrl=아이템 URL 함수
-function OpMeRow({ m, me, myWin, teamKills, dd, itemUrl, carryThreshold = 20, kindLabel = '내전', onToggle }) {
+function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshold = 20, kindLabel = '내전', onToggle }) {
   const det = me.detail || {};
   const r = kdaRatio(me);
   const carry = me.mvp && (me.score || 0) >= carryThreshold;
@@ -224,6 +224,14 @@ function OpMeRow({ m, me, myWin, teamKills, dd, itemUrl, carryThreshold = 20, ki
   const items = det.items || [];
   const hasLoad = !!(det.level || spells.some(Boolean) || runes.some(Boolean));
   const hasItems = items.some(Boolean) || det.roleItem;
+  // 경기 내 최고치 대비 막대(op.gg 와이드뷰) — 비는 중앙 채움
+  const sbar = (label, val, mx, cls, txt) => (
+    <div className="opme-sbar">
+      <span className="opme-sbl muted">{label}</span>
+      <div className="opme-sbtrack"><span className={`opme-sbf ${cls}`} style={{ width: Math.min(100, Math.round((val || 0) / (mx || 1) * 100)) + '%' }} /></div>
+      <span className="opme-sbv">{txt}</span>
+    </div>
+  );
   const roster = (players) => (
     <div className="opme-rcol">
       {players.map((p, i) => (
@@ -262,8 +270,6 @@ function OpMeRow({ m, me, myWin, teamKills, dd, itemUrl, carryThreshold = 20, ki
       </div>
       <div className="opme-mid">
         {me.tier && <span className={`opme-tier ${tierClass(me.tier)}`}>{TIER_LABEL[me.tier] || me.tier}</span>}
-        <span className="muted">CS {me.cs || 0}{csm ? ` (${csm})` : ''}</span>
-        <span className="muted">딜 {k(me.damage || 0)}</span>
         {me.mvp ? <span className={`mbadge mvp ${carry ? 'rainbow' : ''}`}>MVP</span> : me.ace ? <span className="mbadge ace">ACE</span> : me.rank ? <span className="opme-rank">{me.rank}위</span> : null}
       </div>
       {hasItems ? (
@@ -272,6 +278,12 @@ function OpMeRow({ m, me, myWin, teamKills, dd, itemUrl, carryThreshold = 20, ki
           {det.roleItem && itemUrl(det.roleItem) ? <span className="opme-it q"><img src={itemUrl(det.roleItem)} alt="" width={22} height={22} /></span> : (det.questDone ? <span className="opme-it q done"><span className="mhr-qcheck">✓</span></span> : null)}
         </div>
       ) : <div className="opme-items" />}
+      <div className="opme-stats">
+        {sbar('딜', me.damage, max.dmg, 'dmg', k(me.damage || 0))}
+        {det.dmgTaken ? sbar('받음', det.dmgTaken, max.taken, 'taken', k(det.dmgTaken)) : null}
+        {sbar('CS', me.cs, max.cs, 'cs', `${me.cs || 0}${csm ? ` (${csm})` : ''}`)}
+        {me.gold ? sbar('골드', me.gold, max.gold, 'gold', k(me.gold)) : null}
+      </div>
       <div className="opme-rosters">
         {roster(m.A)}
         {roster(m.B)}
@@ -300,7 +312,9 @@ function MatchCard({ m, dd, open, onToggle, onDelete, onSwap, byName, highlight,
     if (me) {
       const myWin = inA ? aWin : !aWin;
       const teamKills = (inA ? m.killsA : m.killsB) || sum(inA ? m.A : m.B, 'k');
-      return <OpMeRow m={m} me={me} myWin={myWin} teamKills={teamKills} dd={dd} itemUrl={itemUrl} carryThreshold={carryThreshold} onToggle={onToggle} />;
+      const maxCs = Math.max(1, ...[...m.A, ...m.B].map((p) => p.cs || 0));
+      const rowMax = { dmg: maxDmg, taken: maxTaken, gold: maxGold, cs: maxCs };
+      return <OpMeRow m={m} me={me} myWin={myWin} teamKills={teamKills} max={rowMax} dd={dd} itemUrl={itemUrl} carryThreshold={carryThreshold} onToggle={onToggle} />;
     }
     const dt = fmtDateTime(m.played_at);
     const dur = fmtDur(m.durationSec);
