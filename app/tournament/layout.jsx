@@ -90,7 +90,10 @@ export default function TournamentLayout({ children }) {
 
       <div style={{ display: 'flex', minHeight: 'calc(100vh - 56px)' }}>
         {navOpen && <aside style={{ width: 220, flexShrink: 0, borderRight: '1px solid #1e1e26', background: '#0f0f14', padding: '14px 10px' }}>
-          <div className="muted" style={{ fontSize: 11, padding: '0 6px 8px', fontWeight: 700 }}>대회 목록</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px 8px' }}>
+            <span className="muted" style={{ fontSize: 11, fontWeight: 700 }}>대회 목록</span>
+            <button className="btn ghost" onClick={() => setNavOpen(false)} style={{ fontSize: 11, padding: '2px 8px' }} title="목록 접기">◀ 접기</button>
+          </div>
           {list.length === 0 && <div className="muted" style={{ fontSize: 12, padding: 6 }}>아직 없어요</div>}
           {list.map((t) => (
             <Link key={t.id} href={`/tournament/${t.id}/notice`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px', borderRadius: 7, textDecoration: 'none', color: selId === t.id ? '#fff' : '#bbb', background: selId === t.id ? 'rgba(79,182,214,.15)' : 'transparent', fontWeight: selId === t.id ? 700 : 400, fontSize: 13, marginBottom: 2 }}>
@@ -106,8 +109,8 @@ export default function TournamentLayout({ children }) {
             </div>
           )}
         </aside>}
+        {!navOpen && <button className="btn ghost" onClick={() => setNavOpen(true)} style={{ alignSelf: 'flex-start', margin: '12px 0 0 10px', fontSize: 12, padding: '5px 10px', flexShrink: 0 }} title="대회 목록 펴기">☰ 목록</button>}
         <main className="main" style={{ flex: 1, minWidth: 0 }}>
-          <button className="btn ghost" onClick={() => setNavOpen((v) => !v)} style={{ margin: '10px 0 0 14px', fontSize: 12, padding: '4px 10px' }} title="대회 목록 접기/펴기">{navOpen ? '◀ 목록 접기' : '☰ 대회 목록'}</button>
           <div className="content" style={{ maxWidth: navOpen ? 1320 : 1680 }}>{children}</div>
         </main>
       </div>
