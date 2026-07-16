@@ -236,20 +236,28 @@ export default function RecordPage() {
               게임 시간
               <input type="number" min={0} value={Math.floor(durationSec / 60)}
                 onChange={(e) => setDurationSec(Math.max(0, Number(e.target.value)) * 60 + (durationSec % 60))}
-                style={{ width: 48 }} title="분" />분
+                style={{ width: 60 }} title="분" />분
               <input type="number" min={0} max={59} value={durationSec % 60}
                 onChange={(e) => setDurationSec(Math.floor(durationSec / 60) * 60 + Math.min(59, Math.max(0, Number(e.target.value))))}
-                style={{ width: 44 }} title="초" />초
+                style={{ width: 56 }} title="초" />초
             </span>
             <button className="btn" onClick={() => save()} disabled={saving}>{saving ? (editing ? '수정 중…' : '저장 중…') : (editing ? '수정 저장' : '저장')}</button>
           </div>
           {source === 'replay' && objectives && (
-            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', margin: '0 0 12px', fontSize: 12.5, padding: '9px 12px', background: '#181820', borderRadius: 8, border: '1px solid #2a2a33' }}>
-              <span className="muted" style={{ fontSize: 11 }}>🎬 리플 추출 · 팀 오브젝트</span>
-              {[['A', '🟦', 1], ['B', '🟥', 2]].map(([tm, ic]) => { const o = objectives[tm]; return (
-                <span key={tm}>{ic} 킬{o.kills} · 🐉{o.dragons}{o.elder ? `+엘더${o.elder}` : ''} · 🦗공허유충{o.grubs} · 🐦전령{o.heralds} · 👑바론{o.barons} · 🗼{o.towers}</span>
-              ); })}
-              <span className="muted" style={{ fontSize: 10.5, width: '100%' }}>※ 아이템·비전·딜분포 등 상세는 저장돼요 (통계 화면 준비 중). 첫 용 타이밍은 리플 스탯에 없어 카운트만.</span>
+            <div style={{ margin: '0 0 12px', fontSize: 12.5, padding: '10px 12px', background: '#181820', borderRadius: 8, border: '1px solid #2a2a33' }}>
+              <div className="muted" style={{ fontSize: 11, marginBottom: 7 }}>리플 추출 · 팀 오브젝트</div>
+              {[['A', '블루', '#4fb6d6'], ['B', '레드', '#e06a78']].map(([tm, label, color]) => {
+                const o = objectives[tm];
+                const g = o.gold >= 1000 ? (o.gold / 1000).toFixed(1) + 'k' : (o.gold || 0);
+                const stats = [['킬', o.kills], ['골드', g], ['용', `${o.dragons || 0}${o.elder ? ` +엘더${o.elder}` : ''}`], ['전령', o.heralds || 0], ['유충', o.grubs || 0], ['바론', o.barons || 0], ['타워', o.towers || 0], ['억제기', o.inhibs || 0], ['아타칸', o.atakhan || 0], ['처형', o.objStolen || 0]];
+                return (
+                  <div key={tm} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', padding: '3px 0' }}>
+                    <span style={{ color, fontWeight: 700, minWidth: 34 }}>{label}</span>
+                    {stats.map(([kk, vv]) => <span key={kk} style={{ fontSize: 12 }}><span className="muted">{kk}</span> <b>{vv}</b></span>)}
+                  </div>
+                );
+              })}
+              <div className="muted" style={{ fontSize: 10.5, marginTop: 6 }}>※ 아이템·비전·딜분포 등 상세는 저장돼요. 첫 용 타이밍은 리플 스탯에 없어 카운트만.</div>
             </div>
           )}
           <table className="rec-table">
