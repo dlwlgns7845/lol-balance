@@ -1265,7 +1265,7 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 @media (max-width: 640px) { .sf-teams { grid-template-columns: 1fr; } }
 
 /* ── op.gg식 본인 참여경기 행 (OpMeRow) ── */
-.mh-opme { display: grid; grid-template-columns: 100px 52px 22px 96px 46px 100px 126px minmax(0,1fr) 330px 14px; align-items: center; column-gap: 8px; padding: 8px 14px; border-radius: 10px; cursor: pointer; border-left: 4px solid transparent; transition: filter .12s; }
+.mh-opme { display: grid; grid-template-columns: 64px 60px 22px 96px 46px 100px 126px minmax(0,1fr) 330px 14px; align-items: center; column-gap: 8px; padding: 8px 14px; border-radius: 10px; cursor: pointer; border-left: 4px solid transparent; transition: filter .12s; }
 .opme-stats { padding-left: 6px; }
 .mh-opme:hover { filter: brightness(1.09); }
 .mh-opme.w { background: linear-gradient(90deg, rgba(77,124,254,.16), rgba(77,124,254,.045)); border-left-color: #4d7cfe; }
@@ -1283,8 +1283,8 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 .opme-dur { font-size: 11px; }
 .opme-champ { position: relative; flex-shrink: 0; }
 .opme-champ img { border-radius: 7px; }
-.opme-champ.big, .opme-champ.big img { width: 48px; height: 48px; }
-.opme-champ.big { margin-left: -6px; } /* 메타↔챔프 간격 8px→2px 로 당김 */
+.opme-champ.big, .opme-champ.big img { width: 56px; height: 56px; }
+.opme-champ.big { margin-left: -4px; } /* 메타 텍스트 안 건드리는 선에서 살짝 더 왼쪽 */
 .opme-ru { display: flex; flex-direction: column; gap: 2px; align-items: center; }
 .opme-sp2 { display: flex; gap: 3px; align-items: center; }
 .opme-slot { width: 18px; height: 18px; border-radius: 4px; background: #16161c; display: block; overflow: hidden; }

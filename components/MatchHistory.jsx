@@ -252,7 +252,7 @@ function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshol
         {m.durationSec ? <span className="opme-dur muted">{fmtDurKo(m.durationSec)}</span> : null}
       </div>
       <div className="opme-champ mhr-champ big">
-        <ChampImg name={me.champion} iconUrl={dd.icon} size={48} />
+        <ChampImg name={me.champion} iconUrl={dd.icon} size={56} />
         {det.level ? <span className="mhr-lv">{det.level}</span> : null}
       </div>
       {hasLoad
