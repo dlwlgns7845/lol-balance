@@ -893,6 +893,7 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
   const [sel, setSel] = useState(null);         // 선택 선수 key (카드 모달)
   const [selTeam, setSelTeam] = useState(null); // 선택 팀 id (카드 모달)
   const [teamPage, setTeamPage] = useState(null); // 팀 상세 페이지
+  const [q, setQ] = useState(''); const [focusS, setFocusS] = useState(false); // 선수·팀 검색
   const [busy, setBusy] = useState(false);
   const rmap = rosterTeamMap(teams);
   const fgames = kindF === 'all' ? games : games.filter((g) => kindGroup(g) === kindF);
@@ -912,6 +913,9 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
   const wrCls = (w) => (w >= 0.6 ? 'green' : w >= 0.5 ? 'yellow' : 'red');
   const allAgg = aggregatePlayers(games, rmap);
   const pcMax = { kda: Math.max(1, ...allAgg.map((p) => (p.d ? (p.k + p.a) / p.d : (p.k + p.a)))), dmg: Math.max(1, ...allAgg.map((p) => p.dmg / (p.g || 1))), cs: Math.max(1, ...allAgg.map((p) => p.cs / (p.g || 1))), pool: Math.max(1, ...allAgg.map((p) => Object.keys(p.champs).length)) };
+  const qn = q.trim().toLowerCase();
+  const playerHits = qn ? allAgg.filter((p) => (p.name || '').toLowerCase().includes(qn)).slice(0, 8) : [];
+  const teamHits = qn ? teams.filter((t) => (t.name || '').toLowerCase().includes(qn)).slice(0, 6) : [];
   const mostChamp = (c) => { const e = Object.entries(c).sort((a, b) => b[1] - a[1])[0]; return e ? e[0] : '-'; };
   const champImg = (c) => dd.icon(c);
   const canDel = (g) => canManage || (user && g.uploader_user_id === user.id);
@@ -935,7 +939,7 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
           {canDel(g) && <button className="mini" style={{ marginLeft: 'auto' }} disabled={busy} onClick={(e) => { e.stopPropagation(); del(g.id); }}>🗑</button>}
           <span className="muted" style={{ marginLeft: canDel(g) ? 6 : 'auto', fontSize: 12 }}>{open ? '▴' : '▾'}</span>
         </div>
-        {open && <div style={{ padding: '2px 0 10px' }}><RichScoreboard m={gameToMatch(g)} dd={dd} onPlayer={(key) => { setView('players'); setSel(key); }} /></div>}
+        {open && <div style={{ padding: '2px 0 10px' }}><RichScoreboard m={gameToMatch(g)} dd={dd} onPlayer={(key) => setSel(key)} /></div>}
       </div>
     );
   }
@@ -950,11 +954,25 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
             <button key={k} className={`mini ${view === k ? 'on' : ''}`} onClick={() => { setView(k); setSel(null); setSelTeam(null); setTeamPage(null); }}>{l}</button>
           ))}
         </span>
-        <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
+        <span style={{ display: 'inline-flex', gap: 4 }}>
           {[['all', '전체'], ['scrim', '🎯 스크림'], ['match', '🏆 실제경기']].map(([k, l]) => (
             <button key={k} className={`mini ${kindF === k ? 'on' : ''}`} onClick={() => setKindF(k)}>{l}</button>
           ))}
         </span>
+        <div style={{ marginLeft: 'auto', position: 'relative' }}>
+          <input placeholder="🔎 선수·팀 검색" value={q} onChange={(e) => setQ(e.target.value)} onFocus={() => setFocusS(true)} onBlur={() => setTimeout(() => setFocusS(false), 150)} style={{ ...inp, width: 190 }} />
+          {focusS && qn && (
+            <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 30, background: '#16161c', border: '1px solid #2a2a33', borderRadius: 8, minWidth: 230, maxHeight: 300, overflowY: 'auto', marginTop: 4, boxShadow: '0 8px 24px rgba(0,0,0,.5)' }}>
+              {teamHits.map((t) => (
+                <button key={t.id} onMouseDown={() => { setTeamPage(t.id); setSel(null); setQ(''); setFocusS(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', background: 'none', border: 'none', color: '#ddd', padding: '8px 12px', cursor: 'pointer', fontSize: 13 }}>🛡 <b>{t.name}</b></button>
+              ))}
+              {playerHits.map((p) => (
+                <button key={p.key} onMouseDown={() => { setSel(p.key); setQ(''); setFocusS(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', background: 'none', border: 'none', color: '#ddd', padding: '8px 12px', cursor: 'pointer', fontSize: 13 }}>👤 <b>{p.name}</b> <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>{p.teamName}</span></button>
+              ))}
+              {teamHits.length === 0 && playerHits.length === 0 && <div className="muted" style={{ padding: '10px 12px', fontSize: 12.5 }}>검색 결과 없음</div>}
+            </div>
+          )}
+        </div>
       </div>
 
       {games.length === 0 && <div className="panel center muted" style={{ padding: '26px 0' }}>아직 기록된 경기가 없어요. 위에서 리플을 올려보세요.</div>}
@@ -1115,7 +1133,7 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
 
       {sel && (() => {
         const pc = tPlayerCardData(sel, games, rmap, teams);
-        return pc ? <PlayerCard player={pc.player} detail={pc.detail} max={pcMax} dd={dd} onClose={() => setSel(null)} /> : null;
+        return pc ? <PlayerCard player={pc.player} detail={pc.detail} max={pcMax} dd={dd} onClose={() => setSel(null)} historyLabel="전적" showDetailLinks={false} /> : null;
       })()}
     </>
   );

@@ -12,7 +12,7 @@ function wrClass(w) { return w >= 0.6 ? 'green' : w >= 0.5 ? 'yellow' : 'red'; }
 function kdaClass(r) { return r >= 5 ? 'kv-5' : r >= 4 ? 'kv-4' : r >= 3 ? 'kv-3' : ''; }
 function fmtD(s) { if (!s) return ''; const d = new Date(s); return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 
-export default function PlayerCard({ player: p, gid, max, dd, onClose, detail: detailProp }) {
+export default function PlayerCard({ player: p, gid, max, dd, onClose, detail: detailProp, historyLabel = '내전 전적', showDetailLinks = true }) {
   const [detailState, setDetail] = useState(null);
   const detail = detailProp || detailState; // detail을 직접 주면(멸망전 등) fetch 안 함
   useEffect(() => {
@@ -75,7 +75,7 @@ export default function PlayerCard({ player: p, gid, max, dd, onClose, detail: d
           <div className="pc-col">
             <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               모스트 챔피언
-              {detail?.champions?.length > 5 && <Link href={`/champions?id=${p.id}`} onClick={onClose} className="accent" style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 600 }}>상세보기 →</Link>}
+              {showDetailLinks && detail?.champions?.length > 5 && <Link href={`/champions?id=${p.id}`} onClick={onClose} className="accent" style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 600 }}>상세보기 →</Link>}
             </h3>
             <div className="pc-champs">
               {detail ? (detail.champions.length ? detail.champions.slice(0, 5).map((c) => (
@@ -107,8 +107,8 @@ export default function PlayerCard({ player: p, gid, max, dd, onClose, detail: d
             </div>
 
             <h3 style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-              내전 전적 {detail?.history ? <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>{detail.history.length}게임</span> : null}
-              <Link href={`/player?id=${p.id}`} onClick={onClose} className="accent" style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 600 }}>상세보기 →</Link>
+              {historyLabel} {detail?.history ? <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>{detail.history.length}게임</span> : null}
+              {showDetailLinks && <Link href={`/player?id=${p.id}`} onClick={onClose} className="accent" style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 600 }}>상세보기 →</Link>}
             </h3>
             <div className="pc-history no-scroll">
               {detail ? (detail.history.length ? detail.history.slice(0, 5).map((m, i) => {
