@@ -269,9 +269,9 @@ function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshol
         </div>
       ) : <div className="opme-items" />}
       <div className="opme-stats">
-        <span className="opme-sum"><span className="opme-suml">딜</span> {k(me.damage || 0)}</span>
-        {det.dmgTaken ? <span className="opme-sum"><span className="opme-suml">받음</span> {k(det.dmgTaken)}</span> : null}
-        {me.gold ? <span className="opme-sum"><span className="opme-suml">골드</span> {k(me.gold)}</span> : null}
+        <span className="opme-sum"><span className="opme-suml">딜</span><span className="opme-sumv">{k(me.damage || 0)}</span></span>
+        {det.dmgTaken ? <span className="opme-sum"><span className="opme-suml">받음</span><span className="opme-sumv">{k(det.dmgTaken)}</span></span> : null}
+        {me.gold ? <span className="opme-sum"><span className="opme-suml">골드</span><span className="opme-sumv">{k(me.gold)}</span></span> : null}
       </div>
       <div className="opme-rosters">
         {roster(m.A)}

@@ -1309,8 +1309,10 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 .opme-items { display: flex; flex-wrap: wrap; gap: 2px; width: 100%; max-width: 140px; align-content: center; }
 /* 중앙 스탯 셀(딜/받음/CS/골드) — 펼친 상세와 동일한 숫자+짧은막대, 가로는 균등분산으로 채움 */
 .opme-stats { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.opme-sum { white-space: nowrap; color: #cfcfd8; }
-.opme-suml { color: var(--muted); font-weight: 400; font-size: 10.5px; margin-right: 4px; }
+/* 라벨(딜/받음/골드) 길이가 달라도 값이 세로로 딱 맞게 — 고정 칸 그리드 */
+.opme-sum { display: grid; grid-template-columns: 26px 46px; column-gap: 6px; align-items: baseline; white-space: nowrap; }
+.opme-suml { color: var(--muted); font-weight: 400; font-size: 10.5px; text-align: right; }
+.opme-sumv { color: #cfcfd8; text-align: right; }
 .opme-sc { width: 90px; flex: none; font-size: 14.5px; align-items: flex-start; gap: 3px; }
 .opme-sc > span { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .opme-scl { font-weight: 400; font-size: 11px; }
