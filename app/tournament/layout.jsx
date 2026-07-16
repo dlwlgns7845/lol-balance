@@ -21,6 +21,7 @@ export default function TournamentLayout({ children }) {
   const [maxTeams, setMaxTeams] = useState(8);
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [navOpen, setNavOpen] = useState(true); // 좌측 대회 목록 접기
 
   async function clearTraces() {
     setMenu(false);
@@ -88,7 +89,7 @@ export default function TournamentLayout({ children }) {
       </header>
 
       <div style={{ display: 'flex', minHeight: 'calc(100vh - 56px)' }}>
-        <aside style={{ width: 220, flexShrink: 0, borderRight: '1px solid #1e1e26', background: '#0f0f14', padding: '14px 10px' }}>
+        {navOpen && <aside style={{ width: 220, flexShrink: 0, borderRight: '1px solid #1e1e26', background: '#0f0f14', padding: '14px 10px' }}>
           <div className="muted" style={{ fontSize: 11, padding: '0 6px 8px', fontWeight: 700 }}>대회 목록</div>
           {list.length === 0 && <div className="muted" style={{ fontSize: 12, padding: 6 }}>아직 없어요</div>}
           {list.map((t) => (
@@ -104,8 +105,11 @@ export default function TournamentLayout({ children }) {
               <button className="btn" style={{ width: '100%' }} disabled={busy || !name.trim()} onClick={create}>만들기</button>
             </div>
           )}
-        </aside>
-        <main className="main" style={{ flex: 1 }}><div className="content" style={{ maxWidth: 1320 }}>{children}</div></main>
+        </aside>}
+        <main className="main" style={{ flex: 1, minWidth: 0 }}>
+          <button className="btn ghost" onClick={() => setNavOpen((v) => !v)} style={{ margin: '10px 0 0 14px', fontSize: 12, padding: '4px 10px' }} title="대회 목록 접기/펴기">{navOpen ? '◀ 목록 접기' : '☰ 대회 목록'}</button>
+          <div className="content" style={{ maxWidth: navOpen ? 1320 : 1680 }}>{children}</div>
+        </main>
       </div>
       <footer className="site-credit">티어·전적 데이터 제공: <a href="https://op.gg" target="_blank" rel="noreferrer">OP.GG</a></footer>
     </div>
