@@ -1224,10 +1224,12 @@ export async function getPlayerDetail(groupId, personId) {
   const mids = [...new Set((parts || []).map((p) => p.match_id))];
   let matches = [];
   if (mids.length) {
-    const { data } = await db().from('matches').select('id, played_at, winner').in('id', mids);
-    matches = data || [];
+    let mres = await db().from('matches').select('id, played_at, winner, duration_sec, duration_min').in('id', mids);
+    if (mres.error) mres = await db().from('matches').select('id, played_at, winner, duration_min').in('id', mids);
+    matches = mres.data || [];
   }
   const mById = Object.fromEntries(matches.map((m) => [m.id, m]));
+  const durById = Object.fromEntries(matches.map((m) => [m.id, m.duration_sec ?? (m.duration_min ? m.duration_min * 60 : 0)]));
 
   // 듀오: 같은 경기 같은 팀 동료들의 함께 승률
   const persons = await listPersons(groupId);
@@ -1259,18 +1261,31 @@ export async function getPlayerDetail(groupId, personId) {
     const v = (m.deaths ? (m.kills + m.assists) / m.deaths : m.kills + m.assists);
     return (!b || v > b.v ? { v: Math.round(v * 100) / 100, champion: m.champion } : b);
   }, null);
-  // 챔피언별
+  // 챔피언별 상세 (딜·CS·골드/분, 멀티킬, 시야 — 리플 상세 수집분 활용)
   const by = {};
   (parts || []).forEach((m) => {
     if (!m.champion) return;
-    const c = (by[m.champion] = by[m.champion] || { champion: m.champion, games: 0, wins: 0, k: 0, d: 0, a: 0 });
+    const c = (by[m.champion] = by[m.champion] || { champion: m.champion, games: 0, wins: 0, k: 0, d: 0, a: 0, dmg: 0, cs: 0, gold: 0, sec: 0, vision: 0, wards: 0, mk: 0, penta: 0 });
     c.games++; if (m.win) c.wins++; c.k += m.kills || 0; c.d += m.deaths || 0; c.a += m.assists || 0;
+    c.dmg += m.damage || 0; c.cs += m.cs || 0; c.gold += m.gold || 0; c.sec += durById[m.match_id] || 0;
+    const det = m.detail || {};
+    c.vision += det.visionScore || 0; c.wards += det.wardsPlaced || 0;
+    c.mk += (det.double || 0) + (det.triple || 0) + (det.quadra || 0) + (det.penta || 0); c.penta += det.penta || 0;
   });
-  const champions = Object.values(by).map((c) => ({
-    champion: c.champion, games: c.games, wins: c.wins, winrate: c.games ? c.wins / c.games : 0,
-    k: c.k, d: c.d, a: c.a, // 챔프별 총 K/D/A
-    kda: c.d ? Math.round(((c.k + c.a) / c.d) * 100) / 100 : c.k + c.a,
-  })).sort((a, b) => b.games - a.games || b.winrate - a.winrate || b.kda - a.kda); // 판수 → 승률 → KDA 우선
+  const champions = Object.values(by).map((c) => {
+    const min = c.sec / 60, g = c.games || 1;
+    return {
+      champion: c.champion, games: c.games, wins: c.wins, winrate: c.games ? c.wins / c.games : 0,
+      k: c.k, d: c.d, a: c.a, // 챔프별 총 K/D/A
+      avgK: Math.round(c.k / g * 10) / 10, avgD: Math.round(c.d / g * 10) / 10, avgA: Math.round(c.a / g * 10) / 10,
+      kda: c.d ? Math.round(((c.k + c.a) / c.d) * 100) / 100 : c.k + c.a,
+      avgDmg: Math.round(c.dmg / g), dmgPerMin: min ? Math.round(c.dmg / min) : 0,
+      avgCs: Math.round(c.cs / g), csPerMin: min ? Math.round((c.cs / min) * 10) / 10 : 0,
+      avgGold: Math.round(c.gold / g), goldPerMin: min ? Math.round(c.gold / min) : 0,
+      avgVision: Math.round((c.vision / g) * 10) / 10, avgWards: Math.round((c.wards / g) * 10) / 10,
+      multikills: c.mk, pentas: c.penta, hasDetail: c.sec > 0 || c.vision > 0 || c.dmg > 0,
+    };
+  }).sort((a, b) => b.games - a.games || b.winrate - a.winrate || b.kda - a.kda); // 판수 → 승률 → KDA 우선
   // 전체 전적 (played_at 내림차순) — 커스텀게임 개인 전적
   const history = (parts || [])
     .map((m) => ({ champion: m.champion, k: m.kills, d: m.deaths, a: m.assists, win: m.win, cs: m.cs, damage: m.damage, played_at: mById[m.match_id]?.played_at }))

@@ -40,7 +40,7 @@ export default function ChampionsPage() {
       <div className="page-head">
         <div className="title">
           <h1>모스트 챔피언{p ? ` · ${p.nickname || p.name}` : ''}</h1>
-          <p className="sub" style={{ margin: 0 }}>이 선수가 플레이한 모든 챔피언 상세 (판수순).</p>
+          <p className="sub" style={{ margin: 0 }}>이 선수가 플레이한 모든 챔피언 상세 · 딜/CS/골드(분당)·시야·멀티킬 (판수순).</p>
         </div>
         {p && <Link href={`/player?id=${p.id}`} className="btn ghost">← 전적으로</Link>}
       </div>
@@ -62,27 +62,30 @@ export default function ChampionsPage() {
           </div>
 
           <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
-            <table className="rec-history champ-table">
-              <thead><tr><th className="l">챔피언</th><th>판수</th><th>승률</th><th>KDA</th><th className="l">K / D / A</th></tr></thead>
-              <tbody>
-                {champs.map((c) => (
-                  <tr key={c.champion}>
-                    <td className="l">
-                      <span className="rh-champ"><ChampImg name={c.champion} iconUrl={dd.icon} size={30} /><b>{c.champion}</b></span>
-                    </td>
-                    <td className="ct-games">{c.games}판</td>
-                    <td>
-                      <div className="wr-cell">
-                        <b className={wrCls(c.winrate)}>{Math.round(c.winrate * 100)}%</b>
-                        <WinLossBar wins={c.wins} losses={c.games - c.wins} width={140} showText />
-                      </div>
-                    </td>
-                    <td className={kdaCls(c.kda)}><b>{c.kda}</b></td>
-                    <td className="l">{c.k} / <span className="red">{c.d}</span> / {c.a}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="rec-history champ-table">
+                <thead><tr>
+                  <th className="l">챔피언</th><th>게임</th><th>승률</th><th>KDA</th><th className="l">평균 K/D/A</th>
+                  <th>딜 <span className="muted">(분당)</span></th><th>CS <span className="muted">(분당)</span></th><th>골드 <span className="muted">(분당)</span></th><th>시야</th><th>멀티킬</th>
+                </tr></thead>
+                <tbody>
+                  {champs.map((c) => (
+                    <tr key={c.champion}>
+                      <td className="l"><span className="rh-champ"><ChampImg name={c.champion} iconUrl={dd.icon} size={30} /><b>{c.champion}</b></span></td>
+                      <td className="ct-games">{c.games}판</td>
+                      <td><div className="wr-cell"><b className={wrCls(c.winrate)}>{Math.round(c.winrate * 100)}%</b><WinLossBar wins={c.wins} losses={c.games - c.wins} width={110} showText /></div></td>
+                      <td className={kdaCls(c.kda)}><b>{c.kda}</b></td>
+                      <td className="l muted">{c.avgK} / <span className="red">{c.avgD}</span> / {c.avgA}</td>
+                      <td>{c.hasDetail ? <><b>{(c.avgDmg || 0).toLocaleString()}</b> <span className="muted">({c.dmgPerMin})</span></> : <span className="muted">-</span>}</td>
+                      <td>{c.hasDetail ? <><b>{c.avgCs}</b> <span className="muted">({c.csPerMin})</span></> : <span className="muted">-</span>}</td>
+                      <td>{c.hasDetail ? <><b>{(c.avgGold || 0).toLocaleString()}</b> <span className="muted">({c.goldPerMin})</span></> : <span className="muted">-</span>}</td>
+                      <td className="muted">{c.hasDetail ? <>{c.avgVision} <span style={{ fontSize: 10.5 }}>👁{c.avgWards}</span></> : '-'}</td>
+                      <td>{c.multikills ? <b className="gold">{c.multikills}{c.pentas ? ` · P${c.pentas}` : ''}</b> : <span className="muted">-</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       )}
