@@ -1284,6 +1284,7 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 .opme-champ { position: relative; flex-shrink: 0; }
 .opme-champ img { border-radius: 7px; }
 .opme-champ.big, .opme-champ.big img { width: 48px; height: 48px; }
+.opme-champ.big { margin-left: -6px; } /* 메타↔챔프 간격 8px→2px 로 당김 */
 .opme-ru { display: flex; flex-direction: column; gap: 2px; align-items: center; }
 .opme-sp2 { display: flex; gap: 3px; align-items: center; }
 .opme-slot { width: 18px; height: 18px; border-radius: 4px; background: #16161c; display: block; overflow: hidden; }
