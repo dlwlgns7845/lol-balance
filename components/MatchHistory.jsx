@@ -251,25 +251,24 @@ function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshol
         <span className={`opme-res ${myWin ? 'g' : 'r'}`}>{myWin ? '승리' : '패배'}</span>
         {m.durationSec ? <span className="opme-dur muted">{fmtDurKo(m.durationSec)}</span> : null}
       </div>
-      <div className="opme-load">
-        <div className="opme-champ mhr-champ">
-          <ChampImg name={me.champion} iconUrl={dd.icon} size={40} />
-          {det.level ? <span className="mhr-lv">{det.level}</span> : null}
-        </div>
-        {hasLoad && (
-          <>
-            <div className="opme-sp">{[0, 1].map((i) => { const u = dd.spell?.(spells[i]); return <span key={i} className="opme-slot">{u ? <img src={u} alt="" width={18} height={18} /> : null}</span>; })}</div>
-            <div className="opme-ru">{runes.map((pid, i) => { const u = dd.rune?.(pid); return <span key={i} className={`opme-slot rune ${i ? 'sub' : ''}`}>{u ? <img src={u} alt="" width={18} height={18} /> : null}</span>; })}</div>
-          </>
-        )}
+      <div className="opme-champ mhr-champ big">
+        <ChampImg name={me.champion} iconUrl={dd.icon} size={48} />
+        {det.level ? <span className="mhr-lv">{det.level}</span> : null}
       </div>
+      {hasLoad
+        ? <div className="opme-ru">{runes.map((pid, i) => { const u = dd.rune?.(pid); return <span key={i} className={`opme-slot rune ${i ? 'sub' : ''}`}>{u ? <img src={u} alt="" width={18} height={18} /> : null}</span>; })}</div>
+        : <div className="opme-ru" />}
+      <div className="opme-nt">
+        <span className="opme-cn">{me.champion}</span>
+        {me.tier && <span className={`opme-tier ${tierClass(me.tier)}`}>{TIER_LABEL[me.tier] || me.tier}</span>}
+      </div>
+      {hasLoad
+        ? <div className="opme-sp2">{[0, 1].map((i) => { const u = dd.spell?.(spells[i]); return <span key={i} className="opme-slot">{u ? <img src={u} alt="" width={20} height={20} /> : null}</span>; })}</div>
+        : <div className="opme-sp2" />}
       <div className="opme-kda">
         <span className="opme-kdal">{me.k} / <span className="red">{me.d}</span> / {me.a}</span>
         <span className={`opme-ratio ${rClass(+r)}`}>{r} 평점</span>
         {kp != null && <span className="opme-kp muted">킬관여 {kp}%</span>}
-      </div>
-      <div className="opme-mid">
-        {me.tier && <span className={`opme-tier ${tierClass(me.tier)}`}>{TIER_LABEL[me.tier] || me.tier}</span>}
         {me.mvp ? <span className={`mbadge mvp ${carry ? 'rainbow' : ''}`}>MVP</span> : me.ace ? <span className="mbadge ace">ACE</span> : me.rank ? <span className="opme-rank">{me.rank}위</span> : null}
       </div>
       {hasItems ? (
