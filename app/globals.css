@@ -559,9 +559,8 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .pcc-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .wrbar.sm { width: 64px; }
 .pcc-wr { font-size: 12px; font-weight: 700; min-width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
-.pc-champ { display: grid; grid-template-columns: 30px minmax(0,1fr) 84px 36px; gap: 8px; align-items: center; }
+.pc-champ { display: grid; grid-template-columns: 32px minmax(0,1fr) 96px 38px; gap: 9px; align-items: center; }
 .pc-champ .wl-bar { width: 100%; }
-.pcc-info > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .pc-duos { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
 .duo-row { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 3px 0; }
 .duo-row span:first-child { flex: 1; font-weight: 600; }
@@ -649,7 +648,7 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mhr-head { display: flex; align-items: center; gap: 10px; padding: 6px 12px; font-size: 12px; background: rgba(255,255,255,.02); border-bottom: 1px solid var(--line); }
 .mhr-head .mhf-label { font-weight: 700; }
 /* 항목을 좌우 끝까지 밀고 균일 간격(space-between). 선수=왼쪽끝, 아이템=오른쪽끝 */
-.mhr-row { display: grid; grid-template-columns: 286px 82px 74px 86px 74px 48px 54px 278px; align-items: center; column-gap: 8px; padding: 4px 16px; border-bottom: 1px solid rgba(255,255,255,.04); justify-content: space-between; }
+.mhr-row { display: grid; grid-template-columns: 280px 66px 82px 74px 86px 74px 48px 54px 278px; align-items: center; column-gap: 8px; padding: 4px 16px; border-bottom: 1px solid rgba(255,255,255,.04); justify-content: space-between; }
 .mhr-row:last-child { border-bottom: none; }
 .mhr-row.mhr-alt { background: var(--tint); } /* 지브라: 팀 색 베이스로 한 줄씩 진하게 */
 .mhr-row.clk { cursor: pointer; }
@@ -669,7 +668,7 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .mhr-colhead:hover { background: rgba(255,255,255,.015); }
 .mhr-colhead > span { white-space: nowrap; overflow: hidden; }
 /* 스펠·KDA·피해량·받은피해량·골드·와드·CS(2~8번째) 가운데 정렬 */
-.mhr-colhead > span:nth-child(n+2):nth-child(-n+7) { text-align: center; }
+.mhr-colhead > span:nth-child(n+2):nth-child(-n+8) { text-align: center; }
 .mhr-c { display: flex; flex-direction: column; align-items: center; line-height: 1.2; }
 .mhr-c b { font-size: 15px; color: var(--text); }
 .mhr-c span { font-size: 12.5px; }
@@ -688,15 +687,17 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .dmg-bar .f.gold { background: linear-gradient(90deg, #c8942f, #f0c860); }
 /* 선수 블록: [챔프+룬] + 이름 — 챔프와 룬은 한 래퍼로 묶어 서로 정중앙 정렬(이름 높이 무관) */
 .mhr-player { display: flex; align-items: center; gap: 7px; min-width: 0; }
-.mhr-cr { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
+.mhr-cr { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
 .mhr-champ { position: relative; width: 32px; height: 32px; flex-shrink: 0; }
 .mhr-lv { position: absolute; right: -3px; bottom: -3px; min-width: 15px; height: 15px; padding: 0 2px; border-radius: 8px; background: #0b0b10; border: 1px solid rgba(255,255,255,.35); color: #e7e7ee; font-size: 9.5px; font-weight: 700; line-height: 15px; text-align: center; }
-/* 스펠·룬: 챔프 옆 세로 2단씩(위 메인 · 아래 보조) — op.gg식 */
-.mhr-sp2, .mhr-runes { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; align-items: center; justify-content: center; }
-.mhr-sp2 .mhr-sr-i { width: 15px; height: 15px; flex: 0 0 15px; border-radius: 4px; }
-.mhr-sp2 .mhr-sr-i img { width: 15px; height: 15px; object-fit: contain; }
-.mhr-runes .mhr-sr-i { width: 15px; height: 15px; flex: 0 0 15px; background: transparent; border-radius: 50%; }
-.mhr-runes .mhr-sr-i img { width: 15px; height: 15px; object-fit: contain; }
+/* 룬: 챔프 옆 세로(위 메인룬 · 아래 보조룬) — 정중앙에서 10px 아래로 내려 시각 균형 */
+.mhr-runes { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; align-items: center; justify-content: center; transform: translateY(10px); }
+.mhr-runes .mhr-sr-i { width: 14px; height: 14px; flex: 0 0 14px; background: transparent; border-radius: 50%; }
+.mhr-runes .mhr-sr-i img { width: 14px; height: 14px; object-fit: contain; }
+/* 스펠: 독립 칸 · 한 줄에 2개 */
+.mhr-spells { display: flex; gap: 3px; align-items: center; justify-content: center; }
+.mhr-spells .mhr-sr-i { width: 30px; height: 30px; flex: 0 0 30px; border-radius: 5px; }
+.mhr-spells .mhr-sr-i img { width: 30px; height: 30px; object-fit: contain; }
 .mhr-sr-i { border-radius: 3px; background: rgba(255,255,255,.05); overflow: hidden; display: flex; align-items: center; justify-content: center; }
 .mhr-sr-i img { display: block; border-radius: 3px; }
 .mhr-quest { font-size: 12px; }
@@ -1262,12 +1263,6 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
   .sf-poolcol, .sf-tablecol { max-height: 260px; }
 }
 @media (max-width: 640px) { .sf-teams { grid-template-columns: 1fr; } }
-
-/* ── 선수 상세: 좌 사이드바(포지션+모스트) + 우 참여경기 (op.gg식) ── */
-.pl-layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; align-items: start; }
-.pl-left { display: flex; flex-direction: column; gap: 14px; }
-.pl-right { min-width: 0; }
-@media (max-width: 1024px) { .pl-layout { grid-template-columns: 1fr; } }
 
 /* ── op.gg식 본인 참여경기 행 (OpMeRow) ── */
 .mh-opme { display: grid; grid-template-columns: 112px 100px 96px 116px 126px minmax(0,1fr) 14px; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; cursor: pointer; border-left: 4px solid transparent; transition: filter .12s; }
