@@ -1312,6 +1312,10 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 .opme-pn { font-size: 10.5px; color: #9a9aa6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .opme-pp.me .opme-pn { color: #fff; font-weight: 700; }
 .mh-opme .mh-chev { color: #6a6a76; font-size: 13px; text-align: center; }
+/* 펼쳤을 때 = 상단 배너(카드 안에 꽉 차게 각지게) */
+.mh-opme.is-open { border-radius: 0; cursor: pointer; }
+.mh-opme.is-open:hover { filter: brightness(1.04); }
+.mh-open-actions { display: flex; align-items: center; gap: 8px; justify-content: flex-end; padding: 6px 14px; background: rgba(0,0,0,.25); border-top: 1px solid rgba(255,255,255,.05); }
 @media (max-width: 1100px) {
   .mh-opme { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
   .opme-stats { flex: 1 1 100%; }

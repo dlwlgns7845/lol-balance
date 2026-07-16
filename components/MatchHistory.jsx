@@ -212,7 +212,7 @@ export function RichScoreboard({ m, dd, onPlayer, byName }) {
 
 // ── op.gg식 "본인 중심" 접힌 행 (내전 참여경기·멸망전 재사용) ──
 // m=경기, me=본인 참가자, teamKills=본인팀 총킬, itemUrl=아이템 URL 함수
-function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshold = 20, kindLabel = '내전', onToggle }) {
+function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshold = 20, kindLabel = '내전', onToggle, open = false }) {
   const det = me.detail || {};
   const r = kdaRatio(me);
   const carry = me.mvp && (me.score || 0) >= carryThreshold;
@@ -243,7 +243,7 @@ function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshol
     </div>
   );
   return (
-    <div className={`mh-opme ${myWin ? 'w' : 'l'} ${carry ? 'carry' : ''}`} onClick={onToggle}>
+    <div className={`mh-opme ${myWin ? 'w' : 'l'} ${carry ? 'carry' : ''} ${open ? 'is-open' : ''}`} onClick={onToggle} title={open ? '눌러서 접기' : '눌러서 펼치기'}>
       <div className="opme-meta">
         <span className="opme-kind">{kindLabel}</span>
         <span className="opme-ago muted">{fmtAgo(m.played_at)}</span>
@@ -288,7 +288,7 @@ function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshol
         {roster(m.A)}
         {roster(m.B)}
       </div>
-      <span className="mh-chev">▾</span>
+      <span className="mh-chev">{open ? '▴' : '▾'}</span>
     </div>
   );
 }
@@ -302,18 +302,18 @@ function MatchCard({ m, dd, open, onToggle, onDelete, onSwap, byName, highlight,
   const maxDmg = Math.max(1, ...[...m.A, ...m.B].map((p) => p.damage || 0));
   const maxTaken = Math.max(1, ...[...m.A, ...m.B].map((p) => p.detail?.dmgTaken || 0));
   const maxGold = Math.max(1, ...[...m.A, ...m.B].map((p) => p.gold || 0));
+  const maxCs = Math.max(1, ...[...m.A, ...m.B].map((p) => p.cs || 0));
+  const rowMax = { dmg: maxDmg, taken: maxTaken, gold: maxGold, cs: maxCs };
   const itemUrl = (id) => (id && dd.version ? `https://ddragon.leagueoflegends.com/cdn/${dd.version}/img/item/${id}.png` : null);
+  // 본인(highlight)이 낀 경기 → op.gg식 본인 중심 행(접힘)/배너(펼침)
+  const inA = highlight && m.A.find((p) => normNm(p.name) === highlight);
+  const inB = highlight && m.B.find((p) => normNm(p.name) === highlight);
+  const me = inA || inB;
+  const myWin = me ? (inA ? aWin : !aWin) : false;
+  const teamKills = me ? ((inA ? m.killsA : m.killsB) || sum(inA ? m.A : m.B, 'k')) : 0;
 
   if (!open) {
-    // 본인(highlight)이 있으면 op.gg식 본인 중심 행
-    const inA = highlight && m.A.find((p) => normNm(p.name) === highlight);
-    const inB = highlight && m.B.find((p) => normNm(p.name) === highlight);
-    const me = inA || inB;
     if (me) {
-      const myWin = inA ? aWin : !aWin;
-      const teamKills = (inA ? m.killsA : m.killsB) || sum(inA ? m.A : m.B, 'k');
-      const maxCs = Math.max(1, ...[...m.A, ...m.B].map((p) => p.cs || 0));
-      const rowMax = { dmg: maxDmg, taken: maxTaken, gold: maxGold, cs: maxCs };
       return <OpMeRow m={m} me={me} myWin={myWin} teamKills={teamKills} max={rowMax} dd={dd} itemUrl={itemUrl} carryThreshold={carryThreshold} onToggle={onToggle} />;
     }
     const dt = fmtDateTime(m.played_at);
@@ -368,6 +368,9 @@ function MatchCard({ m, dd, open, onToggle, onDelete, onSwap, byName, highlight,
 
   return (
     <div className="mh-full">
+      {me ? (
+        <OpMeRow m={m} me={me} myWin={myWin} teamKills={teamKills} max={rowMax} dd={dd} itemUrl={itemUrl} carryThreshold={carryThreshold} onToggle={onToggle} open />
+      ) : (
       <div className="mh-hero clickable" onClick={onToggle} title="배너를 누르면 접혀요" style={splash ? { backgroundImage: `linear-gradient(90deg, var(--panel) 16%, rgba(16,16,25,.5) 46%, transparent 72%), radial-gradient(ellipse 80% 130% at 82% 44%, transparent 40%, var(--panel) 88%), url(${splash})` } : {}}>
         <div className="mh-hero-left">
           <span className={`mh-win-tag ${aWin ? 'blue' : 'r'}`}>{aWin ? '블루 승리' : '레드 승리'}</span>
@@ -390,6 +393,14 @@ function MatchCard({ m, dd, open, onToggle, onDelete, onSwap, byName, highlight,
           <span className="mh-chev open">▴</span>
         </div>
       </div>
+      )}
+      {me && (onSwap || onDelete) && (
+        <div className="mh-open-actions">
+          {onSwap && <button className="mh-edit" onClick={(e) => { e.stopPropagation(); onSwap(m); }}>🔄 블루↔레드</button>}
+          {onDelete && <Link href={`/record?edit=${m.id}`} className="mh-edit" onClick={(e) => e.stopPropagation()}>✏️ 수정</Link>}
+          {onDelete && <button className="mh-del" onClick={(e) => { e.stopPropagation(); onDelete(m); }}>🗑 삭제</button>}
+        </div>
+      )}
       {m.source === 'replay' && (m.A[0]?.detail || m.B[0]?.detail) ? (
         <div className="mhr-teams">
           <RosterRich label="블루" players={m.A} win={aWin} color="blue" dd={dd} maxDmg={maxDmg} maxTaken={maxTaken} maxGold={maxGold} durationMin={m.durationMin} byName={byName} onPlayer={onPlayer} itemUrl={itemUrl} highlight={highlight} />
