@@ -1265,7 +1265,7 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 @media (max-width: 640px) { .sf-teams { grid-template-columns: 1fr; } }
 
 /* ── op.gg식 본인 참여경기 행 (OpMeRow) ── */
-.mh-opme { display: grid; grid-template-columns: 108px 96px 92px 78px 126px minmax(140px,1fr) 340px 14px; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; cursor: pointer; border-left: 4px solid transparent; transition: filter .12s; }
+.mh-opme { display: grid; grid-template-columns: 108px 96px 92px 66px 126px auto 336px 14px; align-items: center; column-gap: 12px; justify-content: space-between; padding: 8px 14px; border-radius: 10px; cursor: pointer; border-left: 4px solid transparent; transition: filter .12s; }
 .mh-opme:hover { filter: brightness(1.09); }
 .mh-opme.w { background: linear-gradient(90deg, rgba(77,124,254,.16), rgba(77,124,254,.045)); border-left-color: #4d7cfe; }
 .mh-opme.l { background: linear-gradient(90deg, rgba(224,87,107,.16), rgba(224,87,107,.045)); border-left-color: #e0576b; }
@@ -1295,17 +1295,12 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 .opme-tier { font-size: 11px; font-weight: 700; }
 .opme-rank { font-size: 11px; color: #c9a24d; font-weight: 700; }
 .opme-items { display: flex; flex-wrap: wrap; gap: 2px; width: 100%; max-width: 126px; align-content: center; }
-/* 중앙 스탯 막대(딜/받음/CS/골드) — 경기 내 최고치 대비, 비는 폭 채움 */
-.opme-stats { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.opme-sbar { display: grid; grid-template-columns: 30px minmax(40px, 1fr) auto; align-items: center; gap: 6px; font-size: 10.5px; }
-.opme-sbl { text-align: right; }
-.opme-sbtrack { height: 7px; border-radius: 4px; background: rgba(255,255,255,.07); overflow: hidden; }
-.opme-sbf { display: block; height: 100%; border-radius: 4px; }
-.opme-sbf.dmg { background: #d9576a; }
-.opme-sbf.taken { background: #8a8f99; }
-.opme-sbf.cs { background: #58c19a; }
-.opme-sbf.gold { background: #e0b24d; }
-.opme-sbv { font-variant-numeric: tabular-nums; color: #cfcfd8; min-width: 46px; }
+/* 중앙 스탯 셀(딜/받음/CS/골드) — 펼친 상세와 동일한 숫자+짧은막대, 가로는 균등분산으로 채움 */
+.opme-stats { display: flex; align-items: center; gap: 16px; }
+.opme-sc { width: 78px; flex: none; font-size: 11.5px; align-items: flex-start; gap: 3px; }
+.opme-sc > span { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.opme-scl { font-weight: 400; font-size: 10px; }
+.dmg-bar .f.cs { background: linear-gradient(90deg, #3fa66f, #58c19a); }
 .opme-it { width: 22px; height: 22px; border-radius: 4px; background: #131318; display: block; overflow: hidden; }
 .opme-it img { border-radius: 4px; display: block; }
 .opme-it.q { outline: 1px solid rgba(255,196,77,.5); }

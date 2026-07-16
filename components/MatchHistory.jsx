@@ -224,12 +224,12 @@ function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshol
   const items = det.items || [];
   const hasLoad = !!(det.level || spells.some(Boolean) || runes.some(Boolean));
   const hasItems = items.some(Boolean) || det.roleItem;
-  // 경기 내 최고치 대비 막대(op.gg 와이드뷰) — 비는 중앙 채움
-  const sbar = (label, val, mx, cls, txt) => (
-    <div className="opme-sbar">
-      <span className="opme-sbl muted">{label}</span>
-      <div className="opme-sbtrack"><span className={`opme-sbf ${cls}`} style={{ width: Math.min(100, Math.round((val || 0) / (mx || 1) * 100)) + '%' }} /></div>
-      <span className="opme-sbv">{txt}</span>
+  // 숫자+짧은막대 셀(펼친 상세와 동일 스타일) — 경기 내 최고치 대비
+  const pct = (v, mx) => Math.min(100, Math.round((v || 0) / (mx || 1) * 100)) + '%';
+  const scell = (label, txt, val, mx, cls) => (
+    <div className="mhr-stat opme-sc">
+      <span><span className="opme-scl muted">{label}</span> {txt}</span>
+      <div className="dmg-bar"><span className={`f ${cls}`} style={{ width: pct(val, mx) }} /></div>
     </div>
   );
   const roster = (players) => (
@@ -279,10 +279,10 @@ function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshol
         </div>
       ) : <div className="opme-items" />}
       <div className="opme-stats">
-        {sbar('딜', me.damage, max.dmg, 'dmg', k(me.damage || 0))}
-        {det.dmgTaken ? sbar('받음', det.dmgTaken, max.taken, 'taken', k(det.dmgTaken)) : null}
-        {sbar('CS', me.cs, max.cs, 'cs', `${me.cs || 0}${csm ? ` (${csm})` : ''}`)}
-        {me.gold ? sbar('골드', me.gold, max.gold, 'gold', k(me.gold)) : null}
+        {scell('딜', k(me.damage || 0), me.damage, max.dmg, 'blue')}
+        {det.dmgTaken ? scell('받음', k(det.dmgTaken), det.dmgTaken, max.taken, 'taken') : null}
+        {scell('CS', `${me.cs || 0}${csm ? ` (${csm})` : ''}`, me.cs, max.cs, 'cs')}
+        {me.gold ? scell('골드', k(me.gold), me.gold, max.gold, 'gold') : null}
       </div>
       <div className="opme-rosters">
         {roster(m.A)}
@@ -421,7 +421,15 @@ export default function MatchHistory({ gid, dd, filterName, showSearch }) {
     if (!gid) return;
     setData(null);
     fetch(`/api/match-history?gid=${gid}&limit=500`).then((x) => x.json()).then((r) => {
-      if (r.ok) { setData(r.matches); setCarryTh(r.carryThreshold ?? 20); if (!filterName && r.matches[0]) setOpen({ [r.matches[0].id]: true }); }
+      if (r.ok) {
+        setData(r.matches);
+        setCarryTh(r.carryThreshold ?? 20);
+        // 최신 경기(필터 시 그 선수의 최신 경기) 한 개는 기본으로 펼쳐서 배너 보이게
+        const first = filterName
+          ? r.matches.find((m) => [...m.A, ...m.B].some((p) => normNm(p.name) === normNm(filterName)))
+          : r.matches[0];
+        if (first) setOpen({ [first.id]: true });
+      }
     });
     fetch('/api/awards?gid=' + gid).then((x) => x.json()).then((r) => r.ok && setByName(r.awards?.byName || {}));
     fetch('/api/stats?gid=' + gid).then((x) => x.json()).then((r) => r.ok && setPlayers(r.players || []));
