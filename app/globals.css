@@ -1278,16 +1278,16 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 .mh-opme.w { background: linear-gradient(90deg, rgba(77,124,254,.16), rgba(77,124,254,.045)); border-left-color: #4d7cfe; }
 .mh-opme.l { background: linear-gradient(90deg, rgba(224,87,107,.16), rgba(224,87,107,.045)); border-left-color: #e0576b; }
 .mh-opme.carry.w { background: linear-gradient(90deg, rgba(255,196,77,.2), rgba(77,124,254,.05)); border-left-color: #ffc44d; }
-.opme-meta { display: flex; flex-direction: column; gap: 1px; font-size: 9.5px; line-height: 1.32; min-width: 0; }
+.opme-meta { display: flex; flex-direction: column; gap: 1px; font-size: 11.5px; line-height: 1.32; min-width: 0; }
 .opme-kind { font-weight: 700; }
 .mh-opme.w .opme-kind { color: #7ea2ff; }
 .mh-opme.l .opme-kind { color: #f08698; }
-.opme-ago { font-size: 9px; }
+.opme-ago { font-size: 11px; }
 .opme-div { height: 1px; width: 30px; background: #3a3a44; margin: 3px 0; }
-.opme-res { font-weight: 800; font-size: 11px; }
+.opme-res { font-weight: 800; font-size: 13px; }
 .opme-res.g { color: #5cc98d; }
 .opme-res.r { color: #e0576b; }
-.opme-dur { font-size: 9px; }
+.opme-dur { font-size: 11px; }
 .opme-champ { position: relative; flex-shrink: 0; }
 .opme-champ img { border-radius: 7px; }
 .opme-champ.big, .opme-champ.big img { width: 56px; height: 56px; }
