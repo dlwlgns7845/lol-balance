@@ -1326,7 +1326,8 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 .opme-it.q.done { display: grid; place-items: center; color: #ffc44d; font-size: 12px; }
 .opme-rosters { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 10px; min-width: 0; overflow: hidden; }
 .opme-rcol { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.opme-rlbl { font-size: 10px; font-weight: 700; color: #b9b9c4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-bottom: 1px; border-bottom: 1px solid rgba(255,255,255,.08); margin-bottom: 2px; }
+/* 팀 이름: 밑줄이 글자 길이만큼만(칸 전체 X). 빈 라벨이면 폭 0 → 선 없이 높이만 확보 */
+.opme-rlbl { display: block; width: fit-content; max-width: 100%; min-height: 13px; font-size: 10px; font-weight: 700; color: #b9b9c4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-bottom: 1px; border-bottom: 1px solid rgba(255,255,255,.08); margin-bottom: 2px; }
 .opme-pp { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .opme-pp img { border-radius: 3px; flex-shrink: 0; }
 .opme-pn { font-size: 10.5px; color: #9a9aa6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

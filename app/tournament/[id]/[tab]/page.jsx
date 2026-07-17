@@ -1001,7 +1001,8 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
       cs: Math.max(1, ...all.map((p) => p.cs || 0)),
     };
     const kd = kindOf(g);
-    const labels = kd === 'open' ? null : [sideTeamName(g, 'A', rmap), sideTeamName(g, 'B', rmap)];
+    // 자유 스크림은 팀이 없음 → 빈 라벨(자리만 확보해 팀 스크림과 배너 높이 동일)
+    const labels = kd === 'open' ? ['', ''] : [sideTeamName(g, 'A', rmap), sideTeamName(g, 'B', rmap)];
     return (
       <div>
         <OpMeRow m={m} me={me} myWin={myWin} teamKills={teamKills} max={mx} dd={dd} itemUrl={itemUrl}

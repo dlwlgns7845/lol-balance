@@ -225,7 +225,8 @@ export function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryT
   const hasItems = items.some(Boolean) || det.roleItem;
   const roster = (players, label) => (
     <div className="opme-rcol">
-      {label ? <span className="opme-rlbl" title={label}>{label}</span> : null}
+      {/* rosterLabels가 주어지면 빈 라벨이어도 자리는 확보 → 팀 없는 경기(자유 스크림)도 같은 높이 */}
+      {rosterLabels ? <span className="opme-rlbl" title={label || undefined}>{label}</span> : null}
       {players.map((p, i) => (
         <div className={`opme-pp ${normNm(p.name) === normNm(me.name) ? 'me' : ''}`} key={i} title={`${p.name} · ${p.champion}`}>
           <ChampImg name={p.champion} iconUrl={dd.icon} size={16} />
