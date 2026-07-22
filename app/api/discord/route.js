@@ -57,6 +57,17 @@ function discordAvatarUrl(u) {
   try { idx = u.discriminator && u.discriminator !== '0' ? Number(u.discriminator) % 5 : Number((BigInt(u.id) >> 22n) % 6n); } catch { idx = 0; }
   return `https://cdn.discordapp.com/embed/avatars/${idx}.png`;
 }
+// 서버(guild) 이름·아이콘 해시 — 사이트 헤더 브랜딩용. 실패해도 연결은 진행(조용히 null).
+async function fetchGuildBrand(guildId) {
+  const token = process.env.DISCORD_BOT_TOKEN;
+  if (!guildId || !token) return null;
+  try {
+    const r = await fetch(`https://discord.com/api/v10/guilds/${guildId}`, { headers: { Authorization: `Bot ${token}` } });
+    if (!r.ok) return null;
+    const g = await r.json();
+    return { name: g?.name || null, icon: g?.icon || null };
+  } catch { return null; }
+}
 // 연동/가입 시 디코 사진을 기본 아바타로 세팅 (기존 색/이모지는 유지). profile 컬럼 없으면 조용히 스킵.
 async function setDiscordAvatar(person, i) {
   try {
@@ -902,7 +913,8 @@ async function cmdLinkGuild(i, gid) {
   const existing = await getGuildLink(i.guild_id);
   if (existing?.status === 'approved' && existing.group_id === group.id) return ephem(`이미 **${group.name || group.code}** 에 연결돼 있어요.`);
   const requester = i.member?.user?.global_name || i.member?.user?.username || callerId(i);
-  await requestGuildLink(i.guild_id, group.id, requester, null);
+  const g = await fetchGuildBrand(i.guild_id); // 서버 이름·아이콘 → 사이트 헤더 브랜딩용
+  await requestGuildLink(i.guild_id, group.id, requester, g?.name || null, g?.icon || null);
   return ephem(`📨 **${group.name || group.code}** (#${group.code}) 연결 **요청**을 보냈어요.\n방장/관리자가 **사이트 → 점수표(설정) 페이지**에서 승인하면 이 서버에서 커맨드를 쓸 수 있어요. (승인 전까지는 대기)`);
 }
 

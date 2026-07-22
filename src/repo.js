@@ -63,12 +63,31 @@ export async function getGuildLink(guildId) {
   return data || null;
 }
 // 연결 요청 (pending). 같은 서버가 다시 요청하면 갱신.
-export async function requestGuildLink(guildId, groupId, requester, guildName) {
-  const { error } = await db().from('discord_guilds').upsert({
+export async function requestGuildLink(guildId, groupId, requester, guildName, guildIcon) {
+  const row = {
     guild_id: guildId, group_id: groupId, status: 'pending',
     linked_by: requester || null, guild_name: guildName || null,
-  }, { onConflict: 'guild_id' });
-  if (error) throw error;
+  };
+  if (guildIcon !== undefined) row.guild_icon = guildIcon || null;
+  const { error } = await db().from('discord_guilds').upsert(row, { onConflict: 'guild_id' });
+  // guild_icon 컬럼 미반영(마이그 전)이면 아이콘 없이 재시도 → 연결 자체는 항상 되게
+  if (error) {
+    delete row.guild_icon;
+    const { error: e2 } = await db().from('discord_guilds').upsert(row, { onConflict: 'guild_id' });
+    if (e2) throw e2;
+  }
+}
+// 이 방의 브랜딩용 디코 서버 (승인된 것 중 가장 먼저 연결된 것) — { guild_id, guild_name, guild_icon } | null
+export async function getRoomGuildBrand(groupId) {
+  if (!groupId) return null;
+  try {
+    const { data, error } = await db().from('discord_guilds')
+      .select('guild_id, guild_name, guild_icon').eq('group_id', groupId).eq('status', 'approved')
+      .order('created_at', { ascending: true }).limit(1);
+    if (error || !data?.length) return null;
+    const g = data[0];
+    return g.guild_icon ? g : { ...g, guild_icon: null };
+  } catch { return null; }
 }
 // 방의 대기중 요청 목록 (사이트 방장/관리자용)
 export async function listPendingLinks(groupId) {
@@ -87,6 +106,13 @@ export async function getApprovedGuilds(groupId) {
   return data || [];
 }
 // 승인: 이 서버를 approved 로 (다른 서버는 그대로 — 한 방을 여러 서버가 공유 가능)
+// 서버 이름·아이콘 갱신 (승인 시/주기적). 컬럼 없거나 실패해도 조용히 무시.
+export async function updateGuildBrand(guildId, name, icon) {
+  if (!guildId) return;
+  try {
+    await db().from('discord_guilds').update({ guild_name: name || null, guild_icon: icon || null }).eq('guild_id', guildId);
+  } catch { /* guild_icon 컬럼 미반영 → 무시 */ }
+}
 export async function approveGuildLink(groupId, guildId) {
   const { error } = await db().from('discord_guilds').update({ status: 'approved' })
     .eq('guild_id', guildId).eq('group_id', groupId);

@@ -1,7 +1,19 @@
 // 디스코드 서버 연결 승인 (방장 또는 전역 관리자). GET=대기·승인 목록, POST=승인/거절.
 import { NextResponse } from 'next/server';
 import { requireOwner, errStatus } from '../../../src/auth.js';
-import { listPendingLinks, getApprovedGuilds, approveGuildLink, removeGuildLink } from '../../../src/repo.js';
+import { listPendingLinks, getApprovedGuilds, approveGuildLink, removeGuildLink, updateGuildBrand } from '../../../src/repo.js';
+
+// 승인 시 서버 이름·아이콘 최신화 (헤더 브랜딩용). 봇 토큰 없거나 실패해도 승인은 진행.
+async function refreshBrand(guildId) {
+  const token = process.env.DISCORD_BOT_TOKEN;
+  if (!token) return;
+  try {
+    const r = await fetch(`https://discord.com/api/v10/guilds/${guildId}`, { headers: { Authorization: `Bot ${token}` } });
+    if (!r.ok) return;
+    const g = await r.json();
+    await updateGuildBrand(guildId, g?.name || null, g?.icon || null);
+  } catch { /* 무시 */ }
+}
 
 export async function GET(request) {
   try {
@@ -19,7 +31,7 @@ export async function POST(request) {
     const { gid, action, guildId } = await request.json();
     if (!gid || !guildId) throw new Error('gid·guildId 필요');
     await requireOwner(request, gid);
-    if (action === 'approve') await approveGuildLink(gid, guildId);
+    if (action === 'approve') { await approveGuildLink(gid, guildId); await refreshBrand(guildId); }
     else if (action === 'reject') await removeGuildLink(guildId);
     else throw new Error('알 수 없는 액션');
     return NextResponse.json({ ok: true });

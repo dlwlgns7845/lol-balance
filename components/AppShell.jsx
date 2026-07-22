@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useGroup } from './GroupProvider.jsx';
@@ -18,6 +18,15 @@ export default function AppShell({ children }) {
   const path = usePathname();
   const nav = isAdmin ? [...NAV, { href: '/admin', label: '관리자', ic: '🛡' }] : NAV;
   const [menu, setMenu] = useState(false);
+  // 이 방에 연결된 디코 서버 브랜딩(아이콘·이름). 없으면 기본 로고 유지.
+  const [brand, setBrand] = useState(null);
+  useEffect(() => {
+    if (!group?.id) { setBrand(null); return; }
+    let alive = true;
+    fetch('/api/room-brand?gid=' + group.id).then((r) => r.json())
+      .then((r) => { if (alive && r.ok) setBrand(r.brand); }).catch(() => {});
+    return () => { alive = false; };
+  }, [group?.id]);
 
   async function clearTraces() {
     setMenu(false);
@@ -30,12 +39,12 @@ export default function AppShell({ children }) {
     <div className="app-shell">
       <header className="topbar">
         <div className="tb-brand">
-          <img src="/logo.webp" alt="로고" className="tb-logo-img"
+          <img src={brand?.icon || '/logo.webp'} alt="로고" className="tb-logo-img"
             onError={(e) => { e.currentTarget.style.display = 'none'; const f = e.currentTarget.parentElement.querySelector('.tb-logo'); if (f) f.style.display = 'grid'; }} />
           <span className="tb-logo" style={{ display: 'none' }}>LoL</span>
           <div className="tb-title">
-            <div className="tb-name"><span className="accent">내전</span> 밸런스 · 통계</div>
-            <div className="tb-sub">CUSTOM BALANCE · GAME STATS</div>
+            <div className="tb-name">{brand?.name ? brand.name : <><span className="accent">내전</span> 밸런스 · 통계</>}</div>
+            <div className="tb-sub">{brand?.name ? '내전 밸런스 · 통계' : 'CUSTOM BALANCE · GAME STATS'}</div>
           </div>
         </div>
 

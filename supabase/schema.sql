@@ -130,8 +130,10 @@ create table if not exists discord_guilds (
   status text not null default 'pending' check (status in ('pending','approved')),
   linked_by text,
   guild_name text,
+  guild_icon text,             -- 디코 서버 아이콘 해시 (헤더 브랜딩용). cdn: /icons/{guild_id}/{hash}.png
   created_at timestamptz not null default now()
 );
+alter table discord_guilds add column if not exists guild_icon text;
 
 -- 내전 모집 큐 (디코 /모집 + 사이트 미러). 서버리스라 상태는 전부 DB.
 create table if not exists recruit_queues (
