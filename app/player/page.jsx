@@ -13,6 +13,7 @@ import { TIER_LABEL, tierClass } from '../../src/table.js';
 
 const wrCls = (w) => (w >= 0.6 ? 'green' : w >= 0.5 ? 'yellow' : 'red');
 const kdaCls = (r) => (r >= 5 ? 'kv-5' : r >= 4 ? 'kv-4' : r >= 3 ? 'kv-3' : '');
+const POS_KR = { top: '탑', jungle: '정글', mid: '미드', adc: '원딜', sup: '서폿' };
 const fmtD = (s) => { if (!s) return ''; const d = new Date(s); return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`; };
 
 export default function PlayerRecordPage() {
@@ -123,6 +124,22 @@ export default function PlayerRecordPage() {
                         </div>
                         <WinLossBar wins={c.wins} losses={c.games - c.wins} showText />
                         <span className={`pcc-wr ${wrCls(c.winrate)}`}>{Math.round(c.winrate * 100)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {detail?.laneMatchups?.length > 0 && (
+                <div className="panel">
+                  <h2>맞라인 상대 <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>· 같은 라인 만났을 때 승률</span></h2>
+                  <div className="lane-list">
+                    {detail.laneMatchups.slice(0, 8).map((o) => (
+                      <div className="lane-row" key={o.name + o.pos}>
+                        <span className="lane-pos muted">{POS_KR[o.pos] || '-'}</span>
+                        <span className="lane-nm">{o.name}</span>
+                        <span className="muted lane-g">{o.games}판</span>
+                        <WinLossBar wins={o.wins} losses={o.games - o.wins} showText />
+                        <span className={`pcc-wr ${wrCls(o.winrate)}`}>{Math.round(o.winrate * 100)}%</span>
                       </div>
                     ))}
                   </div>

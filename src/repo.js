@@ -1262,8 +1262,9 @@ export async function getPlayerDetail(groupId, personId) {
   const nameById = Object.fromEntries(persons.map((p) => [p.id, p.nickname || p.display_name]));
   let allInMatches = [];
   if (mids.length) {
-    const { data } = await db().from('match_participants').select('match_id, person_id, team, win').in('match_id', mids);
-    allInMatches = data || [];
+    let r = await db().from('match_participants').select('match_id, person_id, team, win, position, slot').in('match_id', mids);
+    if (r.error) r = await db().from('match_participants').select('match_id, person_id, team, win').in('match_id', mids);
+    allInMatches = r.data || [];
   }
   const myTeam = {}; // match_id → {team, win}
   (parts || []).forEach((m) => { myTeam[m.match_id] = { team: m.team, win: m.win }; });
@@ -1279,6 +1280,24 @@ export async function getPlayerDetail(groupId, personId) {
     .sort((a, b) => b.winrate - a.winrate || b.games - a.games);
   const best = duos.slice(0, 3);
   const worst = duos.length > 3 ? duos.slice(-2).reverse() : [];
+
+  // 맞라인: 각 경기에서 같은 포지션(position 우선, 없으면 slot%5)의 상대팀 선수와의 전적
+  const LP = ['top', 'jungle', 'mid', 'adc', 'sup'];
+  const posOfPart = (m) => (m.position && LP.includes(m.position) ? m.position : (m.slot != null ? LP[((m.slot % 5) + 5) % 5] : null));
+  const myPosBy = {}; // match_id → 내 포지션
+  (parts || []).forEach((m) => { myPosBy[m.match_id] = posOfPart(m); });
+  const lane = {}; // 상대 person_id → { games, wins, pos }
+  allInMatches.forEach((m) => {
+    const mine = myTeam[m.match_id];
+    if (!mine || m.person_id === personId || m.team === mine.team) return; // 상대팀만
+    const myPos = myPosBy[m.match_id];
+    if (!myPos || posOfPart(m) !== myPos) return;                          // 같은 라인만
+    const l = (lane[m.person_id] = lane[m.person_id] || { id: m.person_id, games: 0, wins: 0, pos: myPos });
+    l.games++; if (mine.win) l.wins++;
+  });
+  const laneMatchups = Object.values(lane)
+    .map((d) => ({ name: nameById[d.id] || '?', pos: d.pos, games: d.games, wins: d.wins, winrate: d.wins / d.games }))
+    .sort((a, b) => b.games - a.games || b.winrate - a.winrate);
 
   // 기록
   const sg = (parts || []).filter((m) => m.kills != null);
@@ -1317,5 +1336,5 @@ export async function getPlayerDetail(groupId, personId) {
     .map((m) => ({ champion: m.champion, k: m.kills, d: m.deaths, a: m.assists, win: m.win, cs: m.cs, damage: m.damage, played_at: mById[m.match_id]?.played_at }))
     .sort((a, b) => new Date(b.played_at || 0) - new Date(a.played_at || 0));
   const recent = history.slice(0, 12);
-  return { champions, recent, history, best, worst, records: { maxKill, maxKda } };
+  return { champions, recent, history, best, worst, laneMatchups, records: { maxKill, maxKda } };
 }

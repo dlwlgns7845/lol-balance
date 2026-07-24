@@ -562,6 +562,13 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .pc-champ { display: grid; grid-template-columns: 30px minmax(0,1fr) 78px 34px; gap: 7px; align-items: center; }
 .pc-champ .wl-bar { width: 100%; }
 .pcc-info > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+/* 맞라인 상대 리스트 */
+.lane-list { display: flex; flex-direction: column; gap: 6px; }
+.lane-row { display: grid; grid-template-columns: 34px minmax(0,1fr) 34px 84px 34px; gap: 7px; align-items: center; font-size: 12.5px; }
+.lane-pos { font-size: 11px; }
+.lane-nm { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lane-g { font-size: 11px; text-align: right; }
+.lane-row .wl-bar { width: 100%; }
 /* 선수 상세: 좌 사이드바(포지션+모스트, 폭 축소) + 우 참여경기 */
 .pl-layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); column-gap: 14px; row-gap: 14px; align-items: start; }
 .pl-left { display: flex; flex-direction: column; gap: 14px; }

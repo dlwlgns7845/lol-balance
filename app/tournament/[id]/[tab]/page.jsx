@@ -824,13 +824,27 @@ function aggregateChamps(games) {
 }
 // 특정 선수(key)의 챔프 상세 + 포지션 집계
 function playerBreakdown(key, games) {
-  const rows = [], pos = {};
-  games.forEach((g) => { const min = g.duration_sec ? g.duration_sec / 60 : 0; (g.participants || []).forEach((p) => {
-    if (pKey(p) !== key) return;
-    rows.push({ p, min, win: g.winner === p.team });
-    const ps = p.position; if (ps && POS_ORDER.includes(ps)) { const o = pos[ps] || (pos[ps] = { g: 0, w: 0 }); o.g += 1; if (g.winner === p.team) o.w += 1; }
-  }); });
-  return { champs: champStat(rows, games), positions: pos };
+  const rows = [], pos = {}, lane = {};
+  games.forEach((g) => {
+    const min = g.duration_sec ? g.duration_sec / 60 : 0;
+    (g.participants || []).forEach((p) => {
+      if (pKey(p) !== key) return;
+      rows.push({ p, min, win: g.winner === p.team });
+      const ps = p.position; if (ps && POS_ORDER.includes(ps)) { const o = pos[ps] || (pos[ps] = { g: 0, w: 0 }); o.g += 1; if (g.winner === p.team) o.w += 1; }
+    });
+    // 맞라인: 같은 포지션 상대팀 선수
+    const me = (g.participants || []).find((p) => pKey(p) === key);
+    if (!me || !me.position || !POS_ORDER.includes(me.position)) return;
+    const opp = (g.participants || []).find((p) => p.team !== me.team && p.position === me.position);
+    if (!opp) return;
+    const ok = pKey(opp);
+    const l = lane[ok] || (lane[ok] = { name: opp.gameName || opp.name || '?', pos: me.position, games: 0, wins: 0 });
+    l.games++; if (g.winner === me.team) l.wins++;
+  });
+  const laneMatchups = Object.values(lane)
+    .map((d) => ({ name: d.name, pos: d.pos, games: d.games, wins: d.wins, winrate: d.wins / d.games }))
+    .sort((a, b) => b.games - a.games || b.winrate - a.winrate);
+  return { champs: champStat(rows, games), positions: pos, laneMatchups };
 }
 // 멸망전 선수 → 내전 PlayerCard 형식으로 변환 (컴포넌트 재사용)
 function tPlayerCardData(key, games, rmap, teams) {
@@ -1220,6 +1234,22 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
                   ))}
                 </div>
               </div>
+              {bd.laneMatchups?.length > 0 && (
+                <div className="panel">
+                  <h2>맞라인 상대 <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>· 같은 라인 만났을 때 승률</span></h2>
+                  <div className="lane-list">
+                    {bd.laneMatchups.slice(0, 8).map((o) => (
+                      <div className="lane-row" key={o.name + o.pos}>
+                        <span className="lane-pos muted">{POS_KR[o.pos] || '-'}</span>
+                        <span className="lane-nm">{o.name}</span>
+                        <span className="muted lane-g">{o.games}판</span>
+                        <WinLossBar wins={o.wins} losses={o.games - o.wins} showText />
+                        <span className={"pcc-wr " + (o.winrate >= 0.6 ? "green" : o.winrate >= 0.5 ? "yellow" : "red")}>{Math.round(o.winrate * 100)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="pl-right">
             <h2 style={{ fontSize: 15, margin: "0 2px 10px" }}>참여 경기 <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>· 배너 눌러 펼치면 그 경기 전체 상세</span></h2>
