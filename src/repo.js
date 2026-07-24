@@ -411,9 +411,13 @@ export async function uploadAvatarFromUrl(personId, srcUrl, contentType) {
 }
 
 export async function deletePerson(id) {
-  // match_participants 는 FK에 cascade가 없어 직접 정리 (accounts·rating_events는 cascade)
-  const { error: e1 } = await db().from('match_participants').delete().eq('person_id', id);
-  if (e1) throw e1;
+  // 🛡 기록 보호: 경기 기록이 하나라도 있으면 삭제 차단 (관리자 실수/악의로 기록 소실 방지)
+  const { count } = await db().from('match_participants').select('*', { count: 'exact', head: true }).eq('person_id', id);
+  if (count && count > 0) {
+    const e = new Error(`이 선수는 ${count}경기 기록이 있어 삭제할 수 없어요. (기록 보호) — 중복이면 '병합', 잘못된 연동이면 '연동 해제'를 쓰세요.`);
+    e.status = 409; throw e;
+  }
+  // 기록 없는 빈 선수만 삭제 (accounts·rating_events는 cascade)
   const { error } = await db().from('persons').delete().eq('id', id);
   if (error) throw error;
 }

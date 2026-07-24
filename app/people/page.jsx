@@ -43,7 +43,7 @@ export default function PeoplePage() {
   const addPerson = () => api('/api/persons', 'POST', { group_id: gid, display_name: '' }).then(load).catch((e) => setErr(e.message));
   const patchPerson = (id, patch) => api(`/api/persons/${id}?gid=${gid}`, 'PATCH', patch).then(load).catch((e) => setErr(e.message));
   async function delPerson(id) {
-    if (!confirm('이 사람을 삭제할까요? 연결된 계정·경기기록도 함께 삭제됩니다.')) return;
+    if (!confirm('이 사람을 삭제할까요?\n※ 경기 기록이 있으면 보호되어 삭제되지 않아요 (기록 없는 빈 선수만 삭제).')) return;
     await api(`/api/persons/${id}?gid=${gid}`, 'DELETE').then(load).catch((e) => setErr(e.message));
   }
   function setRoles(p, roles) {
