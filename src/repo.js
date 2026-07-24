@@ -537,7 +537,7 @@ async function findDuplicateMatch(groupId, resolved, winner) {
 }
 
 // participants: [{ name, tier, primary, secondary, team:'A'|'B', position, points }]
-export async function saveMatch(groupId, { winner, totalWeight, participants, force, durationMin, durationSec, objectives, source }) {
+export async function saveMatch(groupId, { winner, totalWeight, participants, force, durationMin, durationSec, objectives, source, played_at }) {
   if (!groupId) throw new Error('groupId 필요');
   if (winner !== 'A' && winner !== 'B') throw new Error('winner는 A/B');
   if (!participants || participants.length !== 10) throw new Error('참가자 10명 필요');
@@ -554,7 +554,7 @@ export async function saveMatch(groupId, { winner, totalWeight, participants, fo
   }
   const durSec = durationSec != null ? Math.round(durationSec) : (durationMin ? Math.round(durationMin * 60) : null);
   const dur = durSec != null ? Math.round(durSec / 60) : null;
-  const baseIns = { group_id: groupId, winner, total_weight: totalWeight ?? null };
+  const baseIns = { group_id: groupId, winner, total_weight: totalWeight ?? null, ...(played_at ? { played_at } : {}) };
   // 리플 상세(objectives·source)·duration은 추가 컬럼 — 있으면 저장, 스키마 미반영이면 단계적으로 빼고 재시도(기존 저장 항상 되게)
   let ins = await db().from('matches')
     .insert({ ...baseIns, duration_min: dur, duration_sec: durSec, source: source ?? null, objectives: objectives ?? null }).select().single();

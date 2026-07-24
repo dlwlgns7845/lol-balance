@@ -10,6 +10,7 @@ export async function POST(request) {
       winner: body.winner, totalWeight: body.totalWeight, participants: body.participants,
       force: body.force, durationMin: body.durationMin, durationSec: body.durationSec,
       objectives: body.objectives, source: body.source, // 리플 상세(있을 때만)
+      played_at: body.played_at, // 리플 저장시각 = 게임 날짜 (일괄 업로드 날짜순 정렬)
     });
     if (match?.duplicate) return NextResponse.json({ ok: true, duplicate: true, matchId: match.matchId });
     return NextResponse.json({ ok: true, match });

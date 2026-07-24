@@ -23,7 +23,12 @@ export default function RecordPage() {
   const [source, setSource] = useState(null);         // 'replay' | 'manual' (스샷 제거됨)
   const roflRef = useRef();
   const [rows, setRows] = useState([]);
+  const [playedAt, setPlayedAt] = useState(null); // 리플 저장시각 = 게임 날짜
   const [region, setRegion] = useState('NA'); // 새 사람 티어 자동조회 지역
+  const [batch, setBatch] = useState([]);      // 일괄: 파싱된 경기들
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkResult, setBulkResult] = useState(null);
+  const bulkRef = useRef();
   const [winner, setWinner] = useState('A');
   const [durationSec, setDurationSec] = useState(0); // 게임 시간(초) — 단일 소스, 표시·저장
   const [loading, setLoading] = useState(false);
@@ -128,6 +133,7 @@ export default function RecordPage() {
         personId: matchByRiot(p.gameName, p.tag), detail: p.detail,
       })));
       setObjectives(obj); setSource('replay'); setWinner(w); setDurationSec(dsec);
+      setPlayedAt(file.lastModified ? new Date(file.lastModified).toISOString() : null); // 리플 저장시각 = 게임일
       setMsg('리플 분석 완료 — 사람·포지션 확인하고 저장하세요.');
     } catch (er) { setErr('리플 분석 실패: ' + er.message); }
     setLoading(false);
@@ -188,7 +194,7 @@ export default function RecordPage() {
       }
       const res = await apiFetch('/api/matches', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ group_id: gid, winner, participants, force, durationSec, objectives, source }),
+        body: JSON.stringify({ group_id: gid, winner, participants, force, durationSec, objectives, source, played_at: playedAt }),
       }).then((x) => x.json());
       if (!res.ok) throw new Error(res.error);
       if (res.duplicate) {
@@ -203,6 +209,55 @@ export default function RecordPage() {
       setRows([]); if (roflRef.current) roflRef.current.value = '';
     } catch (e) { setErr(editing ? '수정 실패: ' + e.message : '저장 실패: ' + e.message); }
     setSaving(false);
+  }
+
+  // 📦 일괄: 여러 .rofl 파싱 → 검토 목록(날짜순) → 아래 "전체 저장"
+  async function onBulk(e) {
+    const files = [...(e.target.files || [])];
+    if (!files.length) return;
+    setErr(null); setBulkResult(null); setLoading(true);
+    const ord = { top: 0, jungle: 1, mid: 2, adc: 3, sup: 4 };
+    const parsed = [];
+    for (const f of files) {
+      try {
+        const { players, winner: w, objectives: obj, durationSec: dsec } = await parseRofl(f);
+        const sorted = [...players].sort((a, b) => (a.team === b.team ? (ord[a.position] ?? 9) - (ord[b.position] ?? 9) : (a.team === 'A' ? -1 : 1)));
+        parsed.push({
+          id: f.name + f.lastModified, fileName: f.name,
+          played_at: f.lastModified ? new Date(f.lastModified).toISOString() : null,
+          winner: w, durationSec: dsec, objectives: obj, source: 'replay',
+          rows: sorted.map((p) => ({ team: p.team === 'B' ? 2 : 1, name: p.riotId, champion: p.champion, position: p.position || 'top', k: p.k, d: p.d, a: p.a, damage: p.damage, cs: p.cs, gold: p.gold, personId: matchByRiot(p.gameName, p.tag), detail: p.detail })),
+        });
+      } catch (er) { parsed.push({ id: f.name + f.lastModified, fileName: f.name, error: er.message }); }
+    }
+    parsed.sort((a, b) => new Date(a.played_at || 0) - new Date(b.played_at || 0)); // 오래된 것 → 최신
+    setBatch(parsed); setLoading(false);
+    if (bulkRef.current) bulkRef.current.value = '';
+  }
+
+  async function saveBatch() {
+    setBulkBusy(true); setErr(null);
+    const results = [];
+    for (const m of batch) {
+      if (m.error) { results.push({ file: m.fileName, status: 'parse_error' }); continue; }
+      // 새 선수 티어 자동조회
+      const newRows = m.rows.filter((r) => (!r.personId || r.personId === '__new__') && (r.name || '').includes('#'));
+      const tierByName = {};
+      await Promise.all(newRows.map(async (r) => {
+        const [gn, tg] = (r.name || '').split('#'); if (!gn || !tg) return;
+        try { const prof = await fetch(`/api/seed?name=${encodeURIComponent(gn.trim())}&tag=${encodeURIComponent(tg.trim())}&region=${region}`).then((x) => x.json()); if (prof && prof.found) tierByName[r.name] = prof.suggestedTier || prof.curHighTier || prof.peakTier || null; } catch { /* 폴백 G2 */ }
+      }));
+      const ordered = [...m.rows].sort((a, b) => (a.team - b.team) || (POS.indexOf(a.position) - POS.indexOf(b.position)));
+      const participants = ordered.map((r) => {
+        const base = { team: r.team === 2 ? 'B' : 'A', champion: resolveChamp(r.champion), position: r.position || null, k: Number(r.k), d: Number(r.d), a: Number(r.a), damage: Number(r.damage), cs: Number(r.cs), gold: r.gold != null ? Number(r.gold) : null, detail: r.detail ?? null };
+        return r.personId && r.personId !== '__new__' ? { ...base, person_id: r.personId } : { ...base, name: r.name, tier: tierByName[r.name] || 'G2' };
+      });
+      try {
+        const res = await apiFetch('/api/matches', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ group_id: gid, winner: m.winner, participants, durationSec: m.durationSec, objectives: m.objectives, source: m.source, played_at: m.played_at, force: false }) }).then((x) => x.json());
+        results.push({ file: m.fileName, status: !res.ok ? 'error' : res.duplicate ? 'dup' : 'saved', msg: res.error });
+      } catch (er) { results.push({ file: m.fileName, status: 'error', msg: er.message }); }
+    }
+    setBulkResult(results); setBatch([]); setBulkBusy(false);
   }
 
   if (group && !canRecord) return (
@@ -232,8 +287,10 @@ export default function RecordPage() {
           <div className="controls">
             <span className="muted" style={{ fontSize: 12 }}>🎬 리플:</span>
             <input ref={roflRef} type="file" accept=".rofl" onChange={onRofl} disabled={loading} style={{ width: 'auto' }} />
+            <span className="muted" style={{ fontSize: 12 }}>│ 📦 일괄:</span>
+            <input ref={bulkRef} type="file" accept=".rofl" multiple onChange={onBulk} disabled={loading} style={{ width: 'auto' }} title="여러 리플 한 번에 — 검토 후 아래 '전체 저장'" />
             {loading && <span className="muted">분석 중…</span>}
-            <span className="muted" style={{ fontSize: 11 }}>게임 후 저장된 <code>.rofl</code> 넣으면 스코어보드·아이템·오브젝트 자동 추출 (사람 자동매핑)</span>
+            <span className="muted" style={{ fontSize: 11 }}>게임 후 저장된 <code>.rofl</code> 넣으면 자동 추출. 일괄은 날짜(파일 저장시각)순 정렬</span>
             <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               <span className="muted" style={{ fontSize: 11 }}>새 선수 티어 조회 지역</span>
               <select value={region} onChange={(e) => setRegion(e.target.value)} title="새로 등록될 선수의 티어를 이 지역 기준으로 자동 조회" style={{ fontSize: 12 }}>{REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}</select>
@@ -246,6 +303,60 @@ export default function RecordPage() {
       )}
       {editing && err && <div className="panel err" style={{ padding: '10px 16px' }}>{err}</div>}
       {editing && msg && <div className="panel" style={{ padding: '10px 16px' }}>✓ {msg} — <Link href="/" className="accent">통계 보기</Link></div>}
+
+      {bulkResult && (
+        <div className="panel" style={{ padding: '12px 16px' }}>
+          <b>일괄 저장 완료</b> — 저장 {bulkResult.filter((r) => r.status === 'saved').length} · 중복 {bulkResult.filter((r) => r.status === 'dup').length} · 실패 {bulkResult.filter((r) => r.status === 'error' || r.status === 'parse_error').length}
+          <div style={{ marginTop: 6, fontSize: 12 }}>{bulkResult.map((r, i) => (
+            <div key={i} className="muted">{r.status === 'saved' ? '✅' : r.status === 'dup' ? '♻️ 중복' : '⚠️'} {r.file}{r.msg ? ` — ${r.msg}` : ''}</div>
+          ))}</div>
+          <Link href="/" className="accent" style={{ fontSize: 13 }}>→ 통계 보기</Link>
+        </div>
+      )}
+
+      {batch.length > 0 && (
+        <div className="panel">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+            <b>📦 일괄 검토 · {batch.length}경기</b>
+            <span className="muted" style={{ fontSize: 12 }}>날짜순(오래된 → 최신). 승리팀·챔피언·사람 매핑 확인하고 저장</span>
+            <button className="btn ghost" onClick={() => setBatch([])} disabled={bulkBusy} style={{ marginLeft: 'auto' }}>취소</button>
+            <button className="btn" onClick={saveBatch} disabled={bulkBusy}>{bulkBusy ? '저장 중…' : `⬇ 전체 저장 (${batch.filter((m) => !m.error).length}경기)`}</button>
+          </div>
+          {batch.map((m) => (
+            <div key={m.id} className="panel" style={{ padding: '10px 12px', marginBottom: 8, background: 'rgba(255,255,255,.02)' }}>
+              {m.error ? (
+                <div className="muted">⚠️ {m.fileName} — 파싱 실패: {m.error}</div>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, marginBottom: 6, flexWrap: 'wrap' }}>
+                    <span className="muted">{m.fileName}</span>
+                    <span className="muted">· {m.played_at ? new Date(m.played_at).toLocaleString() : '날짜?'}</span>
+                    <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
+                      승리:
+                      <button className={`mini ${m.winner === 'A' ? 'on' : ''}`} onClick={() => setBatch((bs) => bs.map((x) => (x.id === m.id ? { ...x, winner: 'A' } : x)))}>1팀</button>
+                      <button className={`mini ${m.winner === 'B' ? 'on' : ''}`} onClick={() => setBatch((bs) => bs.map((x) => (x.id === m.id ? { ...x, winner: 'B' } : x)))}>2팀</button>
+                    </span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12 }}>
+                    {[1, 2].map((tm) => (
+                      <div key={tm} style={{ borderLeft: `3px solid ${tm === 1 ? '#4d7cfe' : '#e0576b'}`, paddingLeft: 8 }}>
+                        <div className="muted" style={{ marginBottom: 2 }}>{tm === 1 ? '1팀' : '2팀'}{m.winner === (tm === 1 ? 'A' : 'B') ? ' 승' : ''}</div>
+                        {m.rows.filter((r) => r.team === tm).map((r, i) => (
+                          <div key={i} style={{ display: 'flex', gap: 6, padding: '1px 0' }}>
+                            <span style={{ minWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(r.name || '').split('#')[0]}{(!r.personId || r.personId === '__new__') && <span className="accent" title="새 선수로 등록됨"> ✚</span>}</span>
+                            <span className="muted" style={{ minWidth: 80 }}>{r.champion}</span>
+                            <span className="muted">{r.k}/{r.d}/{r.a}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {rows.length === 10 && (
         <div className="panel">
