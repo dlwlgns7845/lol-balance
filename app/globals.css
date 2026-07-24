@@ -972,6 +972,33 @@ sup.offtag { color: var(--gold); font-size: 9px; border: 1px solid var(--gold); 
 .btn.danger { background: rgba(224,106,120,.15); color: #f0b9c1; border: 1px solid rgba(224,106,120,.5); }
 .btn.danger:hover { background: rgba(224,106,120,.28); }
 
+/* ── 권한 관리 (추가 폼 + 내보내기 + 기록담당자 배지) ── */
+.mp-role.r-recorder { background: rgba(214,178,79,.14); color: #e6cf86; }
+.mp-rolesel, .mp-addsel { background: var(--panel2, #1a1d26); color: var(--fg, #e8ebf2); border: 1px solid var(--line2, #2a2e3a);
+  border-radius: 7px; padding: 5px 8px; font-size: 12px; }
+.mp-rolesel { margin-left: auto; }
+.mp-x { background: transparent; color: var(--muted); border: 1px solid var(--line2, #2a2e3a); border-radius: 7px;
+  padding: 5px 9px; font-size: 11.5px; cursor: pointer; }
+.mp-x:hover:not(:disabled) { color: #f0b9c1; border-color: rgba(224,106,120,.5); background: rgba(224,106,120,.1); }
+.mp-x:disabled { opacity: .5; cursor: default; }
+.mp-add { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.mp-add-title { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 8px; }
+.mp-add-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.mp-add-row .mp-addsel { flex: 1; min-width: 160px; }
+.mp-add-row .mp-addsel.narrow { flex: 0 0 auto; min-width: 110px; }
+
+/* ── 모달 (방 설정·권한) ── */
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 200;
+  display: flex; align-items: flex-start; justify-content: center; padding: 60px 16px; overflow-y: auto; }
+.modal-box { width: 100%; max-width: 560px; background: var(--panel, #14161d); border: 1px solid var(--line2, #2a2e3a);
+  border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.5); padding: 18px 20px 20px; }
+.modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.modal-head b { font-size: 15px; }
+.modal-x { background: transparent; border: 0; color: var(--muted); font-size: 16px; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+.modal-x:hover { color: var(--fg, #e8ebf2); background: var(--panel2, #1a1d26); }
+.modal-box .members-panel { margin: 0; background: transparent; border: 0; padding: 0; }
+@media (max-width: 560px) { .modal-backdrop { padding: 30px 10px; } }
+
 /* ── 관리자 대시보드 ── */
 .admin-table { width: 100%; border-collapse: collapse; }
 .admin-table th, .admin-table td { padding: 11px 14px; text-align: center; font-size: 13px; white-space: nowrap; }

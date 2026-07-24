@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useGroup } from './GroupProvider.jsx';
 import { apiFetch } from './api.js';
+import MembersPanel from './MembersPanel.jsx';
 
 const NAV = [
   { href: '/', label: '통계', ic: '📊' },
@@ -18,6 +19,8 @@ export default function AppShell({ children }) {
   const path = usePathname();
   const nav = isAdmin ? [...NAV, { href: '/admin', label: '관리자', ic: '🛡' }] : NAV;
   const [menu, setMenu] = useState(false);
+  const [settings, setSettings] = useState(false); // 방 설정·권한 모달
+  const canManage = isAdmin || (user && group?.owner_id && group.owner_id === user.id);
   // 로그인=본인선수 자동매칭 결과 { person:{id,name}|null, hasDiscord } — 헤더 "내 전적"·연결 유도용
   const [me, setMe] = useState(null);
   useEffect(() => {
@@ -87,6 +90,7 @@ export default function AppShell({ children }) {
                   <div className="tb-menu-backdrop" onClick={() => setMenu(false)} />
                   <div className="tb-menu">
                     <div className="tb-menu-email">{discord?.name ? <><b>{discord.name}</b> · 디스코드</> : user.email}</div>
+                    {canManage && <button onClick={() => { setMenu(false); setSettings(true); }}>⚙ 방 설정 · 권한</button>}
                     <button onClick={() => { setMenu(false); logout && logout(); }}>로그아웃</button>
                     <button className="danger" onClick={clearTraces}>🙈 로그인 기록 삭제 후 로그아웃</button>
                   </div>
@@ -106,6 +110,18 @@ export default function AppShell({ children }) {
       <footer className="site-credit">
         티어·전적 데이터 제공: <a href="https://op.gg" target="_blank" rel="noreferrer">OP.GG</a>
       </footer>
+
+      {settings && canManage && (
+        <div className="modal-backdrop" onClick={() => setSettings(false)}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <b>방 설정 · 권한</b>
+              <button className="modal-x" onClick={() => setSettings(false)} aria-label="닫기">✕</button>
+            </div>
+            <MembersPanel gid={group.id} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

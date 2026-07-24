@@ -234,6 +234,18 @@ export async function setMemberRole(groupId, userId, role) {
   if (error) throw error;
 }
 
+// 방장이 멤버를 방에서 내보냄(room_members 행 삭제). 로그아웃해도 남는 흔적 정리용.
+// 방장 자신은 못 지움. 기록(사람·경기)은 별개 계층이라 영향 없음.
+export async function removeMember(groupId, userId) {
+  const { data: t } = await db().from('room_members')
+    .select('role').eq('group_id', groupId).eq('user_id', userId).maybeSingle();
+  if (!t) throw new Error('그 멤버가 없어요');
+  if (t.role === 'owner') throw new Error('방장은 내보낼 수 없어요');
+  const { error } = await db().from('room_members').delete()
+    .eq('group_id', groupId).eq('user_id', userId);
+  if (error) throw error;
+}
+
 // ── 챔피언 인식 레퍼런스 (전역) ── kind: 'player'(초상화) | 'ban'(정사각 밴아이콘)
 export async function listChampionRefs(kind = 'player') {
   const { data, error } = await db().from('champion_refs').select('champion, vec').eq('kind', kind).limit(2000);

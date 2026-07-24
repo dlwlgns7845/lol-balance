@@ -1,5 +1,6 @@
 'use client';
-// 방장 전용: 로그인 멤버 목록 + 편집 권한 부여/회수.
+// 방장 전용 권한 관리: 권한 가진 사람만 목록에 + 방에 들어온 구경꾼 중 골라 권한 부여.
+// 구경꾼(로그인만 한 사람)은 목록에 안 띄우고 "권한 추가" 드롭다운에서만 고른다.
 import { useEffect, useState } from 'react';
 import { apiFetch } from './api.js';
 import { useGroup } from './GroupProvider.jsx';
@@ -11,6 +12,9 @@ export default function MembersPanel({ gid }) {
   const [members, setMembers] = useState(null);
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(null);
+  // 권한 추가 폼: 고른 사람 + 부여할 역할
+  const [pick, setPick] = useState('');
+  const [pickRole, setPickRole] = useState('recorder');
 
   async function load() {
     try {
@@ -34,37 +38,89 @@ export default function MembersPanel({ gid }) {
     setBusy(null);
   }
 
+  async function remove(user_id, label) {
+    if (!window.confirm(`${label} 님을 방에서 내보낼까요?\n\n권한과 관람 흔적만 지워져요. 경기·통계 기록은 그대로 남아요.`)) return;
+    setBusy(user_id); setErr(null);
+    try {
+      const r = await apiFetch('/api/members', {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gid, user_id }),
+      }).then((x) => x.json());
+      if (!r.ok) throw new Error(r.error);
+      await load();
+    } catch (e) { setErr(e.message); }
+    setBusy(null);
+  }
+
+  async function grant() {
+    if (!pick) return;
+    await setRole(pick, pickRole);
+    setPick('');
+  }
+
   if (!members) return null;
+
+  const granted = members.filter((m) => m.role !== 'viewer'); // 방장·편집자·기록 담당자
+  const viewers = members.filter((m) => m.role === 'viewer'); // 로그인만 한 사람 = 권한 후보
+  const nameOf = (m) => m.name || m.email || '이름 없음';
 
   return (
     <div className="panel members-panel">
-      <h2>방 멤버 <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>· 로그인해서 방에 들어온 사람 · 방장만 권한 변경</span></h2>
+      <h2>권한 관리 <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>· 권한 가진 사람만 표시 · 방장만 변경</span></h2>
       {err && <div className="err">{err}</div>}
+
       <div className="mp-list">
-        {members.map((m) => (
+        {granted.map((m) => (
           <div className="mp-row" key={m.user_id}>
-            <span className="mp-av">{(m.name || m.email || '?').slice(0, 1).toUpperCase()}</span>
+            <span className="mp-av">{nameOf(m).slice(0, 1).toUpperCase()}</span>
             <div className="mp-id">
-              <b>{m.name || m.email}</b>
-              <span className="muted">{m.email}</span>
+              <b>{nameOf(m)}</b>
+              {m.email && <span className="muted">{m.email}</span>}
             </div>
             {m.role === 'owner' ? (
               <span className={`mp-role r-${m.role}`}>{ROLE_KR[m.role]} · 본인</span>
             ) : (
-              <select className="mp-rolesel" value={m.role} disabled={busy === m.user_id} onChange={(e) => setRole(m.user_id, e.target.value)} title="편집자=멤버관리·기록 다 / 기록 담당자=리플·경기 기록만 / 구경꾼=보기만">
-                <option value="editor">편집자 (전체)</option>
-                <option value="recorder">기록 담당자 (기록만)</option>
-                <option value="viewer">구경꾼 (보기만)</option>
-              </select>
+              <>
+                <select className="mp-rolesel" value={m.role} disabled={busy === m.user_id} onChange={(e) => setRole(m.user_id, e.target.value)} title="편집자=멤버관리·기록 다 / 기록 담당자=리플·경기 기록만">
+                  <option value="editor">편집자 (전체)</option>
+                  <option value="recorder">기록 담당자 (기록만)</option>
+                </select>
+                <button className="mp-x" disabled={busy === m.user_id} onClick={() => remove(m.user_id, nameOf(m))} title="권한 회수 + 방에서 내보내기">내보내기</button>
+              </>
             )}
           </div>
         ))}
-        {members.length <= 1 && <div className="muted" style={{ fontSize: 12 }}>아직 다른 멤버가 없어요. 친구가 로그인해서 이 방 코드로 들어오면 여기 떠요.</div>}
+        {granted.length <= 1 && <div className="muted" style={{ fontSize: 12 }}>아직 권한을 준 사람이 없어요. 아래에서 방에 들어온 사람에게 권한을 줄 수 있어요.</div>}
+      </div>
+
+      {/* 권한 추가: 이 방에 들어온(로그인) 구경꾼 중에서 고른다 */}
+      <div className="mp-add">
+        <div className="mp-add-title">권한 추가</div>
+        {viewers.length === 0 ? (
+          <div className="muted" style={{ fontSize: 12 }}>권한 줄 사람이 없어요. 친구가 로그인해서 이 방 코드로 들어오면 여기 목록에 떠요.</div>
+        ) : (
+          <>
+            <div className="mp-add-row">
+              <select className="mp-addsel" value={pick} onChange={(e) => setPick(e.target.value)}>
+                <option value="">— 방에 들어온 사람 선택 —</option>
+                {viewers.map((m) => (
+                  <option key={m.user_id} value={m.user_id}>{nameOf(m)}{m.email ? ` (${m.email})` : ''}</option>
+                ))}
+              </select>
+              <select className="mp-addsel narrow" value={pickRole} onChange={(e) => setPickRole(e.target.value)}>
+                <option value="recorder">기록 담당자</option>
+                <option value="editor">편집자</option>
+              </select>
+              <button className="btn" disabled={!pick || busy} onClick={grant}>부여</button>
+            </div>
+            <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>기록 담당자 = 리플·경기 기록만 · 편집자 = 멤버관리까지 전부</div>
+          </>
+        )}
       </div>
 
       <div className="mp-danger">
         <span className="muted" style={{ fontSize: 12 }}>방을 삭제하면 이 방의 <b>모든 경기·통계·사람·멤버가 영구 삭제</b>돼요. 되돌릴 수 없어요.</span>
-        <button className="btn danger" onClick={deleteRoom}>🗑 이 방 삭제</button>
+        <button className="btn danger" onClick={deleteRoom}>이 방 삭제</button>
       </div>
     </div>
   );

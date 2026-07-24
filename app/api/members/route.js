@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { listMembers, setMemberRole, getGroupById } from '../../../src/repo.js';
+import { listMembers, setMemberRole, removeMember, getGroupById } from '../../../src/repo.js';
 import { getUser, getRole, isAdmin, requireOwner, errStatus } from '../../../src/auth.js';
 
 // 방 멤버 목록 + 내 역할. 그 방의 멤버(로그인)만 — 이메일(PII)은 방장·관리자에게만.
@@ -28,6 +28,19 @@ export async function POST(request) {
     if (!gid || !user_id) throw new Error('gid·user_id 필요');
     await requireOwner(request, gid);
     await setMemberRole(gid, user_id, role);
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: e.message }, { status: errStatus(e) });
+  }
+}
+
+// 방장이 멤버를 방에서 내보냄. body: { gid, user_id }
+export async function DELETE(request) {
+  try {
+    const { gid, user_id } = await request.json();
+    if (!gid || !user_id) throw new Error('gid·user_id 필요');
+    await requireOwner(request, gid);
+    await removeMember(gid, user_id);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e.message }, { status: errStatus(e) });

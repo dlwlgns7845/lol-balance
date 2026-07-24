@@ -4,7 +4,6 @@ import { TIER_ORDER, TIER_LABEL, ADJUST_TAGS } from '../../src/table.js';
 import PositionToggles, { rolesToArrays, arraysToRoles } from '../../components/PositionToggles.jsx';
 import { useGroup } from '../../components/GroupProvider.jsx';
 import { apiFetch } from '../../components/api.js';
-import MembersPanel from '../../components/MembersPanel.jsx';
 import Avatar from '../../components/Avatar.jsx';
 
 const REGIONS = ['NA', 'KR', 'EUW', 'EUNE', 'BR', 'JP', 'OCE', 'LAN', 'LAS', 'TR', 'RU'];
@@ -21,7 +20,7 @@ async function api(url, method, body) {
 }
 
 export default function PeoplePage() {
-  const { group, canEdit, role, isAdmin } = useGroup() || {};
+  const { group, canEdit, isAdmin } = useGroup() || {};
   const gid = group?.id;
   const [persons, setPersons] = useState([]);
   const [region, setRegion] = useState('NA');
@@ -107,7 +106,6 @@ export default function PeoplePage() {
         )}
         {!canEdit && <span className="tb-view">👀 구경 모드 · 보기 전용</span>}
       </div>
-      {(role === 'owner' || isAdmin) && <MembersPanel gid={gid} />}
       {err && <div className="panel err" style={{ padding: '10px 16px' }}>{err}</div>}
 
       {loading && <div className="panel center muted">불러오는 중…</div>}
