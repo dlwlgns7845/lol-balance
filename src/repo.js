@@ -348,6 +348,14 @@ export async function linkPersonToDiscord(groupId, personId, discordId) {
   return { ok: true };
 }
 
+// 연동 해제 — discord_id만 null로. 기록(match_participants)은 그대로 보존.
+export async function unlinkPersonDiscord(groupId, personId) {
+  const { data: tgt } = await db().from('persons').select('id, group_id').eq('id', personId).maybeSingle();
+  if (!tgt || tgt.group_id !== groupId) { const e = new Error('선수를 찾을 수 없어요.'); e.status = 404; throw e; }
+  await updatePerson(personId, { discord_id: null });
+  return { ok: true };
+}
+
 export async function listPersons(groupId) {
   if (!groupId) throw new Error('groupId 필요');
   const { data: persons, error } = await db().from('persons')

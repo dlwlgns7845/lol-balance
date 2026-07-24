@@ -803,6 +803,8 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .tb-actions .tb-user { width: 34px; height: 34px; padding: 0; font-weight: 700; overflow: hidden; }
 .tb-user-av { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
 .me-badge { margin-left: 8px; font-size: 11px; font-weight: 700; color: #8fd6ec; background: rgba(79,182,214,.18); border: 1px solid rgba(79,182,214,.45); border-radius: 6px; padding: 1px 7px; vertical-align: middle; }
+.m-unlink { margin-left: 6px; font-size: 10px; color: #e0576b; background: rgba(224,87,107,.12); border: 1px solid rgba(224,87,107,.35); border-radius: 5px; padding: 0 6px; cursor: pointer; }
+.m-unlink:hover { background: rgba(224,87,107,.22); }
 .claim-banner {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
   background: rgba(79,182,214,.1); border-bottom: 1px solid rgba(79,182,214,.3);

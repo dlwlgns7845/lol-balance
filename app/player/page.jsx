@@ -38,6 +38,15 @@ export default function PlayerRecordPage() {
       window.alert('✅ 이 계정에 선수를 연결했어요. 이제 헤더의 "내 전적"으로 바로 올 수 있어요.');
     } catch (e) { window.alert('연결 실패: ' + e.message); }
   }
+  async function unlinkMe() {
+    if (!window.confirm('이 계정에서 선수 연동을 해제할까요?\n기록은 그대로 남고 로그인 연결만 풀립니다.')) return;
+    try {
+      const r = await apiFetch('/api/me?gid=' + gid, { method: 'DELETE' }).then((x) => x.json());
+      if (!r.ok) throw new Error(r.error);
+      setMyLink((m) => ({ ...m, person: null }));
+      window.alert('연동을 해제했어요. (기록은 보존)');
+    } catch (e) { window.alert('해제 실패: ' + e.message); }
+  }
   const sel = sp.get('id') || ''; // URL을 단일 진실로 → 다른 사람 페이지로 이동해도 반영
   const [q, setQ] = useState('');
   const [focus, setFocus] = useState(false);
@@ -103,10 +112,12 @@ export default function PlayerRecordPage() {
                 <div className="prof-nm">{p.nickname || p.name}{myLink?.person?.id === p.id && <span className="me-badge">내 계정</span>}</div>
                 <div className="prof-sub"><span className={tierClass(p.base_tier)}>{TIER_LABEL[p.base_tier]}</span> · {p.games}게임 · <b className={wrCls(p.winrate)}>{Math.round(p.winrate * 100)}%</b> ({p.wins}승 {p.losses}패)</div>
               </div>
-              {/* 디코 로그인했는데 아직 선수 연결 안 됨 → 지금 보는 선수가 나면 원클릭 연결 */}
-              {myLink?.hasDiscord && !myLink?.person && (
-                <button className="btn" style={{ marginLeft: 'auto' }} onClick={() => linkMe(p.id)}>🔗 이 선수가 나예요</button>
-              )}
+              {/* 내 계정에 연결된 선수 = 해제 버튼 / 미연결 + 디코로그인 = 이 선수 연결 버튼 */}
+              {myLink?.person?.id === p.id
+                ? <button className="btn ghost" style={{ marginLeft: 'auto' }} onClick={unlinkMe} title="기록은 보존, 로그인 연결만 해제">🔗 연동 해제</button>
+                : (myLink?.hasDiscord && !myLink?.person && (
+                  <button className="btn" style={{ marginLeft: 'auto' }} onClick={() => linkMe(p.id)}>🔗 이 선수가 나예요</button>
+                ))}
             </div>
           </div>
 
