@@ -12,6 +12,8 @@ create table if not exists groups (
 alter table groups add column if not exists score_table jsonb;
 -- 방장(소유자). null = 레거시 방(권한 미설정 → 누구나 편집). claim 하면 채워짐.
 alter table groups add column if not exists owner_id uuid;
+-- 칭호(명예의 전당 + 인라인 뱃지) 노출 여부. 방장이 방 설정에서 on/off. 기본 on.
+alter table groups add column if not exists show_awards boolean not null default true;
 
 -- 방 멤버 권한 (구글 로그인 유저 단위). role: owner=방장 / editor=편집가능 / viewer=구경만
 create table if not exists room_members (

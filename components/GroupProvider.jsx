@@ -140,6 +140,19 @@ export default function GroupProvider({ children }) {
     setBusy(false);
   }
 
+  // 칭호(명예의 전당 + 인라인 뱃지) 노출 on/off — 방장/관리자. 성공 시 즉시 반영.
+  async function setShowAwards(v) {
+    if (!group) return;
+    try {
+      const r = await apiFetch('/api/awards-setting?gid=' + group.id, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: v }),
+      }).then((x) => x.json());
+      if (!r.ok) throw new Error(r.error || '실패');
+      setGroup((g) => { const ng = { ...g, show_awards: v }; try { localStorage.setItem(KEY, JSON.stringify(ng)); } catch {} return ng; });
+    } catch (e) { window.alert('칭호 설정 변경 실패: ' + e.message); }
+  }
+
   // 관리자가 대시보드에서 아무 방이나 입장
   async function enterRoomByCode(code) {
     try { const r = await fetchGroupByCode(code); applyEntry(r.group, r); }
@@ -230,7 +243,8 @@ export default function GroupProvider({ children }) {
   return (
     <Ctx.Provider value={{ group, role, canEdit, canRecord, ownerless, user, discord: discordIdentity(user),
       isAdmin: !!user && ADMIN_EMAILS.includes((user.email || '').toLowerCase()),
-      authOn: authConfigured(), leave, login, logout, claim, deleteRoom, enterRoomByCode }}>
+      authOn: authConfigured(), showAwards: group.show_awards !== false, setShowAwards,
+      leave, login, logout, claim, deleteRoom, enterRoomByCode }}>
       <AppShell>{children}</AppShell>
     </Ctx.Provider>
   );

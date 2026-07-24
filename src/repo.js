@@ -340,6 +340,13 @@ export async function setAdjustEnabled(groupId, enabled) {
   if (error) throw error;
 }
 
+// ── 칭호 노출 on/off (방 전체 설정) ── 컬럼 없으면 true 폴백(기본 표시)
+export async function setShowAwards(groupId, enabled) {
+  if (!groupId) throw new Error('groupId 필요');
+  const { error } = await db().from('groups').update({ show_awards: !!enabled }).eq('id', groupId);
+  if (error) throw error;
+}
+
 // ── 사람 (그룹 단위로 격리) ──
 // 디코 유저ID로 이 방의 선수 찾기 (로그인=본인선수 자동매칭)
 export async function findPersonByDiscord(groupId, discordId) {

@@ -1,13 +1,16 @@
 'use client';
 // 칭호 패널 — 서버(getAwards)가 개인+관계형 칭호를 다 계산해서 뱃지와 동일한 출처.
 import { useEffect, useState } from 'react';
+import { useGroup } from './GroupProvider.jsx';
 
 export default function Awards({ gid }) {
+  const { showAwards } = useGroup() || {};
   const [a, setA] = useState(null);
   useEffect(() => {
-    if (!gid) return;
+    if (!gid || showAwards === false) return;
     fetch('/api/awards?gid=' + gid).then((x) => x.json()).then((r) => r.ok && setA(r.awards || {}));
-  }, [gid]);
+  }, [gid, showAwards]);
+  if (showAwards === false) return null; // 방 설정에서 칭호 숨김
   if (!a) return null;
 
   const pct = (w) => Math.round(w * 100);

@@ -999,6 +999,19 @@ sup.offtag { color: var(--gold); font-size: 9px; border: 1px solid var(--gold); 
 .modal-box .members-panel { margin: 0; background: transparent; border: 0; padding: 0; }
 @media (max-width: 560px) { .modal-backdrop { padding: 30px 10px; } }
 
+/* ── 설정 토글 (칭호 표시 등) ── */
+.set-toggle { display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 12px 0 16px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+.set-toggle-txt { display: flex; flex-direction: column; gap: 2px; }
+.set-toggle-txt b { font-size: 13.5px; }
+.set-toggle-txt .muted { font-size: 11.5px; }
+.switch { flex: 0 0 auto; width: 46px; height: 26px; border-radius: 999px; border: 1px solid var(--line2, #2a2e3a);
+  background: var(--panel2, #1a1d26); position: relative; cursor: pointer; transition: background .15s ease, border-color .15s ease; }
+.switch.on { background: rgba(62,207,142,.85); border-color: rgba(62,207,142,.9); }
+.switch-knob { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%;
+  background: #fff; transition: transform .15s ease; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+.switch.on .switch-knob { transform: translateX(20px); }
+
 /* ── 관리자 대시보드 ── */
 .admin-table { width: 100%; border-collapse: collapse; }
 .admin-table th, .admin-table td { padding: 11px 14px; text-align: center; font-size: 13px; white-space: nowrap; }

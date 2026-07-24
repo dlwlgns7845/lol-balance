@@ -15,7 +15,7 @@ const NAV = [
 ];
 
 export default function AppShell({ children }) {
-  const { group, leave, user, discord, canEdit, canRecord, authOn, isAdmin, login, logout, claim } = useGroup();
+  const { group, leave, user, discord, canEdit, canRecord, authOn, isAdmin, login, logout, claim, showAwards, setShowAwards } = useGroup();
   const path = usePathname();
   const nav = isAdmin ? [...NAV, { href: '/admin', label: '관리자', ic: '🛡' }] : NAV;
   const [menu, setMenu] = useState(false);
@@ -118,6 +118,18 @@ export default function AppShell({ children }) {
               <b>방 설정 · 권한</b>
               <button className="modal-x" onClick={() => setSettings(false)} aria-label="닫기">✕</button>
             </div>
+
+            <div className="set-toggle">
+              <div className="set-toggle-txt">
+                <b>칭호 표시</b>
+                <span className="muted">🎖 명예의 전당 + 이름 옆 칭호 뱃지 (공공의적·시체 등)</span>
+              </div>
+              <button className={`switch${showAwards ? ' on' : ''}`} role="switch" aria-checked={showAwards}
+                onClick={() => setShowAwards(!showAwards)}>
+                <span className="switch-knob" />
+              </button>
+            </div>
+
             <MembersPanel gid={group.id} />
           </div>
         </div>
