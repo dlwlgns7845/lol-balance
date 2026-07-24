@@ -17,6 +17,18 @@ export function userName(user) {
   return user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || '사용자';
 }
 
+// Supabase user → 디스코드 유저ID(스노플레이크) | null. 계정 병합돼도 identity에서 직접.
+export function discordIdOf(user) {
+  if (!user) return null;
+  const di = (user.identities || []).find((i) => i.provider === 'discord');
+  const d = di?.identity_data || {};
+  const id = di?.id || d.provider_id || d.sub;
+  if (id) return String(id);
+  const md = user.user_metadata || {};
+  if (md.provider === 'discord' && (md.provider_id || md.sub)) return String(md.provider_id || md.sub);
+  return null;
+}
+
 // 전역 관리자 (모든 방 열람·관리 가능)
 export const ADMIN_EMAILS = ['dlwlgns714@gmail.com', 'fbwlgkr7845@gmail.com'];
 export function isAdmin(user) {

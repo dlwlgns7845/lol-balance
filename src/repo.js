@@ -329,6 +329,25 @@ export async function setAdjustEnabled(groupId, enabled) {
 }
 
 // ── 사람 (그룹 단위로 격리) ──
+// 디코 유저ID로 이 방의 선수 찾기 (로그인=본인선수 자동매칭)
+export async function findPersonByDiscord(groupId, discordId) {
+  if (!groupId || !discordId) return null;
+  const { data, error } = await db().from('persons')
+    .select('id, display_name, nickname').eq('group_id', groupId).eq('discord_id', String(discordId)).maybeSingle();
+  if (error) return null;
+  return data || null;
+}
+// 로그인한 디코 계정을 특정 선수에 연결 (사이트에서 하는 /연동). 중복 연결 방지.
+export async function linkPersonToDiscord(groupId, personId, discordId) {
+  const dup = await findPersonByDiscord(groupId, discordId);
+  if (dup && dup.id !== personId) { const e = new Error('이 디스코드 계정은 이미 다른 선수에 연결돼 있어요.'); e.status = 409; throw e; }
+  const { data: tgt } = await db().from('persons').select('id, discord_id, group_id').eq('id', personId).maybeSingle();
+  if (!tgt || tgt.group_id !== groupId) { const e = new Error('선수를 찾을 수 없어요.'); e.status = 404; throw e; }
+  if (tgt.discord_id && String(tgt.discord_id) !== String(discordId)) { const e = new Error('이 선수는 이미 다른 계정에 연결돼 있어요. 관리자에게 문의하세요.'); e.status = 409; throw e; }
+  await updatePerson(personId, { discord_id: String(discordId) });
+  return { ok: true };
+}
+
 export async function listPersons(groupId) {
   if (!groupId) throw new Error('groupId 필요');
   const { data: persons, error } = await db().from('persons')

@@ -9,6 +9,7 @@ import ChampImg from '../../components/ChampImg.jsx';
 import PositionBar from '../../components/PositionBar.jsx';
 import WinLossBar from '../../components/WinLossBar.jsx';
 import Avatar from '../../components/Avatar.jsx';
+import { apiFetch } from '../../components/api.js';
 import { TIER_LABEL, tierClass } from '../../src/table.js';
 
 const wrCls = (w) => (w >= 0.6 ? 'green' : w >= 0.5 ? 'yellow' : 'red');
@@ -17,12 +18,26 @@ const POS_KR = { top: '탑', jungle: '정글', mid: '미드', adc: '원딜', sup
 const fmtD = (s) => { if (!s) return ''; const d = new Date(s); return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`; };
 
 export default function PlayerRecordPage() {
-  const { group } = useGroup();
+  const { group, user } = useGroup();
   const gid = group?.id;
   const dd = useDdragon();
   const sp = useSearchParams();
   const router = useRouter();
   const [players, setPlayers] = useState([]);
+  // 로그인=본인선수 자동매칭 상태 (연결 유도용)
+  const [myLink, setMyLink] = useState(null);
+  useEffect(() => {
+    if (!user || !gid) { setMyLink(null); return; }
+    apiFetch('/api/me?gid=' + gid).then((r) => r.json()).then((r) => r.ok && setMyLink(r)).catch(() => {});
+  }, [user, gid]);
+  async function linkMe(personId) {
+    try {
+      const r = await apiFetch('/api/me', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gid, personId }) }).then((x) => x.json());
+      if (!r.ok) throw new Error(r.error);
+      setMyLink((m) => ({ ...m, person: { id: personId } }));
+      window.alert('✅ 이 계정에 선수를 연결했어요. 이제 헤더의 "내 전적"으로 바로 올 수 있어요.');
+    } catch (e) { window.alert('연결 실패: ' + e.message); }
+  }
   const sel = sp.get('id') || ''; // URL을 단일 진실로 → 다른 사람 페이지로 이동해도 반영
   const [q, setQ] = useState('');
   const [focus, setFocus] = useState(false);
@@ -85,9 +100,13 @@ export default function PlayerRecordPage() {
             <div className="prof-name">
               <span className="prof-av" style={{ background: 'none', padding: 0 }}><Avatar name={p.nickname || p.name} profile={p.profile} size={48} /></span>
               <div>
-                <div className="prof-nm">{p.nickname || p.name}</div>
+                <div className="prof-nm">{p.nickname || p.name}{myLink?.person?.id === p.id && <span className="me-badge">내 계정</span>}</div>
                 <div className="prof-sub"><span className={tierClass(p.base_tier)}>{TIER_LABEL[p.base_tier]}</span> · {p.games}게임 · <b className={wrCls(p.winrate)}>{Math.round(p.winrate * 100)}%</b> ({p.wins}승 {p.losses}패)</div>
               </div>
+              {/* 디코 로그인했는데 아직 선수 연결 안 됨 → 지금 보는 선수가 나면 원클릭 연결 */}
+              {myLink?.hasDiscord && !myLink?.person && (
+                <button className="btn" style={{ marginLeft: 'auto' }} onClick={() => linkMe(p.id)}>🔗 이 선수가 나예요</button>
+              )}
             </div>
           </div>
 

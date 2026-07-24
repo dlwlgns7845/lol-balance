@@ -18,6 +18,15 @@ export default function AppShell({ children }) {
   const path = usePathname();
   const nav = isAdmin ? [...NAV, { href: '/admin', label: '관리자', ic: '🛡' }] : NAV;
   const [menu, setMenu] = useState(false);
+  // 로그인=본인선수 자동매칭 결과 { person:{id,name}|null, hasDiscord } — 헤더 "내 전적"·연결 유도용
+  const [me, setMe] = useState(null);
+  useEffect(() => {
+    if (!user || !group?.id) { setMe(null); return; }
+    let alive = true;
+    apiFetch('/api/me?gid=' + group.id).then((r) => r.json())
+      .then((r) => { if (alive && r.ok) setMe(r); }).catch(() => {});
+    return () => { alive = false; };
+  }, [user, group?.id]);
   // 이 방에 연결된 디코 서버 브랜딩(아이콘·이름). 없으면 기본 로고 유지.
   const [brand, setBrand] = useState(null);
   useEffect(() => {
@@ -57,6 +66,7 @@ export default function AppShell({ children }) {
         </nav>
 
         <div className="tb-actions">
+          {me?.person && <Link href={`/player?id=${me.person.id}`} className="btn ghost tb-myrec" title={`${me.person.name} 전적`}>📊 내 전적</Link>}
           {!canEdit && <span className="tb-view">👀 구경 모드</span>}
           {canEdit && (
             <Link href="/record" className={`btn tb-record${path === '/record' ? ' ghost' : ''}`}>📸 결과 추가</Link>

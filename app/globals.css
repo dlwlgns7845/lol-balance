@@ -802,6 +802,7 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .tb-view { font-size: 12px; color: var(--muted); border: 1px dashed var(--line2); border-radius: 8px; padding: 6px 10px; white-space: nowrap; }
 .tb-actions .tb-user { width: 34px; height: 34px; padding: 0; font-weight: 700; overflow: hidden; }
 .tb-user-av { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
+.me-badge { margin-left: 8px; font-size: 11px; font-weight: 700; color: #8fd6ec; background: rgba(79,182,214,.18); border: 1px solid rgba(79,182,214,.45); border-radius: 6px; padding: 1px 7px; vertical-align: middle; }
 .claim-banner {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
   background: rgba(79,182,214,.1); border-bottom: 1px solid rgba(79,182,214,.3);
