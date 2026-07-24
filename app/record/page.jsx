@@ -7,6 +7,7 @@ import { apiFetch } from '../../components/api.js';
 import { useDdragon } from '../../components/ddragon.js';
 import { parseRofl } from '../../components/rofl.js';
 
+const REGIONS = ['NA', 'KR', 'EUW', 'EUNE', 'BR', 'JP', 'OCE', 'LAN', 'LAS', 'TR', 'RU'];
 const POS = ['top', 'jungle', 'mid', 'adc', 'sup'];       // 팀 내 순서 = 탑/정글/미드/원딜/서폿
 const POS_KR = { top: '탑', jungle: '정글', mid: '미드', adc: '원딜', sup: '서폿' };
 const posByIdx = (i) => POS[i % 5]; // rows = [1팀5 + 2팀5] → 팀 내 인덱스로 기본 포지션
@@ -22,6 +23,7 @@ export default function RecordPage() {
   const [source, setSource] = useState(null);         // 'replay' | 'manual' (스샷 제거됨)
   const roflRef = useRef();
   const [rows, setRows] = useState([]);
+  const [region, setRegion] = useState('NA'); // 새 사람 티어 자동조회 지역
   const [winner, setWinner] = useState('A');
   const [durationSec, setDurationSec] = useState(0); // 게임 시간(초) — 단일 소스, 표시·저장
   const [loading, setLoading] = useState(false);
@@ -148,6 +150,21 @@ export default function RecordPage() {
     }
     setSaving(true); setErr(null); setMsg(null);
     try {
+      // 새로 등록될 사람들: 롤닉(#태그)으로 티어 자동조회 → 골드2 고정 대신 실티어 배정 (best-effort)
+      const newRows = rows.filter((r) => (!r.personId || r.personId === '__new__') && (r.name || '').includes('#'));
+      const tierByName = {};
+      if (newRows.length) {
+        setMsg('새 선수 티어 조회 중…');
+        await Promise.all(newRows.map(async (r) => {
+          const [gn, tg] = (r.name || '').split('#');
+          if (!gn || !tg) return;
+          try {
+            const prof = await fetch(`/api/seed?name=${encodeURIComponent(gn.trim())}&tag=${encodeURIComponent(tg.trim())}&region=${region}`).then((x) => x.json());
+            if (prof && prof.found) tierByName[r.name] = prof.suggestedTier || prof.curHighTier || prof.peakTier || null;
+          } catch { /* 조회 실패 → 골드2 폴백 */ }
+        }));
+        setMsg(null);
+      }
       // 팀별 포지션 순(탑→정글→미드→원딜→서폿)으로 정렬 → 저장 slot·표시 순서가 포지션과 일치
       const ordered = [...rows].sort((a, b) => (a.team - b.team) || (POS.indexOf(a.position) - POS.indexOf(b.position)));
       const participants = ordered.map((r) => {
@@ -156,7 +173,7 @@ export default function RecordPage() {
           gold: r.gold != null ? Number(r.gold) : null, detail: r.detail ?? null };
         return r.personId && r.personId !== '__new__'
           ? { ...base, person_id: r.personId }
-          : { ...base, name: r.name, tier: 'G2' };
+          : { ...base, name: r.name, tier: tierByName[r.name] || 'G2' };
       });
       if (editing) {
         const res = await apiFetch(`/api/matches/${editId}`, {
@@ -217,7 +234,11 @@ export default function RecordPage() {
             <input ref={roflRef} type="file" accept=".rofl" onChange={onRofl} disabled={loading} style={{ width: 'auto' }} />
             {loading && <span className="muted">분석 중…</span>}
             <span className="muted" style={{ fontSize: 11 }}>게임 후 저장된 <code>.rofl</code> 넣으면 스코어보드·아이템·오브젝트 자동 추출 (사람 자동매핑)</span>
-            <button className="btn ghost" style={{ marginLeft: 'auto' }} onClick={manualEntry} title="리플 없이 직접 10명 입력">✏️ 수동 입력</button>
+            <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span className="muted" style={{ fontSize: 11 }}>새 선수 티어 조회 지역</span>
+              <select value={region} onChange={(e) => setRegion(e.target.value)} title="새로 등록될 선수의 티어를 이 지역 기준으로 자동 조회" style={{ fontSize: 12 }}>{REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}</select>
+            </span>
+            <button className="btn ghost" onClick={manualEntry} title="리플 없이 직접 10명 입력">✏️ 수동 입력</button>
           </div>
           {err && <div className="err">{err}</div>}
           {msg && <div className="seed-status" style={{ fontSize: 13 }}>✓ {msg} — <Link href="/" className="accent">통계 보기</Link></div>}
