@@ -5,6 +5,7 @@ import { generateSingleElim, nextSlot, generateGroups, groupStandings, knockoutS
 import { normalizeSettings, validateEligibility, seedTeams, teamStrength, tierRank } from './tournament-settings.js';
 import { tierPts } from './engine.js';
 import { POS, TABLE } from './table.js';
+import { fetchTierEstimate } from './opgg.js';
 import { postTournamentNotice, noticeEmbed, COLOR } from './discord-notice.js';
 
 // 팀 id→이름 맵 (공지용)
@@ -219,6 +220,14 @@ export async function addPoolPlayer(tournamentId, b) {
   if (t.status !== 'recruiting') throw new Error('모집이 마감된 대회예요');
   const game_name = (b.game_name || '').trim();
   if (!game_name) throw new Error('게임 닉네임을 입력하세요');
+  const tag = (b.tag_line || '').trim();
+  if (!tag) { const e = new Error('태그(#뒤)를 입력하세요 (예: Hide on bush#KR1)'); e.status = 400; throw e; }
+  // 🛡 없는 닉 차단 (우회 방지) — 계정 조회해서 존재 안 하면 거부. API 자체 오류는 통과(오탐 방지).
+  try {
+    const region = b.region || normalizeSettings(t.settings)?.eligibility?.region || 'kr';
+    const prof = await fetchTierEstimate(game_name, tag, region);
+    if (prof && prof.found === false) { const e = new Error(`"${game_name}#${tag}" 계정을 찾을 수 없어요 (게임 닉·태그 확인)`); e.status = 400; throw e; }
+  } catch (e) { if (e.status === 400) throw e; /* 조회 API 오류는 통과 */ }
   // 자격 검증 (티어 상/하한 · 최소 판수). 로스터 인원 조건은 개인 신청엔 미적용.
   const chk = validateEligibility(t.settings, [{ game_name, tier: b.tier || null, games: b.games ?? null, level: b.level ?? null }]);
   const relevant = chk.errors.filter((e) => !e.includes('로스터'));

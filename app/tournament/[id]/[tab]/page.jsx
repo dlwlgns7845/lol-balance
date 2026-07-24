@@ -493,12 +493,14 @@ function ApplyPlayer({ t, id, reload, S }) {
     try {
       // 인게임 티어 자동 배정 (개최자 기준: 지역·기준·큐)
       const prof = await fetch(`/api/seed?name=${encodeURIComponent(gn.trim())}&tag=${encodeURIComponent(tg.trim())}&region=${el.region}`).then((x) => x.json()).catch(() => ({}));
+      // 없는 닉 차단 — 실제 무랭크 계정은 found:true(티어만 미확인)라 통과됨
+      if (!prof.found) { setErr(`"${gn.trim()}#${tg.trim()}" 계정을 찾을 수 없어요. 게임 닉·태그(#뒤)를 확인하세요. (실제 계정인데 안 뜨면 잠시 후 다시 시도)`); setBusy(false); return; }
       const usable = el.allowFlex || el.tierBasis !== 'current' || prof.basis === '현재 솔랭'; // 솔로만 요구 시 현재 자유랭 티어 배제
       const pickBasis = { current: prof.suggestedTier, currentPeak: prof.curHighTier, lastSeason: prof.lastSeasonTier, peak: prof.peakTier };
       const tier = prof.found && usable ? (pickBasis[el.tierBasis] || prof.suggestedTier || null) : null;
       const games = prof.games ?? null;
       const level = prof.level ?? null;
-      const r = await apiFetch(`/api/tournaments/${id}/auction`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ game_name: gn.trim(), tag_line: tg.trim(), tier, role: role || null, games, level }) }).then((x) => x.json());
+      const r = await apiFetch(`/api/tournaments/${id}/auction`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ game_name: gn.trim(), tag_line: tg.trim(), tier, role: role || null, games, level, region: el.region }) }).then((x) => x.json());
       if (!r.ok) throw new Error(r.error);
       setMsg(`✅ 신청 완료 — 배정 티어 ${tier ? (TIER_LABEL[tier] || tier) : '미확인'}${games ? ` · 현재시즌 ${games}판` : ''}`);
       setName(''); setRole(''); reload();
