@@ -107,7 +107,7 @@ export default function PeoplePage() {
         )}
         {!canEdit && <span className="tb-view">👀 구경 모드 · 보기 전용</span>}
       </div>
-      {role === 'owner' && <MembersPanel gid={gid} />}
+      {(role === 'owner' || isAdmin) && <MembersPanel gid={gid} />}
       {err && <div className="panel err" style={{ padding: '10px 16px' }}>{err}</div>}
 
       {loading && <div className="panel center muted">불러오는 중…</div>}
