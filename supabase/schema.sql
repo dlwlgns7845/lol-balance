@@ -19,11 +19,14 @@ create table if not exists room_members (
   user_id uuid not null,                              -- auth.users.id (구글 로그인 유저)
   email text,
   name text,
-  role text not null default 'viewer' check (role in ('owner','editor','viewer')),
+  role text not null default 'viewer' check (role in ('owner','editor','recorder','viewer')),
   created_at timestamptz not null default now(),
   primary key (group_id, user_id)
 );
 create index if not exists idx_room_members_group on room_members(group_id);
+-- 기록 담당자(recorder) 역할 추가 — 멤버관리 없이 리플 기록만. 기존 CHECK 갱신.
+alter table room_members drop constraint if exists room_members_role_check;
+alter table room_members add constraint room_members_role_check check (role in ('owner','editor','recorder','viewer'));
 
 -- 사람 (실제 플레이어 1명. 본캐/부캐 여러 계정을 묶는 단위)
 create table if not exists persons (

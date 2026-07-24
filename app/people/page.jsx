@@ -117,7 +117,11 @@ export default function PeoplePage() {
 
       {persons.length > 0 && (
         <div className="panel members">
-          {[...persons].sort((a, b) => (b.rating_games || 0) - (a.rating_games || 0) || (a.display_name || '').localeCompare(b.display_name || '')).map((p) => {
+          {[...persons].sort((a, b) => {
+            const ae = !(a.display_name || '').trim(), be = !(b.display_name || '').trim();
+            if (ae !== be) return ae ? -1 : 1; // 방금 추가한 빈 사람 = 최상단(바로 입력)
+            return (b.rating_games || 0) - (a.rating_games || 0) || (a.display_name || '').localeCompare(b.display_name || '');
+          }).map((p) => {
             const roles = arraysToRoles(p.primary_positions, p.secondary_positions);
             const st = acctStatus[p.id] || {};
             return (
@@ -130,7 +134,7 @@ export default function PeoplePage() {
                     title="인게임 닉네임 — 스샷 매칭용. 표시이름은 연동 시 디코 서버별명, 아니면 이 인게임닉."
                     onBlur={(e) => canEdit && e.target.value !== p.display_name && patchPerson(p.id, { display_name: e.target.value })} />
                   <span className="m-nick-view" title={p.discord_id ? '디스코드 서버 별명(자동 동기화)' : '미연동 — 인게임 닉으로 표시'}>
-                    {p.discord_id ? `🔗 ${p.nickname || '…'}` : ''}
+                    {p.discord_id ? <span className="m-nick-txt">🔗 {p.nickname || '…'}</span> : null}
                     {canEdit && p.discord_id && <button className="m-unlink" title="이 선수의 디코 연동 해제 (기록은 보존)" onClick={() => { if (confirm(`"${p.nickname || p.display_name}"의 디스코드 연동을 해제할까요?\n기록은 그대로 남습니다.`)) patchPerson(p.id, { discord_id: null }); }}>해제</button>}
                   </span>
                   <div className="m-tiercell">

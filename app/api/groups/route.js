@@ -13,7 +13,7 @@ export async function POST(request) {
     if (!user) return NextResponse.json({ ok: false, error: '방을 만들려면 로그인하세요' }, { status: 401 });
     const owner = { id: user.id, email: user.email, name: userName(user) };
     const group = await createGroup(c, (name || '').trim(), owner);
-    return NextResponse.json({ ok: true, group, role: 'owner', canEdit: true });
+    return NextResponse.json({ ok: true, group, role: 'owner', canEdit: true, canRecord: true });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e.message }, { status: e.status ? errStatus(e) : 400 });
   }

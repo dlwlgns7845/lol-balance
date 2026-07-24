@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { deleteMatch, getMatchForEdit, updateMatch, swapSides } from '../../../../src/repo.js';
-import { requireEditor, errStatus } from '../../../../src/auth.js';
+import { requireRecorder, errStatus } from '../../../../src/auth.js';
 
 // 편집용 경기 로드 (편집자+)
 export async function GET(request, { params }) {
   try {
     const gid = new URL(request.url).searchParams.get('gid');
-    await requireEditor(request, gid);
+    await requireRecorder(request, gid);
     return NextResponse.json({ ok: true, match: await getMatchForEdit(params.id) });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e.message }, { status: errStatus(e) });
@@ -17,7 +17,7 @@ export async function GET(request, { params }) {
 export async function PATCH(request, { params }) {
   try {
     const body = await request.json();
-    await requireEditor(request, body.group_id);
+    await requireRecorder(request, body.group_id);
     if (body.action === 'swapSides') { // 블루↔레드 뒤집기
       const match = await swapSides(body.group_id, params.id);
       return NextResponse.json({ ok: true, match });
@@ -34,7 +34,7 @@ export async function PATCH(request, { params }) {
 export async function DELETE(request, { params }) {
   try {
     const gid = new URL(request.url).searchParams.get('gid');
-    await requireEditor(request, gid);
+    await requireRecorder(request, gid);
     await deleteMatch(params.id);
     return NextResponse.json({ ok: true });
   } catch (e) {

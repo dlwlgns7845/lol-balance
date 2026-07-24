@@ -32,7 +32,8 @@ const ADMIN_EMAILS = ['dlwlgns714@gmail.com', 'fbwlgkr7845@gmail.com'];
 export default function GroupProvider({ children }) {
   const [group, setGroup] = useState(null);
   const [role, setRole] = useState(null);      // owner | editor | viewer | null
-  const [canEdit, setCanEdit] = useState(true); // 레거시 방이면 기본 true
+  const [canEdit, setCanEdit] = useState(true); // 레거시 방이면 기본 true (멤버관리·설정)
+  const [canRecord, setCanRecord] = useState(true); // 기록(리플·경기) 권한 — recorder 포함
   const [ownerless, setOwnerless] = useState(false);
   const [user, setUser] = useState(null);      // 구글 로그인 유저
   const [authReady, setAuthReady] = useState(!authConfigured());
@@ -54,7 +55,7 @@ export default function GroupProvider({ children }) {
 
   function applyEntry(g, r) {
     setGroup(g); setRole(r?.role ?? null);
-    setCanEdit(r?.canEdit ?? true); setOwnerless(r?.ownerless ?? !g?.owner_id);
+    setCanEdit(r?.canEdit ?? true); setCanRecord(r?.canRecord ?? r?.canEdit ?? true); setOwnerless(r?.ownerless ?? !g?.owner_id);
     localStorage.setItem(KEY, JSON.stringify(g));
   }
 
@@ -88,7 +89,7 @@ export default function GroupProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authReady]);
 
-  function leave() { setGroup(null); setRole(null); setCanEdit(true); localStorage.removeItem(KEY); }
+  function leave() { setGroup(null); setRole(null); setCanEdit(true); setCanRecord(true); localStorage.removeItem(KEY); }
 
   async function login(provider = 'discord') {
     const sb = supabaseBrowser();
@@ -227,7 +228,7 @@ export default function GroupProvider({ children }) {
   }
 
   return (
-    <Ctx.Provider value={{ group, role, canEdit, ownerless, user, discord: discordIdentity(user),
+    <Ctx.Provider value={{ group, role, canEdit, canRecord, ownerless, user, discord: discordIdentity(user),
       isAdmin: !!user && ADMIN_EMAILS.includes((user.email || '').toLowerCase()),
       authOn: authConfigured(), leave, login, logout, claim, deleteRoom, enterRoomByCode }}>
       <AppShell>{children}</AppShell>

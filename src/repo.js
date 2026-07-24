@@ -224,7 +224,7 @@ export async function listMembers(groupId) {
 
 // 방장이 멤버 역할 변경 (editor/viewer). owner는 못 바꿈(자기 자신 유지).
 export async function setMemberRole(groupId, userId, role) {
-  if (!['editor', 'viewer'].includes(role)) throw new Error('role은 editor/viewer');
+  if (!['editor', 'recorder', 'viewer'].includes(role)) throw new Error('role은 editor/recorder/viewer');
   const { data: t } = await db().from('room_members')
     .select('role').eq('group_id', groupId).eq('user_id', userId).maybeSingle();
   if (!t) throw new Error('그 멤버가 없어요');

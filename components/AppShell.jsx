@@ -14,7 +14,7 @@ const NAV = [
 ];
 
 export default function AppShell({ children }) {
-  const { group, leave, user, discord, canEdit, authOn, isAdmin, login, logout, claim } = useGroup();
+  const { group, leave, user, discord, canEdit, canRecord, authOn, isAdmin, login, logout, claim } = useGroup();
   const path = usePathname();
   const nav = isAdmin ? [...NAV, { href: '/admin', label: '관리자', ic: '🛡' }] : NAV;
   const [menu, setMenu] = useState(false);
@@ -67,8 +67,8 @@ export default function AppShell({ children }) {
 
         <div className="tb-actions">
           {me?.person && <Link href={`/player?id=${me.person.id}`} className="btn ghost tb-myrec" title={`${me.person.name} 전적`}>📊 내 전적</Link>}
-          {!canEdit && <span className="tb-view">👀 구경 모드</span>}
-          {canEdit && (
+          {!canRecord && <span className="tb-view">👀 구경 모드</span>}
+          {canRecord && (
             <Link href="/record" className={`btn tb-record${path === '/record' ? ' ghost' : ''}`}>📸 결과 추가</Link>
           )}
           {!group.owner_id && user && (

@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { saveMatch } from '../../../src/repo.js';
-import { requireEditor, errStatus } from '../../../src/auth.js';
+import { requireRecorder, errStatus } from '../../../src/auth.js';
 
 export async function POST(request) {
   try {
     const body = await request.json();
-    await requireEditor(request, body.group_id);
+    await requireRecorder(request, body.group_id);
     const match = await saveMatch(body.group_id, {
       winner: body.winner, totalWeight: body.totalWeight, participants: body.participants,
       force: body.force, durationMin: body.durationMin, durationSec: body.durationSec,

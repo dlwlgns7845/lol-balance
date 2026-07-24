@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { apiFetch } from './api.js';
 import { useGroup } from './GroupProvider.jsx';
 
-const ROLE_KR = { owner: '방장', editor: '편집자', viewer: '구경꾼' };
+const ROLE_KR = { owner: '방장', editor: '편집자', recorder: '기록 담당자', viewer: '구경꾼' };
 
 export default function MembersPanel({ gid }) {
   const { deleteRoom } = useGroup() || {};
@@ -48,13 +48,14 @@ export default function MembersPanel({ gid }) {
               <b>{m.name || m.email}</b>
               <span className="muted">{m.email}</span>
             </div>
-            <span className={`mp-role r-${m.role}`}>{ROLE_KR[m.role]}</span>
             {m.role === 'owner' ? (
-              <span className="muted" style={{ fontSize: 11 }}>본인</span>
-            ) : m.role === 'editor' ? (
-              <button className="btn ghost mini" disabled={busy === m.user_id} onClick={() => setRole(m.user_id, 'viewer')}>편집 권한 회수</button>
+              <span className={`mp-role r-${m.role}`}>{ROLE_KR[m.role]} · 본인</span>
             ) : (
-              <button className="btn mini" disabled={busy === m.user_id} onClick={() => setRole(m.user_id, 'editor')}>편집 권한 주기</button>
+              <select className="mp-rolesel" value={m.role} disabled={busy === m.user_id} onChange={(e) => setRole(m.user_id, e.target.value)} title="편집자=멤버관리·기록 다 / 기록 담당자=리플·경기 기록만 / 구경꾼=보기만">
+                <option value="editor">편집자 (전체)</option>
+                <option value="recorder">기록 담당자 (기록만)</option>
+                <option value="viewer">구경꾼 (보기만)</option>
+              </select>
             )}
           </div>
         ))}

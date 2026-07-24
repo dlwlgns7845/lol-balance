@@ -26,7 +26,8 @@ export async function GET(request, { params }) {
     // 관리자면 무조건 편집 가능. 그 외: 레거시(주인 없는) 방은 누구나, 주인 있으면 역할대로.
     const admin = isAdmin(user);
     const canEdit = admin || !group.owner_id || role === 'owner' || role === 'editor';
-    return NextResponse.json({ ok: true, group, role: admin ? 'admin' : role, canEdit, ownerless: !group.owner_id, admin });
+    const canRecord = canEdit || role === 'recorder'; // 기록 담당자는 기록만 가능(멤버관리 X)
+    return NextResponse.json({ ok: true, group, role: admin ? 'admin' : role, canEdit, canRecord, ownerless: !group.owner_id, admin });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e.message }, { status: errStatus(e) });
   }

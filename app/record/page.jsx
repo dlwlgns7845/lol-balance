@@ -12,7 +12,7 @@ const POS_KR = { top: '탑', jungle: '정글', mid: '미드', adc: '원딜', sup
 const posByIdx = (i) => POS[i % 5]; // rows = [1팀5 + 2팀5] → 팀 내 인덱스로 기본 포지션
 
 export default function RecordPage() {
-  const { group, canEdit } = useGroup();
+  const { group, canRecord } = useGroup();
   const gid = group?.id;
   const dd = useDdragon();
   // 화면에 보인 챔프명(한글/영문/오타) → Data Dragon 정식 ID. 못 찾으면 원문 유지(수동 수정).
@@ -188,7 +188,7 @@ export default function RecordPage() {
     setSaving(false);
   }
 
-  if (group && !canEdit) return (
+  if (group && !canRecord) return (
     <div>
       <h1>경기 기록</h1>
       <div className="panel center muted" style={{ padding: '26px 0' }}>

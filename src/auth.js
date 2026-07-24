@@ -73,6 +73,18 @@ export async function requireEditor(request, groupId) {
   return { user, role };
 }
 
+// 기록 권한 — owner/editor + recorder(기록 담당자). 멤버관리는 못 하고 리플/경기 기록만.
+export async function requireRecorder(request, groupId) {
+  const user = await getUser(request);
+  if (isAdmin(user)) return { user, role: 'admin' };
+  const owner = await groupOwnerId(groupId);
+  if (!owner) return { user, role: 'editor', legacy: true };
+  if (!user) throw httpErr('로그인이 필요합니다', 401);
+  const role = await getRole(groupId, user.id);
+  if (!['owner', 'editor', 'recorder'].includes(role)) throw httpErr('기록 권한이 없어요 — 방장에게 요청하세요', 403);
+  return { user, role };
+}
+
 // 방장(또는 관리자) 전용
 export async function requireOwner(request, groupId) {
   const user = await getUser(request);
