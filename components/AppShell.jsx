@@ -82,7 +82,7 @@ export default function AppShell({ children }) {
               )}
             </div>
           ) : (
-            <button className="btn ghost" onClick={login}><span className="gg">G</span> 로그인</button>
+            <button className="btn ghost" onClick={() => login('discord')} title="디스코드로 로그인"><span className="dg" aria-hidden>◈</span> 로그인</button>
           ))}
           <button className="btn ghost" onClick={leave}># 방 전환</button>
         </div>

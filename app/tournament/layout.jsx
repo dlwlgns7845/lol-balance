@@ -83,7 +83,7 @@ export default function TournamentLayout({ children }) {
                 )}
               </div>
             )
-            : <button className="btn ghost" onClick={login}><span className="gg">G</span> 로그인</button>}
+            : <button className="btn ghost" onClick={() => login('discord')} title="디스코드로 로그인"><span className="dg" aria-hidden>◈</span> 로그인</button>}
           <a className="btn ghost" href="/" style={{ textDecoration: 'none' }}># 방 입장</a>
         </div>
       </header>

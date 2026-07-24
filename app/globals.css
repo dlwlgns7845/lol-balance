@@ -792,6 +792,11 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .gg { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 3px;
   background: conic-gradient(from -45deg, #ea4335 0 25%, #fbbc05 0 50%, #34a853 0 75%, #4285f4 0);
   color: #fff; font-weight: 800; font-size: 11px; }
+/* 디스코드 로그인 버튼 (블러플) */
+.dbtn { background: #5865F2; color: #fff; display: inline-flex; align-items: center; gap: 8px; border: none; }
+.dbtn:hover { background: #4752c4; }
+.dg { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 4px; background: #5865F2; color: #fff; font-size: 12px; line-height: 1; }
+.btn.dbtn .dg { background: rgba(255,255,255,.22); }
 .gate-user { display: flex; align-items: center; gap: 10px; font-size: 12.5px; }
 .linkbtn { background: none; border: 0; color: var(--gold); cursor: pointer; font-family: inherit; font-size: 12px; }
 .tb-view { font-size: 12px; color: var(--muted); border: 1px dashed var(--line2); border-radius: 8px; padding: 6px 10px; white-space: nowrap; }

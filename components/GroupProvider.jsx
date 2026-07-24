@@ -8,6 +8,16 @@ import { supabaseBrowser, authConfigured } from '../src/supabase-browser.js';
 const Ctx = createContext(null);
 export function useGroup() { return useContext(Ctx); }
 
+// Supabase user → 디스코드 프로필 { id(스노플레이크), name, avatar }. 디코 로그인 아니면 null.
+function discordIdentity(user) {
+  if (!user) return null;
+  const di = (user.identities || []).find((i) => i.provider === 'discord');
+  const md = user.user_metadata || {};
+  const id = di?.id || (md.provider === 'discord' ? md.provider_id || md.sub : null);
+  if (!id) return null;
+  return { id: String(id), name: md.full_name || md.name || md.custom_claims?.global_name || null, avatar: md.avatar_url || md.picture || null };
+}
+
 const KEY = 'lol-balance-group';
 const ADMIN_EMAILS = ['dlwlgns714@gmail.com', 'fbwlgkr7845@gmail.com'];
 
@@ -72,10 +82,12 @@ export default function GroupProvider({ children }) {
 
   function leave() { setGroup(null); setRole(null); setCanEdit(true); localStorage.removeItem(KEY); }
 
-  async function login() {
+  async function login(provider = 'discord') {
     const sb = supabaseBrowser();
     if (!sb) { setMsg('로그인이 아직 설정되지 않았어요 (관리자 설정 필요)'); return; }
-    await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + window.location.pathname } });
+    const opts = { redirectTo: window.location.origin + window.location.pathname };
+    if (provider === 'discord') opts.scopes = 'identify'; // 디코 유저ID·닉·아바타만 (이메일·서버목록 불필요)
+    await sb.auth.signInWithOAuth({ provider, options: opts });
   }
   async function logout() { const sb = supabaseBrowser(); if (sb) await sb.auth.signOut(); }
 
@@ -102,7 +114,7 @@ export default function GroupProvider({ children }) {
   // 레거시(주인 없는) 방을 내가 방장으로 가져오기
   async function claim() {
     if (!group || busy) return;
-    if (!user) { window.alert('먼저 구글로 로그인하세요.'); return; }
+    if (!user) { window.alert('먼저 로그인하세요 (디스코드 권장).'); return; }
     setBusy(true); setMsg(null);
     try {
       const r = await apiFetch('/api/rooms/claim', {
@@ -147,7 +159,7 @@ export default function GroupProvider({ children }) {
   // 🏆 멸망전 — 방과 무관한 독립 진입. 방 게이트 우회. 크롬(상단바·사이드바)은 app/tournament/layout.jsx가 담당.
   if (path && path.startsWith('/tournament')) {
     return (
-      <Ctx.Provider value={{ group: null, user, login, logout,
+      <Ctx.Provider value={{ group: null, user, discord: discordIdentity(user), login, logout,
         isAdmin: !!user && ADMIN_EMAILS.includes((user.email || '').toLowerCase()), authOn: authConfigured() }}>
         {children}
       </Ctx.Provider>
@@ -169,9 +181,12 @@ export default function GroupProvider({ children }) {
                 <button className="linkbtn" onClick={logout}>로그아웃</button>
               </div>
             ) : (
-              <button className="btn gbtn" onClick={login} type="button">
-                <span className="gg">G</span> 구글로 로그인
-              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
+                <button className="btn dbtn" onClick={() => login('discord')} type="button">
+                  <span className="dg" aria-hidden>◈</span> 디스코드로 로그인
+                </button>
+                <button className="linkbtn" onClick={() => login('google')} type="button" style={{ fontSize: 12 }}>또는 구글로 로그인</button>
+              </div>
             )}
             <p className="muted gate-auth-note">
               {user ? '방을 만들면 방장이 돼요.' : '로그인 없이도 방 코드로 구경 가능. 방을 만들거나 기록하려면 로그인하세요.'}
@@ -199,7 +214,7 @@ export default function GroupProvider({ children }) {
   }
 
   return (
-    <Ctx.Provider value={{ group, role, canEdit, ownerless, user,
+    <Ctx.Provider value={{ group, role, canEdit, ownerless, user, discord: discordIdentity(user),
       isAdmin: !!user && ADMIN_EMAILS.includes((user.email || '').toLowerCase()),
       authOn: authConfigured(), leave, login, logout, claim, deleteRoom, enterRoomByCode }}>
       <AppShell>{children}</AppShell>
