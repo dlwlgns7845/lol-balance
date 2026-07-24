@@ -8,6 +8,7 @@ import PositionBar from './PositionBar.jsx';
 import WinLossBar from './WinLossBar.jsx';
 import Avatar from './Avatar.jsx';
 
+const LANE_KR = { top: '탑', jungle: '정글', mid: '미드', adc: '원딜', sup: '서폿' };
 function wrClass(w) { return w >= 0.6 ? 'green' : w >= 0.5 ? 'yellow' : 'red'; }
 function kdaClass(r) { return r >= 5 ? 'kv-5' : r >= 4 ? 'kv-4' : r >= 3 ? 'kv-3' : ''; }
 function fmtD(s) { if (!s) return ''; const d = new Date(s); return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
@@ -106,6 +107,15 @@ export default function PlayerCard({ player: p, gid, max, dd, onClose, detail: d
                 )) : <span className="muted">-</span>}
               </div>
             </div>
+
+            {detail?.laneMatchups?.length > 0 && (
+              <>
+                <h3 style={{ marginTop: 14 }}>맞라인 상대 <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>· 같은 라인 승률</span></h3>
+                {detail.laneMatchups.slice(0, 5).map((o) => (
+                  <div className="duo-row" key={o.name + o.pos}><span>{LANE_KR[o.pos] || ''} {o.name}</span><span className="muted">{o.games}게임</span><b className={wrClass(o.winrate)}>{Math.round(o.winrate * 100)}%</b></div>
+                ))}
+              </>
+            )}
 
             <h3 style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
               {historyLabel} {detail?.history ? <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>{detail.history.length}게임</span> : null}
