@@ -8,14 +8,22 @@ import { supabaseBrowser, authConfigured } from '../src/supabase-browser.js';
 const Ctx = createContext(null);
 export function useGroup() { return useContext(Ctx); }
 
-// Supabase user → 디스코드 프로필 { id(스노플레이크), name, avatar }. 디코 로그인 아니면 null.
+// Supabase user → 디스코드 프로필 { id(스노플레이크), name, avatar }. 디코 연결 없으면 null.
+// 계정이 이메일로 병합됐어도(구글+디코) 디코 identity_data에서 직접 읽음 → 구글 메타에 안 가려짐.
 function discordIdentity(user) {
   if (!user) return null;
   const di = (user.identities || []).find((i) => i.provider === 'discord');
+  if (di) {
+    const d = di.identity_data || {};
+    const id = di.id || d.provider_id || d.sub;
+    if (id) return { id: String(id), name: d.full_name || d.name || d.global_name || d.custom_claims?.global_name || null, avatar: d.avatar_url || d.picture || null };
+  }
+  // 폴백: 디코로만 로그인해 user_metadata가 디코인 경우
   const md = user.user_metadata || {};
-  const id = di?.id || (md.provider === 'discord' ? md.provider_id || md.sub : null);
-  if (!id) return null;
-  return { id: String(id), name: md.full_name || md.name || md.custom_claims?.global_name || null, avatar: md.avatar_url || md.picture || null };
+  if ((md.provider === 'discord' || md.iss?.includes?.('discord')) && (md.provider_id || md.sub)) {
+    return { id: String(md.provider_id || md.sub), name: md.full_name || md.name || md.global_name || null, avatar: md.avatar_url || md.picture || null };
+  }
+  return null;
 }
 
 const KEY = 'lol-balance-group';
@@ -177,7 +185,12 @@ export default function GroupProvider({ children }) {
           {authConfigured() && <div className="gate-auth">
             {user ? (
               <div className="gate-user">
-                <span className="muted">로그인됨 · <b>{user.user_metadata?.full_name || user.email}</b></span>
+                {(() => { const dc = discordIdentity(user); return (
+                  <span className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    {dc?.avatar && <img src={dc.avatar} alt="" style={{ width: 20, height: 20, borderRadius: '50%' }} />}
+                    로그인됨 · <b>{dc?.name || user.user_metadata?.full_name || user.email}</b>
+                  </span>
+                ); })()}
                 <button className="linkbtn" onClick={logout}>로그아웃</button>
               </div>
             ) : (

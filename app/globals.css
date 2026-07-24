@@ -800,7 +800,8 @@ table.lb tbody tr.lb-row:hover { background: rgba(79,182,214,.07); }
 .gate-user { display: flex; align-items: center; gap: 10px; font-size: 12.5px; }
 .linkbtn { background: none; border: 0; color: var(--gold); cursor: pointer; font-family: inherit; font-size: 12px; }
 .tb-view { font-size: 12px; color: var(--muted); border: 1px dashed var(--line2); border-radius: 8px; padding: 6px 10px; white-space: nowrap; }
-.tb-actions .tb-user { width: 34px; padding: 0; font-weight: 700; }
+.tb-actions .tb-user { width: 34px; height: 34px; padding: 0; font-weight: 700; overflow: hidden; }
+.tb-user-av { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
 .claim-banner {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
   background: rgba(79,182,214,.1); border-bottom: 1px solid rgba(79,182,214,.3);

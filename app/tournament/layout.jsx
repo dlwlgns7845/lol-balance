@@ -10,7 +10,7 @@ const ST = { recruiting: '🟢', running: '🔵', done: '🏁' };
 const sInp = { background: '#26262e', color: '#ddd', border: '1px solid #33333c', borderRadius: 6, padding: '5px 8px', fontSize: 12.5 };
 
 export default function TournamentLayout({ children }) {
-  const { user, login, logout } = useGroup() || {};
+  const { user, discord, login, logout } = useGroup() || {};
   const path = usePathname() || '';
   const parts = path.split('/').filter(Boolean); // ['tournament', id?, tab?]
   const selId = parts[1] || null;
@@ -70,12 +70,12 @@ export default function TournamentLayout({ children }) {
           {user
             ? (
               <div className="tb-usermenu">
-                <button className="btn ghost tb-user" onClick={() => setMenu((v) => !v)} title={user.email || ''}>{(user.user_metadata?.full_name || user.email || '?').slice(0, 1).toUpperCase()}</button>
+                <button className="btn ghost tb-user" onClick={() => setMenu((v) => !v)} title={discord?.name || user.email || ''}>{discord?.avatar ? <img src={discord.avatar} alt="" className="tb-user-av" /> : (discord?.name || user.user_metadata?.full_name || user.email || '?').slice(0, 1).toUpperCase()}</button>
                 {menu && (
                   <>
                     <div className="tb-menu-backdrop" onClick={() => setMenu(false)} />
                     <div className="tb-menu">
-                      <div className="tb-menu-email">{user.email}</div>
+                      <div className="tb-menu-email">{discord?.name ? <><b>{discord.name}</b> · 디스코드</> : user.email}</div>
                       <button onClick={() => { setMenu(false); logout && logout(); }}>로그아웃</button>
                       <button className="danger" onClick={clearTraces}>🙈 로그인 기록 삭제 후 로그아웃</button>
                     </div>
