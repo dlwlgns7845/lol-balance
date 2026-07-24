@@ -131,9 +131,13 @@ create table if not exists discord_guilds (
   linked_by text,
   guild_name text,
   guild_icon text,             -- 디코 서버 아이콘 해시 (헤더 브랜딩용). cdn: /icons/{guild_id}/{hash}.png
+  tournament_id uuid,          -- 이 서버에 연결된 대회 (/방연결 대회:<code>). 멸망전 자동공지용
+  notice_channel_id text,      -- 대회 공지 채널 (/대회공지 연결). 없으면 자동공지 off
   created_at timestamptz not null default now()
 );
 alter table discord_guilds add column if not exists guild_icon text;
+alter table discord_guilds add column if not exists tournament_id uuid;
+alter table discord_guilds add column if not exists notice_channel_id text;
 
 -- 내전 모집 큐 (디코 /모집 + 사이트 미러). 서버리스라 상태는 전부 DB.
 create table if not exists recruit_queues (

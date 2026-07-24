@@ -154,9 +154,36 @@ function AdminTab({ t, S, admin, canManage, id, reload, user, login }) {
   if (!canManage) return <div className="panel center muted" style={{ padding: '32px 0' }}>대회 운영자만 볼 수 있어요.</div>;
   return (
     <>
+      <DiscordNoticePanel t={t} id={id} />
       <SettingsEditor S={S} admin={admin} />
       <AdminsManager id={id} t={t} reload={reload} user={user} />
     </>
+  );
+}
+
+// ─── 📢 디스코드 자동공지 연결 안내 ───
+function DiscordNoticePanel({ t, id }) {
+  const [code, setCode] = useState(t?.code || null);
+  useEffect(() => {
+    if (t?.code) { setCode(t.code); return; }
+    // 옛 대회(코드 없음) → 발급 (인증 필요)
+    apiFetch(`/api/tournaments/${id}/code`).then((r) => r.json()).then((r) => r.ok && setCode(r.code)).catch(() => {});
+  }, [id, t?.code]);
+  return (
+    <div className="panel" style={{ marginBottom: 12 }}>
+      <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>📢 디스코드 자동공지 <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>대진·결과를 디코 채널에 자동으로</span></h2>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', margin: '6px 0 12px' }}>
+        <span className="muted" style={{ fontSize: 13 }}>대회 코드</span>
+        <code style={{ fontSize: 18, fontWeight: 800, letterSpacing: 2, background: '#16161c', padding: '4px 12px', borderRadius: 8, border: '1px solid #2a2a33' }}>{code || '…'}</code>
+        {code && <button className="mini" onClick={() => { navigator.clipboard?.writeText(code); }}>복사</button>}
+      </div>
+      <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, lineHeight: 1.9, color: '#c9c9d2' }}>
+        <li>디코 서버에서 <code>/방연결 코드:&lt;방코드&gt;</code> 로 <b>서버 연결·승인</b> (한 번, 기존)</li>
+        <li>디코에서 <code>/방연결 대회:{code || 'XXXXXX'}</code> → 이 <b>대회</b>를 서버에 연결</li>
+        <li>공지 띄울 채널에서 <code>/대회공지 연결</code> → 그 채널로 <b>자동공지 ON</b></li>
+      </ol>
+      <p className="muted" style={{ fontSize: 11.5, marginTop: 8 }}>이후 대진 확정·경기 결과가 그 채널에 자동으로 올라와요. 끄려면 <code>/대회공지 동작:해제</code>.</p>
+    </div>
   );
 }
 

@@ -5,6 +5,13 @@ import { generateSingleElim, nextSlot, generateGroups, groupStandings, knockoutS
 import { normalizeSettings, validateEligibility, seedTeams, teamStrength, tierRank } from './tournament-settings.js';
 import { tierPts } from './engine.js';
 import { POS, TABLE } from './table.js';
+import { postTournamentNotice, noticeEmbed, COLOR } from './discord-notice.js';
+
+// 팀 id→이름 맵 (공지용)
+async function teamNameMap(tournamentId) {
+  const { data } = await db().from('tournament_teams').select('id, name').eq('tournament_id', tournamentId);
+  return Object.fromEntries((data || []).map((t) => [t.id, t.name || '팀']));
+}
 
 const isMissingCol = (e) => e && (e.code === '42703' || e.code === 'PGRST204' || /column .* does not exist|settings/.test(e.message || ''));
 
@@ -21,6 +28,13 @@ export async function listTournaments() {
   return (data || []).map((t) => ({ ...t, approvedTeams: counts[t.id] || 0 }));
 }
 
+// 디코 연결용 짧은 코드 (혼동 문자 제외)
+function genTournamentCode() {
+  const ch = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s = ''; for (let i = 0; i < 6; i++) s += ch[Math.floor(Math.random() * ch.length)];
+  return s;
+}
+
 export async function createTournament(ownerId, b) {
   const base = {
     owner_id: ownerId || null, name: (b.name || '').trim() || '새 대회',
@@ -28,13 +42,50 @@ export async function createTournament(ownerId, b) {
     team_size: Number(b.team_size) || 5, tier_cap: b.tier_cap || null,
     starts_at: b.starts_at || null,
   };
-  const row = { ...base, settings: normalizeSettings(b.settings) };
+  const row = { ...base, settings: normalizeSettings(b.settings), code: genTournamentCode() };
   let { data, error } = await db().from('tournaments').insert(row).select().single();
-  if (error && isMissingCol(error)) { // settings 컬럼 미생성(SQL 실행 전) → 없이 재시도
+  if (error && isMissingCol(error)) { // settings/code 컬럼 미생성(SQL 실행 전) → 없이 재시도
     ({ data, error } = await db().from('tournaments').insert(base).select().single());
   }
   if (error) throw error;
   return data;
+}
+
+// 대회 코드로 조회 (디코 /방연결 대회:<code>). 코드 없으면 즉석 발급 후 반환.
+export async function getTournamentByCode(code) {
+  if (!code) return null;
+  const { data } = await db().from('tournaments').select('id, name, code').ilike('code', String(code).trim()).maybeSingle();
+  return data || null;
+}
+// 대회 코드 보장 — 없으면(옛 대회) 발급해서 반환. 관리자 탭에서 코드 표시 시 사용.
+export async function ensureTournamentCode(tournamentId) {
+  const { data } = await db().from('tournaments').select('id, code').eq('id', tournamentId).maybeSingle();
+  if (!data) return null;
+  if (data.code) return data.code;
+  const code = genTournamentCode();
+  const { error } = await db().from('tournaments').update({ code }).eq('id', tournamentId);
+  if (error) return null; // code 컬럼 미반영 → null
+  return code;
+}
+// 서버(guild)를 대회에 연결 (/방연결 대회). 서버는 이미 /방연결 승인돼 있어야 함(호출측 확인).
+export async function linkGuildTournament(guildId, tournamentId) {
+  const { error } = await db().from('discord_guilds').update({ tournament_id: tournamentId }).eq('guild_id', guildId);
+  if (error) throw error;
+}
+// 대회 공지 채널 설정/해제 (/대회공지 연결·해제)
+export async function setGuildNoticeChannel(guildId, channelId) {
+  const { error } = await db().from('discord_guilds').update({ notice_channel_id: channelId || null }).eq('guild_id', guildId);
+  if (error) throw error;
+}
+// 특정 대회에 자동공지를 받을 (서버, 채널) 목록 — 승인 + 대회연결 + 채널설정 3겹 통과한 것만
+export async function getTournamentNoticeTargets(tournamentId) {
+  if (!tournamentId) return [];
+  try {
+    const { data, error } = await db().from('discord_guilds')
+      .select('guild_id, notice_channel_id').eq('tournament_id', tournamentId).eq('status', 'approved');
+    if (error) return [];
+    return (data || []).filter((g) => g.notice_channel_id).map((g) => ({ guildId: g.guild_id, channelId: g.notice_channel_id }));
+  } catch { return []; }
 }
 
 export async function updateTournament(id, patch) {
@@ -634,8 +685,21 @@ export async function generateBracket(tournamentId) {
     throw error;
   }
   await db().from('tournaments').update({ status: 'running' }).eq('id', tournamentId);
+  // 📢 디코 자동공지 (연결된 채널 있을 때만, 실패해도 무시)
+  try {
+    const { data: tRow } = await db().from('tournaments').select('name').eq('id', tournamentId).maybeSingle();
+    const first = matches.filter((x) => (x.bracket === 'W' || x.bracket === 'K' || !x.bracket || x.bracket === 'G') && x.team_a && x.team_b);
+    const nmap = await teamNameMap(tournamentId);
+    const lines = first.slice(0, 12).map((x) => `• ${nmap[x.team_a] || '?'} vs ${nmap[x.team_b] || '?'}`).join('\n');
+    await postTournamentNotice(tournamentId, noticeEmbed(
+      `🏆 ${tRow?.name || '대회'} · 대진 확정`,
+      `${teams.length}팀 · ${SEED_KR[settings.seeding] || ''}\n\n${lines || '대진표가 생성됐어요.'}`,
+      { color: COLOR.bracket, footer: '사이트 일정·결과 탭에서 전체 대진 확인' },
+    ));
+  } catch { /* 공지 실패 무시 */ }
   return getTournament(tournamentId);
 }
+const SEED_KR = { order: '신청 순서', tier: '티어 시드', random: '랜덤 추첨' };
 
 // 🔄 대진 취소 (진행중 → 모집중). 대진(경기)만 삭제, 팀·신청자는 유지 → 재편성 가능. (테스트/정정용)
 export async function cancelBracket(tournamentId) {
@@ -720,5 +784,18 @@ export async function reportMatch(matchId, b) {
       if (tMatch) { const loser = winner === m.team_a ? m.team_b : m.team_a; await db().from('tournament_matches').update({ [`team_${m.pos === 0 ? 'a' : 'b'}`]: loser }).eq('id', tMatch.id); }
     }
   }
+  // 📢 결과·우승 자동공지 (best-effort)
+  try {
+    const nmap = await teamNameMap(m.tournament_id);
+    const wName = nmap[winner] || '팀';
+    const lName = nmap[winner === m.team_a ? m.team_b : m.team_a] || '팀';
+    const { data: tRow } = await db().from('tournaments').select('name, status').eq('id', m.tournament_id).maybeSingle();
+    const sc = (b.score_a != null && b.score_b != null) ? ` (${b.score_a} : ${b.score_b})` : '';
+    if (tRow?.status === 'done' && m.bracket !== 'T') {
+      await postTournamentNotice(m.tournament_id, noticeEmbed(`🏆 ${tRow?.name || '대회'} · 우승`, `**${wName}** 우승! 🎉`, { color: COLOR.win, footer: '사이트에서 전체 결과·통계 확인' }));
+    } else {
+      await postTournamentNotice(m.tournament_id, noticeEmbed('✅ 경기 결과', `**${wName}** 승 vs ${lName}${sc}`, { color: COLOR.win }));
+    }
+  } catch { /* 공지 실패 무시 */ }
   return getTournament(m.tournament_id);
 }

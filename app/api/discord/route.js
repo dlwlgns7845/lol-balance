@@ -8,6 +8,7 @@ import { getStats, getAwards, getMatchHistory, listPersons, updatePerson, create
   createPending, getPending, updatePending, deletePending,
   getGuildRoom, getGuildLink, requestGuildLink, getGroupByCode,
   isBotAdmin, grantBotAdmin, revokeBotAdmin, listBotAdmins } from '../../../src/repo.js';
+import { getTournamentByCode, linkGuildTournament, setGuildNoticeChannel } from '../../../src/repo-tournament.js';
 import { balance, balance20, balance20Split } from '../../../src/engine.js';
 import { LANES, allocateQueue } from '../../../src/queue.js';
 import { MAINTENANCE } from '../../../src/maintenance.js';
@@ -905,9 +906,19 @@ async function cmdLinkGuild(i, gid) {
   if (!i.guild_id) return ephem('서버(길드) 안에서만 쓸 수 있어요.');
   const perms = BigInt(i.member?.permissions || '0');
   const canManage = (perms & 0x20n) !== 0n || (perms & 0x8n) !== 0n; // Manage Guild | Administrator
-  if (!canManage) return ephem('⚠️ 서버 관리 권한이 있는 사람만 방 연결을 요청할 수 있어요.');
+  if (!canManage) return ephem('⚠️ 서버 관리 권한이 있는 사람만 연결할 수 있어요.');
+  // 대회: 옵션 → 이 서버를 대회에 연결 (서버는 /방연결로 이미 승인돼 있어야 함)
+  const tcode = (opt(i, '대회') || '').trim();
+  if (tcode) {
+    const link = await getGuildLink(i.guild_id);
+    if (!link || link.status !== 'approved') return ephem('⚠️ 먼저 `/방연결 코드:<방코드>` 로 이 서버를 방에 연결하고 승인받아야 대회를 연결할 수 있어요.');
+    const t = await getTournamentByCode(tcode);
+    if (!t) return ephem(`"${tcode}" 코드의 대회를 못 찾았어요. 사이트 대회 **관리자 탭**에서 코드를 확인하세요.`);
+    await linkGuildTournament(i.guild_id, t.id);
+    return ephem(`🏆 이 서버를 대회 **${t.name}** 에 연결했어요.\n이제 공지 띄울 채널에서 \`/대회공지 연결\` 을 실행하면 대진·결과가 자동 공지돼요.`);
+  }
   const code = (opt(i, '코드') || '').trim();
-  if (!code) return ephem('방 코드를 입력하세요. 예: `/방연결 코드:빙수`');
+  if (!code) return ephem('방 코드 또는 대회 코드를 입력하세요.\n• 내전 방: `/방연결 코드:빙수`\n• 대회: `/방연결 대회:ABC123`');
   const group = await getGroupByCode(code);
   if (!group) return ephem(`"${code}" 코드의 방을 못 찾았어요. 사이트에서 방 코드를 확인하세요.`);
   const existing = await getGuildLink(i.guild_id);
@@ -916,6 +927,24 @@ async function cmdLinkGuild(i, gid) {
   const g = await fetchGuildBrand(i.guild_id); // 서버 이름·아이콘 → 사이트 헤더 브랜딩용
   await requestGuildLink(i.guild_id, group.id, requester, g?.name || null, g?.icon || null);
   return ephem(`📨 **${group.name || group.code}** (#${group.code}) 연결 **요청**을 보냈어요.\n방장/관리자가 **사이트 → 점수표(설정) 페이지**에서 승인하면 이 서버에서 커맨드를 쓸 수 있어요. (승인 전까지는 대기)`);
+}
+
+// /대회공지 연결·해제 — 이 채널을 (서버에 연결된)대회의 공지채널로. 서버관리자만.
+async function cmdTourneyNotice(i, gid) {
+  if (!i.guild_id) return ephem('서버(길드) 안에서만 쓸 수 있어요.');
+  const perms = BigInt(i.member?.permissions || '0');
+  const canManage = (perms & 0x20n) !== 0n || (perms & 0x8n) !== 0n;
+  if (!canManage) return ephem('⚠️ 서버 관리 권한이 있는 사람만 설정할 수 있어요.');
+  const link = await getGuildLink(i.guild_id);
+  if (!link || link.status !== 'approved') return ephem('⚠️ 먼저 `/방연결` 로 서버를 연결·승인받아야 해요.');
+  if (!link.tournament_id) return ephem('⚠️ 이 서버에 연결된 대회가 없어요. 먼저 `/방연결 대회:<코드>` 로 대회를 연결하세요.');
+  const action = (opt(i, '동작') || '연결').trim();
+  if (action === '해제') {
+    await setGuildNoticeChannel(i.guild_id, null);
+    return ephem('🔕 대회 공지 채널을 해제했어요. (자동 공지 off)');
+  }
+  await setGuildNoticeChannel(i.guild_id, i.channel_id);
+  return ephem(`📢 이 채널을 **대회 공지 채널**로 설정했어요.\n대진 확정·경기 결과가 여기로 자동 공지돼요. 끄려면 \`/대회공지 동작:해제\`.`);
 }
 
 // /관리자 — 서버 관리자가 봇 관리자(비-서버관리자)에게 /기록 권한 부여/해제/목록
@@ -940,7 +969,7 @@ async function cmdAdmin(i, gid) {
   return ephem('동작을 선택하세요 (승격 / 해제 / 목록).');
 }
 
-const HANDLERS = { 리더보드: cmdLeaderboard, 전적: cmdRecord, 내전적: cmdMyRecord, 연동: cmdLink, 가입: cmdRegister, 프로필: cmdProfile, 칭호: cmdAwards, 방: cmdRoom, 밸런스: cmdBalance, 모집: cmdRecruit, 기록: cmdMatchShot, 방연결: cmdLinkGuild, 관리자: cmdAdmin };
+const HANDLERS = { 리더보드: cmdLeaderboard, 전적: cmdRecord, 내전적: cmdMyRecord, 연동: cmdLink, 가입: cmdRegister, 프로필: cmdProfile, 칭호: cmdAwards, 방: cmdRoom, 밸런스: cmdBalance, 모집: cmdRecruit, 기록: cmdMatchShot, 방연결: cmdLinkGuild, 대회공지: cmdTourneyNotice, 관리자: cmdAdmin };
 
 export async function POST(request) {
   const body = await request.text();

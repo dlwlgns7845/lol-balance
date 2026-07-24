@@ -12,8 +12,12 @@ create table if not exists tournaments (
   tier_cap text,                                 -- null=제한없음, 예 'D2' (이 티어 이하만)
   status text not null default 'recruiting',     -- recruiting | running | done
   starts_at timestamptz,
+  code text,                                     -- 디코 연결용 짧은 코드 (예 6자). /방연결 대회:<code>
   created_at timestamptz default now()
 );
+-- 디코 자동공지: 대회 짧은 코드 (기존 대회에도 추가)
+alter table tournaments add column if not exists code text;
+create unique index if not exists tournaments_code_uq on tournaments (code) where code is not null;
 
 create table if not exists tournament_teams (
   id uuid primary key default gen_random_uuid(),

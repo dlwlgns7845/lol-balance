@@ -40,9 +40,16 @@ const commands = [
   { name: '기록', description: '.rofl 리플레이로 경기 자동 기록 (관리자)', type: 1,
     default_member_permissions: '32', // Manage Guild — 관리자만
     options: [{ name: '리플', description: '롤 리플레이(.rofl) 파일 — 클라이언트 전적에서 다운로드', type: 11, required: true }] },
-  { name: '방연결', description: '이 서버를 내전 방에 연결 요청 (서버 관리자만, 방장 승인 필요)', type: 1,
+  { name: '방연결', description: '이 서버를 내전 방/대회에 연결 (서버 관리자만)', type: 1,
     default_member_permissions: '32', // Manage Guild — 관리자만
-    options: [{ name: '코드', description: '사이트 방 코드', type: 3, required: true }] },
+    options: [
+      { name: '코드', description: '내전 방 코드 (방 연결)', type: 3, required: false },
+      { name: '대회', description: '대회 코드 (대회 연결 — 사이트 대회 관리자 탭)', type: 3, required: false },
+    ] },
+  { name: '대회공지', description: '이 채널을 대회 공지 채널로 설정/해제 (서버 관리자만)', type: 1,
+    default_member_permissions: '32', // Manage Guild
+    options: [{ name: '동작', description: '연결(기본) / 해제', type: 3, required: false,
+      choices: [{ name: '연결', value: '연결' }, { name: '해제', value: '해제' }] }] },
   { name: '관리자', description: '봇 관리자 승격/해제 (서버 관리자 전용) — /기록 권한 부여', type: 1,
     default_member_permissions: '32', // Manage Guild — 서버 관리자만
     options: [
