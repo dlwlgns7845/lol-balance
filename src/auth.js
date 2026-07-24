@@ -29,10 +29,15 @@ export function discordIdOf(user) {
   return null;
 }
 
-// 전역 관리자 (모든 방 열람·관리 가능)
+// 전역 관리자 (모든 방·대회 열람·관리 가능)
 export const ADMIN_EMAILS = ['dlwlgns714@gmail.com', 'fbwlgkr7845@gmail.com'];
+// 디코ID 기준 관리자 (이메일 병합 안 된 계정 대비). 필요 시 스노플레이크 추가.
+export const ADMIN_DISCORD_IDS = [];
 export function isAdmin(user) {
-  return !!user && ADMIN_EMAILS.includes((user.email || '').toLowerCase());
+  if (!user) return false;
+  if (ADMIN_EMAILS.includes((user.email || '').toLowerCase())) return true;
+  const did = discordIdOf(user);
+  return !!did && ADMIN_DISCORD_IDS.includes(did);
 }
 export async function requireAdmin(request) {
   const user = await getUser(request);

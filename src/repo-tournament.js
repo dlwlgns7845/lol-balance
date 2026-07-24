@@ -15,17 +15,26 @@ async function teamNameMap(tournamentId) {
 
 const isMissingCol = (e) => e && (e.code === '42703' || e.code === 'PGRST204' || /column .* does not exist|settings/.test(e.message || ''));
 
-export async function listTournaments() {
+export async function listTournaments(opts = {}) {
   const { data, error } = await db().from('tournaments').select('*').order('created_at', { ascending: false });
   if (error) { if (error.code === '42P01') return []; throw error; } // 테이블 미생성(SQL 실행 전) → 빈 목록
+  // 공개 승인 필터: 관리자(all)는 전부. 아니면 visible=true + 본인 소유(대기중이어도). visible 컬럼 없으면(SQL 전) 전부 노출.
+  let rows = data || [];
+  if (!opts.all) rows = rows.filter((t) => t.visible !== false || (opts.ownerId && t.owner_id === opts.ownerId));
   // 팀 수(승인) 카운트
-  const ids = (data || []).map((t) => t.id);
+  const ids = rows.map((t) => t.id);
   const counts = {};
   if (ids.length) {
     const { data: teams } = await db().from('tournament_teams').select('tournament_id, status').in('tournament_id', ids);
     (teams || []).forEach((t) => { if (t.status === 'approved') counts[t.tournament_id] = (counts[t.tournament_id] || 0) + 1; });
   }
-  return (data || []).map((t) => ({ ...t, approvedTeams: counts[t.id] || 0 }));
+  return rows.map((t) => ({ ...t, approvedTeams: counts[t.id] || 0 }));
+}
+// 대회 공개/숨김 (관리자 승인)
+export async function setTournamentVisible(id, visible) {
+  const { error } = await db().from('tournaments').update({ visible: !!visible }).eq('id', id);
+  if (error) { if (/visible/i.test(error.message || '')) throw new Error('공개 승인 마이그레이션(tournament-schema.sql: visible 컬럼)을 먼저 실행하세요'); throw error; }
+  return { ok: true };
 }
 
 // 디코 연결용 짧은 코드 (혼동 문자 제외)
@@ -42,9 +51,10 @@ export async function createTournament(ownerId, b) {
     team_size: Number(b.team_size) || 5, tier_cap: b.tier_cap || null,
     starts_at: b.starts_at || null,
   };
-  const row = { ...base, settings: normalizeSettings(b.settings), code: genTournamentCode() };
+  // 새 대회 = 관리자 승인 전(visible:false). 코드 자동발급.
+  const row = { ...base, settings: normalizeSettings(b.settings), code: genTournamentCode(), visible: false };
   let { data, error } = await db().from('tournaments').insert(row).select().single();
-  if (error && isMissingCol(error)) { // settings/code 컬럼 미생성(SQL 실행 전) → 없이 재시도
+  if (error && isMissingCol(error)) { // settings/code/visible 컬럼 미생성(SQL 실행 전) → 없이 재시도
     ({ data, error } = await db().from('tournaments').insert(base).select().single());
   }
   if (error) throw error;

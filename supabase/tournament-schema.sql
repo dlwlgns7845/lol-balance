@@ -18,6 +18,8 @@ create table if not exists tournaments (
 -- 디코 자동공지: 대회 짧은 코드 (기존 대회에도 추가)
 alter table tournaments add column if not exists code text;
 create unique index if not exists tournaments_code_uq on tournaments (code) where code is not null;
+-- 공개 승인: 새 대회는 관리자 승인 후 목록에 노출. 기존 대회는 default true(그대로 노출).
+alter table tournaments add column if not exists visible boolean not null default true;
 
 create table if not exists tournament_teams (
   id uuid primary key default gen_random_uuid(),

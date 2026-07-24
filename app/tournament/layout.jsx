@@ -13,9 +13,11 @@ export default function TournamentLayout({ children }) {
   const { user, discord, login, logout } = useGroup() || {};
   const path = usePathname() || '';
   const parts = path.split('/').filter(Boolean); // ['tournament', id?, tab?]
-  const selId = parts[1] || null;
+  const RESERVED = ['manage']; // 대회 id가 아닌 특수 경로
+  const selId = parts[1] && !RESERVED.includes(parts[1]) ? parts[1] : null;
   const tab = parts[2] || 'notice';
   const [list, setList] = useState([]);
+  const [isAdmin, setIsAdmin] = useState(false);
   const selFormation = list.find((x) => x.id === selId)?.settings?.teamFormation;
   const [name, setName] = useState('');
   const [maxTeams, setMaxTeams] = useState(8);
@@ -30,16 +32,19 @@ export default function TournamentLayout({ children }) {
     if (logout) logout();
   }
 
-  const load = () => fetch('/api/tournaments').then((x) => x.json()).then((r) => r.ok && setList(r.tournaments || []));
-  useEffect(() => { load(); }, [path]);
+  const load = () => apiFetch('/api/tournaments').then((x) => x.json()).then((r) => { if (r.ok) { setList(r.tournaments || []); setIsAdmin(!!r.isAdmin); } });
+  useEffect(() => { load(); }, [path, user]);
 
   async function create() {
     if (!name.trim()) return;
     setBusy(true);
     try {
       const r = await apiFetch('/api/tournaments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, max_teams: maxTeams }) }).then((x) => x.json());
-      if (r.ok) { setName(''); window.location.href = '/tournament/' + r.tournament.id + '/notice'; }
-      else alert('실패: ' + r.error);
+      if (r.ok) {
+        setName('');
+        if (!isAdmin) window.alert('대회를 만들었어요! 📋\n관리자 승인 후 목록에 공개돼요. 승인 전에도 이 링크로 준비할 수 있어요.');
+        window.location.href = '/tournament/' + r.tournament.id + '/notice';
+      } else alert('실패: ' + r.error);
     } finally { setBusy(false); }
   }
 
@@ -64,6 +69,9 @@ export default function TournamentLayout({ children }) {
           )}
           {selId && user && (
             <Link href={`/tournament/${selId}/admin`} className={tab === 'admin' ? 'active' : ''}>⚙️ 관리자</Link>
+          )}
+          {isAdmin && (
+            <Link href="/tournament/manage" className={parts[1] === 'manage' ? 'active' : ''}>🛡 전체 관리</Link>
           )}
         </nav>
         <div className="tb-actions">
@@ -98,8 +106,10 @@ export default function TournamentLayout({ children }) {
           {list.map((t) => (
             <Link key={t.id} href={`/tournament/${t.id}/notice`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px', borderRadius: 7, textDecoration: 'none', color: selId === t.id ? '#fff' : '#bbb', background: selId === t.id ? 'rgba(79,182,214,.15)' : 'transparent', fontWeight: selId === t.id ? 700 : 400, fontSize: 13, marginBottom: 2 }}>
               <span>{ST[t.status] || '·'}</span><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
+              {t.visible === false && <span title="승인 대기 (관리자만 보임)" style={{ marginLeft: 'auto', fontSize: 9.5, color: '#e0b24d', border: '1px solid rgba(224,178,77,.4)', borderRadius: 4, padding: '0 4px', flexShrink: 0 }}>대기</span>}
             </Link>
           ))}
+          {isAdmin && <Link href="/tournament/manage" style={{ display: 'block', fontSize: 12, color: '#8fd6ec', padding: '8px 6px 2px', textDecoration: 'none' }}>🛡 전체 관리 · 승인 →</Link>}
           {user && (
             <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #1e1e26' }}>
               <div className="muted" style={{ fontSize: 11, padding: '0 6px 6px', fontWeight: 700 }}>+ 새 대회</div>

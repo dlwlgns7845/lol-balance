@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { listTournaments, createTournament } from '../../../src/repo-tournament.js';
-import { getUser, errStatus } from '../../../src/auth.js';
+import { getUser, isAdmin, errStatus } from '../../../src/auth.js';
 
-export async function GET() {
+export async function GET(request) {
   try {
-    return NextResponse.json({ ok: true, tournaments: await listTournaments() });
+    const u = await getUser(request);
+    const admin = isAdmin(u);
+    return NextResponse.json({ ok: true, isAdmin: admin, tournaments: await listTournaments({ all: admin, ownerId: u?.id }) });
   } catch (e) { return NextResponse.json({ ok: false, error: e.message }, { status: 500 }); }
 }
 
