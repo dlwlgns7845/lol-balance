@@ -7,7 +7,7 @@ import { apiFetch } from '../../components/api.js';
 const deepCopy = (t) => JSON.parse(JSON.stringify(t));
 
 export default function SettingsPage() {
-  const { group, canEdit, isAdmin } = useGroup();
+  const { group, canEdit } = useGroup();
   const gid = group?.id;
   const [table, setTable] = useState(null);
   const [custom, setCustom] = useState(false);
@@ -17,10 +17,10 @@ export default function SettingsPage() {
   const [links, setLinks] = useState(null); // 디스코드 연결: { pending, approved }
 
   const loadLinks = () => {
-    if (!gid || !isAdmin) return;
+    if (!gid || !canEdit) return;
     apiFetch('/api/discord-link?gid=' + gid).then((x) => x.json()).then((r) => { if (r.ok) setLinks(r); }).catch(() => {});
   };
-  useEffect(loadLinks, [gid, isAdmin]);
+  useEffect(loadLinks, [gid, canEdit]);
 
   const linkAction = async (action, guildId) => {
     await apiFetch('/api/discord-link', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gid, action, guildId }) });
@@ -88,7 +88,7 @@ export default function SettingsPage() {
       </div>
       {msg && <div className="panel" style={{ padding: '10px 16px' }}>{msg}</div>}
 
-      {isAdmin && links && (
+      {canEdit && links && (
         <div className="panel" style={{ padding: 16, marginBottom: 12 }}>
           <h3 style={{ margin: '0 0 4px' }}>🤖 디스코드 서버 연결 {links.pending?.length ? <span style={{ color: '#e8a24d' }}>· 대기 {links.pending.length}</span> : null}</h3>
           <p className="sub" style={{ margin: '0 0 10px', fontSize: 13 }}>디코에서 <code>/방연결 코드:{group?.code}</code> 하면 여기 요청이 떠요. 승인해야 그 서버가 이 방을 씁니다.</p>

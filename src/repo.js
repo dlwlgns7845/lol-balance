@@ -517,19 +517,25 @@ async function findOrCreatePerson(groupId, name, tier, primary, secondary) {
   return p.id;
 }
 
-// 이미 저장된 같은 경기인지 판정. 스샷 재업로드/재분석 시 딜량·CS가 조금 달라도
-// 같은 사람들 + 같은 승리팀 + 챔피언 거의 일치 + KDA 거의 동일이면 중복으로 본다.
+// 이미 저장된 같은 경기인지 판정. 두 갈래로 잡는다:
+//  (1) 챔피언 멀티셋 동일 + KDA 근접 — person_id 무관. 리플/스샷 소스가 달라 사람 매칭이 어긋나도 잡힘(핵심).
+//  (2) 같은 사람들 + 챔피언 거의 일치 + KDA 근접 — 스샷 재업로드(챔피언 1개 오독 허용).
 // (같은 멤버가 다른 게임을 또 할 수 있으므로 KDA 근접이 핵심 판별자 — 딜량/CS는 무시)
 async function findDuplicateMatch(groupId, resolved, winner) {
-  const inc = new Map(); // person_id → {champion,k,d,a}
-  resolved.forEach((p) => inc.set(p.person_id, {
-    champion: (p.champion || '').toLowerCase().trim(),
+  const norm = (c) => (c || '').toLowerCase().trim();
+  const incParts = resolved.map((p) => ({
+    person_id: p.person_id, champion: norm(p.champion),
     k: +(p.k ?? p.kills ?? 0), d: +(p.d ?? p.deaths ?? 0), a: +(p.a ?? p.assists ?? 0),
   }));
   // KDA·챔피언 정보가 하나도 없으면(승패만 입력) 다른 게임과 구분 불가 → 중복검사 스킵
   const hasDetail = resolved.some((p) => (p.champion || p.k != null || p.kills != null));
   if (!hasDetail) return null;
-  const incIds = [...inc.keys()].sort().join(',');
+  const incIds = incParts.map((p) => p.person_id).sort().join(',');
+  const incChamps = incParts.map((p) => p.champion).filter(Boolean).sort().join(',');
+  // 챔피언→KDA 순 정렬 (person_id 무관 페어링용)
+  const sortKda = (arr) => [...arr].sort((x, y) =>
+    (x.champion < y.champion ? -1 : x.champion > y.champion ? 1 : 0) || (x.k - y.k) || (x.d - y.d) || (x.a - y.a));
+  const incSorted = sortKda(incParts);
 
   const { data: matches } = await db().from('matches')
     .select('id, winner').eq('group_id', groupId).order('created_at', { ascending: false }).limit(300);
@@ -542,18 +548,34 @@ async function findDuplicateMatch(groupId, resolved, winner) {
 
   for (const m of matches) {
     if (m.winner !== winner) continue;
-    const list = byMatch[m.id] || [];
-    if (list.length !== resolved.length) continue;
-    if (list.map((p) => p.person_id).sort().join(',') !== incIds) continue; // 같은 사람들 아니면 스킵
-    let champMatch = 0, kdaDiff = 0;
-    for (const p of list) {
-      const q = inc.get(p.person_id);
-      if (!q) { kdaDiff = 1e9; break; }
-      if ((p.champion || '').toLowerCase().trim() === q.champion) champMatch++;
-      kdaDiff += Math.abs((p.kills || 0) - q.k) + Math.abs((p.deaths || 0) - q.d) + Math.abs((p.assists || 0) - q.a);
+    const list = (byMatch[m.id] || []).map((p) => ({
+      person_id: p.person_id, champion: norm(p.champion), k: p.kills || 0, d: p.deaths || 0, a: p.assists || 0,
+    }));
+    if (list.length !== incParts.length) continue;
+
+    // (1) 챔피언 멀티셋 동일 + KDA 근접 (person_id 무관) — 리플 재저장·소스 불일치까지 견고하게 잡음
+    const listChamps = list.map((p) => p.champion).filter(Boolean).sort().join(',');
+    if (incChamps && listChamps === incChamps) {
+      const ls = sortKda(list);
+      let kdaDiff = 0;
+      for (let i = 0; i < ls.length; i++) {
+        kdaDiff += Math.abs(ls[i].k - incSorted[i].k) + Math.abs(ls[i].d - incSorted[i].d) + Math.abs(ls[i].a - incSorted[i].a);
+      }
+      if (kdaDiff <= 8) return m.id;
     }
-    // 챔피언 최대 1명까지 오독 허용 + KDA 총 오차 8 이내면 같은 경기로 판정
-    if (champMatch >= resolved.length - 1 && kdaDiff <= 8) return m.id;
+
+    // (2) 같은 사람들 기준 (스샷: 챔피언 1개 오독 허용)
+    if (list.map((p) => p.person_id).sort().join(',') === incIds) {
+      const incByPid = new Map(incParts.map((p) => [p.person_id, p]));
+      let champMatch = 0, kdaDiff = 0, ok = true;
+      for (const p of list) {
+        const q = incByPid.get(p.person_id);
+        if (!q) { ok = false; break; }
+        if (p.champion === q.champion) champMatch++;
+        kdaDiff += Math.abs(p.k - q.k) + Math.abs(p.d - q.d) + Math.abs(p.a - q.a);
+      }
+      if (ok && champMatch >= incParts.length - 1 && kdaDiff <= 8) return m.id;
+    }
   }
   return null;
 }
