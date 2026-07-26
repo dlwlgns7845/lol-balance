@@ -50,6 +50,7 @@ alter table persons add column if not exists nickname text;
 create table if not exists accounts (
   id uuid primary key default gen_random_uuid(),
   person_id uuid not null references persons(id) on delete cascade,
+  group_id uuid,                                     -- 방(그룹) 단위 유니크용 (persons.group_id 미러)
   game_name text not null,
   tag_line text not null,
   region text not null default 'NA',
@@ -58,9 +59,14 @@ create table if not exists accounts (
   opgg_games int,
   opgg_confidence text,
   last_synced_at timestamptz,
-  created_at timestamptz not null default now(),
-  unique (game_name, tag_line, region)
+  created_at timestamptz not null default now()
 );
+-- 같은 Riot 계정이 여러 방에 각각 등록될 수 있어야 함(방마다 person 격리) → 유니크는 방 단위.
+-- 레거시 전역 유니크 제거 + group_id 백필 + 방 단위 유니크로 교체 (기존 DB 마이그레이션).
+alter table accounts add column if not exists group_id uuid;
+update accounts a set group_id = p.group_id from persons p where a.person_id = p.id and a.group_id is null;
+alter table accounts drop constraint if exists accounts_game_name_tag_line_region_key;
+create unique index if not exists accounts_group_gnt_region_key on accounts (group_id, game_name, tag_line, region);
 
 -- 내전 경기
 create table if not exists matches (

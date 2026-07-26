@@ -443,25 +443,28 @@ export async function deletePerson(id) {
 
 export async function addAccount(a) {
   const region = a.region || 'NA';
-  // 이미 등록된 계정인지 먼저 확인 → 친절한 안내 (raw unique 에러 대신)
+  // 이 계정이 속할 방(그룹) — 유니크·중복확인은 방 단위. 같은 닉이 다른 방엔 각각 등록 가능.
+  const { data: person } = await db().from('persons').select('group_id').eq('id', a.person_id).maybeSingle();
+  const groupId = person?.group_id || null;
+  // 이 방 안에 이미 등록된 계정인지 확인 → 친절한 안내 (raw unique 에러 대신). 다른 방은 안 본다.
   const { data: existing } = await db().from('accounts')
-    .select('id, person_id').eq('game_name', a.game_name).eq('tag_line', a.tag_line).eq('region', region).maybeSingle();
+    .select('id, person_id').eq('group_id', groupId).eq('game_name', a.game_name).eq('tag_line', a.tag_line).eq('region', region).maybeSingle();
   if (existing) {
     if (existing.person_id === a.person_id) return existing; // 같은 사람 = 이미 있음, 그냥 반환
     const { data: owner } = await db().from('persons').select('display_name').eq('id', existing.person_id).maybeSingle();
-    const e = new Error(`이 계정(${a.game_name}#${a.tag_line})은 이미 "${owner?.display_name || '다른 선수'}" 에 등록돼 있어요. 같은 사람이면 '합치기'를 쓰세요.`);
+    const e = new Error(`이 방에 계정(${a.game_name}#${a.tag_line})이 이미 "${owner?.display_name || '다른 선수'}" 에 등록돼 있어요. 같은 사람이면 '합치기'를 쓰세요.`);
     e.status = 409; throw e;
   }
   // 첫 계정이면 자동 본캐
   const { count } = await db().from('accounts').select('*', { count: 'exact', head: true }).eq('person_id', a.person_id);
   const { data, error } = await db().from('accounts').insert({
-    person_id: a.person_id, game_name: a.game_name, tag_line: a.tag_line, region,
+    person_id: a.person_id, group_id: groupId, game_name: a.game_name, tag_line: a.tag_line, region,
     is_main: a.is_main ?? (count === 0),
     opgg_tier: a.opgg_tier || null, opgg_games: a.opgg_games ?? null,
     opgg_confidence: a.opgg_confidence || null, last_synced_at: new Date().toISOString(),
   }).select().single();
   if (error) {
-    if (error.code === '23505') { const e = new Error(`이 계정(${a.game_name}#${a.tag_line})은 이미 등록돼 있어요.`); e.status = 409; throw e; }
+    if (error.code === '23505') { const e = new Error(`이 방에 계정(${a.game_name}#${a.tag_line})이 이미 등록돼 있어요.`); e.status = 409; throw e; }
     throw error;
   }
   await recomputeBaseTier(a.person_id); // 계정 추가 → 가장 높은 티어로 base_tier 갱신
