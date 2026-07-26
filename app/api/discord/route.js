@@ -82,11 +82,12 @@ const posLabel = (p) => (p ? POS_KR[p] : '-');
 // ── 커맨드 핸들러 ──
 async function cmdLeaderboard(i, gid) {
   const { players } = await getStats(gid);
-  const top = players.filter((p) => p.games >= 3).sort((a, b) => b.score - a.score).slice(0, 10);
-  if (!top.length) return reply('아직 3판 이상 뛴 선수가 없어요.');
+  // 웹 리더보드와 동일: 전체 노출(0판만 제외). 라플라스 보정 점수순 — 소표본 필터 안 함.
+  const top = players.filter((p) => p.games > 0).sort((a, b) => b.score - a.score).slice(0, 10);
+  if (!top.length) return reply('아직 기록된 선수가 없어요.');
   const medal = (i) => ['🥇', '🥈', '🥉'][i] || `${i + 1}.`;
   const lines = top.map((p, i) => `${medal(i)} **${p.nickname || p.name}** — ${p.score}점 · ${wr(p.winrate)} (${p.wins}승${p.losses}패)`);
-  return embed({ title: '🏆 내전 리더보드 · 3판+', description: lines.join('\n'), color: GOLD });
+  return embed({ title: '🏆 내전 리더보드', description: lines.join('\n'), color: GOLD });
 }
 
 function playerEmbed(p) {
@@ -745,9 +746,9 @@ async function reviewData(pend, mapSlot) {
   return { content: '', embeds: [embed], components };
 }
 
-// 리더보드 TOP5 사람ID (3판+ · 점수순) — 순위변동 비교용
+// 리더보드 TOP5 사람ID (전체 · 점수순, 웹·리더보드와 동일) — 순위변동 비교용
 async function topIds(gid) {
-  try { return (await getStats(gid)).players.filter((p) => p.games >= 3).sort((a, b) => b.score - a.score).slice(0, 5).map((p) => p.id); } catch { return []; }
+  try { return (await getStats(gid)).players.filter((p) => p.games > 0).sort((a, b) => b.score - a.score).slice(0, 5).map((p) => p.id); } catch { return []; }
 }
 
 // 경기 저장 후 채널에 결과+MVP+순위변동 공지 (새 메시지). 백그라운드.
