@@ -221,17 +221,19 @@ export async function getTournament(id) {
   return { tournament, teams: teamsWithMembers, matches: matches || [], pool, auction, games };
 }
 
-export async function applyTeam(tournamentId, b) {
+export async function applyTeam(tournamentId, b, user) {
   const { data: t } = await db().from('tournaments').select('*').eq('id', tournamentId).maybeSingle();
   if (!t) throw new Error('대회를 찾을 수 없어요');
   if (t.status !== 'recruiting') throw new Error('신청이 마감된 대회예요');
   const name = (b.name || '').trim();
   if (!name) throw new Error('팀 이름을 입력하세요');
   const settings = normalizeSettings(t.settings);
+  const uid = user?.id ?? null; // 로그인 신청자 = 주장(신원 바인딩). 익명 신청도 허용(null).
   // 경매 모드: 주장 팀만 등록(로스터는 경매로 채움), 예산 부여
   if (settings.teamFormation === 'auction') {
-    const ins = { tournament_id: tournamentId, name, captain: b.captain || null, budget: settings.auction.budget };
+    const ins = { tournament_id: tournamentId, name, captain: b.captain || null, captain_user_id: uid, budget: settings.auction.budget };
     let { data: team, error } = await db().from('tournament_teams').insert(ins).select().single();
+    if (error && /captain_user/i.test(error.message || '')) { const { captain_user_id, ...r } = ins; ({ data: team, error } = await db().from('tournament_teams').insert(r).select().single()); } // 컬럼 미생성 폴백
     if (error && /budget/i.test(error.message || '')) { // budget 컬럼 미생성 → 경매 마이그레이션 필요
       throw new Error('경매 드래프트를 쓰려면 마이그레이션(tournament-auction-schema.sql)을 먼저 실행하세요');
     }
@@ -243,8 +245,9 @@ export async function applyTeam(tournamentId, b) {
   if (!members.length) throw new Error('로스터를 1명 이상 입력하세요');
   const chk = validateEligibility(t.settings, members); // 주최자 참가자격 규칙
   if (!chk.ok) throw new Error(chk.errors.join('\n'));
-  const { data: team, error } = await db().from('tournament_teams')
-    .insert({ tournament_id: tournamentId, name, captain: b.captain || null }).select().single();
+  const baseTeam = { tournament_id: tournamentId, name, captain: b.captain || null, captain_user_id: uid };
+  let { data: team, error } = await db().from('tournament_teams').insert(baseTeam).select().single();
+  if (error && /captain_user/i.test(error.message || '')) { const { captain_user_id, ...r } = baseTeam; ({ data: team, error } = await db().from('tournament_teams').insert(r).select().single()); } // 컬럼 미생성 폴백
   if (error) throw error;
   const rows = members.map((m) => ({ team_id: team.id, game_name: (m.game_name || '').trim(), tag_line: m.tag_line || null, tier: m.tier || null, role: m.role || null }));
   await db().from('tournament_team_members').insert(rows);
@@ -709,6 +712,19 @@ export async function deleteTournamentGame(tournamentId, gameId) {
 export async function deleteTeam(teamId) {
   const { error } = await db().from('tournament_teams').delete().eq('id', teamId);
   if (error) throw error;
+}
+
+// 주장 본인이 팀 신청 취소 (셀프서비스). 모집 중 + 대진 생성 전에만. 남의 팀은 못 지움.
+export async function withdrawTeam(teamId, user) {
+  if (!user?.id) { const e = new Error('로그인이 필요해요'); e.status = 401; throw e; }
+  const { data: team } = await db().from('tournament_teams').select('id, tournament_id, captain_user_id, name').eq('id', teamId).maybeSingle();
+  if (!team) throw new Error('팀을 찾을 수 없어요');
+  if (team.captain_user_id !== user.id) { const e = new Error('내 팀만 신청 취소할 수 있어요'); e.status = 403; throw e; }
+  const { data: t } = await db().from('tournaments').select('status').eq('id', team.tournament_id).maybeSingle();
+  if (t && t.status !== 'recruiting') { const e = new Error('대진이 시작돼 신청 취소가 안 돼요 — 운영자에게 문의하세요'); e.status = 400; throw e; }
+  const { error } = await db().from('tournament_teams').delete().eq('id', teamId);
+  if (error) throw error;
+  return team;
 }
 
 // 대진 생성: 승인팀 시드 배정(설정) → 포맷별 매치 insert → status=running

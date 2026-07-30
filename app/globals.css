@@ -1283,6 +1283,7 @@ table.rec-history tbody tr.rh-lose { background: rgba(224,106,120,.05); }
 .la-team { border: 1px solid #2a2a33; border-radius: 8px; background: #1a1a20; padding: 9px 11px; }
 .la-team.high { border-color: var(--green); box-shadow: 0 0 0 1px rgba(78,201,138,.4); }
 .la-team.mine { background: rgba(79,182,214,.08); }
+.mine-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: rgba(79,182,214,.16); color: #9fe0ef; }
 .la-lists { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 10px; align-items: start; }
 .la-applicants { display: flex; flex-direction: column; gap: 5px; max-height: 320px; overflow-y: auto; }
 .la-app { display: flex; align-items: center; gap: 8px; padding: 5px 9px; background: #1a1a20; border: 1px solid #2a2a33; border-radius: 6px; }

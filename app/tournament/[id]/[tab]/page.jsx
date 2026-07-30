@@ -758,6 +758,7 @@ function Apply({ t, teams, pool, auction, canManage, admin, id, reload, S, user,
           <div key={tm.id} style={{ borderTop: '1px solid #2a2a33', padding: '8px 0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <b>{tm.seed ? `${tm.seed}. ` : ''}{tm.name}</b>
+              {user && tm.captain_user_id === user.id && <span className="mine-badge">내 팀</span>}
               <span className="muted" style={{ fontSize: 11 }}>{TST[tm.status]}{tm.captain ? ` · 주장 ${tm.captain}` : ''}</span>
               {canManage && t.status === 'recruiting' && (
                 <span style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
@@ -765,6 +766,9 @@ function Apply({ t, teams, pool, auction, canManage, admin, id, reload, S, user,
                   {tm.status !== 'rejected' && <button className="mini" onClick={() => admin({ teamId: tm.id, status: 'rejected' })}>거절</button>}
                   <button className="mini" onClick={() => { if (confirm('팀 삭제?')) admin({ teamId: tm.id, action: 'delete' }); }}>🗑</button>
                 </span>
+              )}
+              {!canManage && user && tm.captain_user_id === user.id && t.status === 'recruiting' && (
+                <button className="mini" style={{ marginLeft: 'auto' }} onClick={() => { if (confirm('내 팀 신청을 취소할까요?')) admin({ teamId: tm.id, action: 'withdraw' }); }}>신청 취소</button>
               )}
             </div>
             <div className="muted" style={{ fontSize: 11.5, marginTop: 3 }}>{tm.members.map((mm) => `${mm.game_name}${mm.tier ? `(${mm.tier})` : ''}`).join(' · ') || '로스터 없음'}</div>
