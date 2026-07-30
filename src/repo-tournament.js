@@ -14,6 +14,45 @@ async function teamNameMap(tournamentId) {
   return Object.fromEntries((data || []).map((t) => [t.id, t.name || '팀']));
 }
 
+// KST 날짜·시간 표기 (공지용)
+function fmtKST(iso) {
+  try {
+    return new Date(iso).toLocaleString('ko-KR', {
+      timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', weekday: 'short', hour: '2-digit', minute: '2-digit',
+    });
+  } catch { return iso; }
+}
+
+// 📢 팀 신청 접수 공지 (best-effort). 팀 단위 이벤트에서만 — 개인 풀신청은 소음이라 제외.
+async function notifySignup(tournamentId, teamName) {
+  try {
+    const { data: t } = await db().from('tournaments').select('name').eq('id', tournamentId).maybeSingle();
+    const { count } = await db().from('tournament_teams').select('*', { count: 'exact', head: true }).eq('tournament_id', tournamentId);
+    await postTournamentNotice(tournamentId, noticeEmbed(
+      `📝 ${t?.name || '대회'} · 팀 신청`,
+      `**${teamName}** 신청 접수 · 현재 ${count ?? '?'}팀`,
+      { color: COLOR.info, footer: '사이트 참가팀 탭에서 명단 확인' },
+    ));
+  } catch { /* 공지 실패 무시 */ }
+}
+
+// 📋 참가팀 전체 명단 공지 (모집마감/대진 직전). 반환=공지 성공 채널 수.
+export async function announceRoster(tournamentId) {
+  try {
+    const { data: t } = await db().from('tournaments').select('name').eq('id', tournamentId).maybeSingle();
+    const { data: teams } = await db().from('tournament_teams').select('id, name').eq('tournament_id', tournamentId).order('created_at');
+    if (!teams?.length) return 0;
+    const { data: mem } = await db().from('tournament_team_members').select('team_id').in('team_id', teams.map((x) => x.id));
+    const cnt = {}; (mem || []).forEach((m) => { cnt[m.team_id] = (cnt[m.team_id] || 0) + 1; });
+    const lines = teams.map((tm, i) => `${i + 1}. **${tm.name}** (${cnt[tm.id] || 0}명)`).join('\n');
+    return await postTournamentNotice(tournamentId, noticeEmbed(
+      `📋 ${t?.name || '대회'} · 참가팀 명단`,
+      `총 ${teams.length}팀\n\n${lines}`,
+      { color: COLOR.info, footer: '사이트에서 상세 로스터 확인' },
+    ));
+  } catch { return 0; }
+}
+
 const isMissingCol = (e) => e && (e.code === '42703' || e.code === 'PGRST204' || /column .* does not exist|settings/.test(e.message || ''));
 
 export async function listTournaments(opts = {}) {
@@ -197,6 +236,7 @@ export async function applyTeam(tournamentId, b) {
       throw new Error('경매 드래프트를 쓰려면 마이그레이션(tournament-auction-schema.sql)을 먼저 실행하세요');
     }
     if (error) throw error;
+    await notifySignup(tournamentId, name);
     return team;
   }
   const members = (b.members || []).filter((m) => (m.game_name || '').trim());
@@ -208,6 +248,7 @@ export async function applyTeam(tournamentId, b) {
   if (error) throw error;
   const rows = members.map((m) => ({ team_id: team.id, game_name: (m.game_name || '').trim(), tag_line: m.tag_line || null, tier: m.tier || null, role: m.role || null }));
   await db().from('tournament_team_members').insert(rows);
+  await notifySignup(tournamentId, name);
   return team;
 }
 
@@ -265,6 +306,7 @@ export async function submitScoreTeam(tournamentId, b) {
   const rows = members.map((m) => { const p = byId[m.poolId]; return { team_id: team.id, game_name: p.game_name, tag_line: p.tag_line, tier: p.tier, role: m.role }; });
   await db().from('tournament_team_members').insert(rows);
   await db().from('tournament_pool').update({ sold_to: team.id }).in('id', ids); // 풀에서 소비(중복 배정 방지)
+  await notifySignup(tournamentId, name);
   return getTournament(tournamentId);
 }
 
@@ -704,8 +746,9 @@ export async function generateBracket(tournamentId) {
     throw error;
   }
   await db().from('tournaments').update({ status: 'running' }).eq('id', tournamentId);
-  // 📢 디코 자동공지 (연결된 채널 있을 때만, 실패해도 무시)
+  // 📢 디코 자동공지 (연결된 채널 있을 때만, 실패해도 무시) — 명단 → 대진 순
   try {
+    await announceRoster(tournamentId); // 참가팀 전체 명단 먼저
     const { data: tRow } = await db().from('tournaments').select('name').eq('id', tournamentId).maybeSingle();
     const first = matches.filter((x) => (x.bracket === 'W' || x.bracket === 'K' || !x.bracket || x.bracket === 'G') && x.team_a && x.team_b);
     const nmap = await teamNameMap(tournamentId);
@@ -752,6 +795,21 @@ async function buildKnockoutFromGroups(tournamentId, all) {
 export async function setMatchSchedule(tournamentId, matchId, scheduledAt) {
   const { error } = await db().from('tournament_matches').update({ scheduled_at: scheduledAt || null }).eq('id', matchId).eq('tournament_id', tournamentId);
   if (error) { if (/scheduled_at/i.test(error.message || '')) throw new Error('일정 마이그레이션(tournament-schedule-schema.sql)을 먼저 실행하세요'); throw error; }
+  // 📢 일정 잡히면 "다음 경기 안내" 공지 (양 팀 확정된 경기만, best-effort)
+  if (scheduledAt) {
+    try {
+      const { data: mm } = await db().from('tournament_matches').select('team_a, team_b').eq('id', matchId).maybeSingle();
+      if (mm?.team_a && mm?.team_b) {
+        const { data: tRow } = await db().from('tournaments').select('name').eq('id', tournamentId).maybeSingle();
+        const nmap = await teamNameMap(tournamentId);
+        await postTournamentNotice(tournamentId, noticeEmbed(
+          `⏰ ${tRow?.name || '대회'} · 경기 일정`,
+          `**${nmap[mm.team_a] || '?'}** vs **${nmap[mm.team_b] || '?'}**\n🗓 ${fmtKST(scheduledAt)}`,
+          { color: COLOR.bracket, footer: '시간 되면 각 팀 준비!' },
+        ));
+      }
+    } catch { /* 공지 실패 무시 */ }
+  }
   return getTournament(tournamentId);
 }
 
