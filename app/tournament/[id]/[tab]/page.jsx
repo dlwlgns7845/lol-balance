@@ -1534,10 +1534,12 @@ function Scoreboard({ teams, pool, S, id, reload, user, login, canManage, t, adm
 }
 
 // ─── 🗓 일정·결과 (전체 일정 + 대진 + 최종순위) ───
-function Schedule({ t, matches, teams, nameOf, canManage, admin, S }) {
+function Schedule({ t, matches, teams, nameOf, canManage, admin, S, user }) {
+  // 내가 주장인 팀들 = 이 경기 결과를 보고/확인할 수 있는 사람(양측확인)
+  const myTeamIds = new Set(teams.filter((tm) => user && tm.captain_user_id === user.id).map((tm) => tm.id));
   const podium = t.status === 'done' ? <Placements matches={matches} nameOf={nameOf} /> : null;
   const tPanel = matches.some((m) => m.bracket === 'T')
-    ? <BracketView matches={matches.filter((m) => m.bracket === 'T')} title="🥉 3·4위전" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} roundLabel={() => '3·4위전'} />
+    ? <BracketView matches={matches.filter((m) => m.bracket === 'T')} title="🥉 3·4위전" t={t} nameOf={nameOf} canManage={canManage} admin={admin} myTeamIds={myTeamIds} bestOf={S.bestOf} roundLabel={() => '3·4위전'} />
     : null;
   // 운영 도구: 진행 중 대진 취소 → 모집중 (테스트/정정용)
   const adminBar = canManage && matches.length > 0 ? (
@@ -1573,8 +1575,8 @@ function Schedule({ t, matches, teams, nameOf, canManage, admin, S }) {
   const groupM = matches.filter((m) => m.bracket === 'G');
   const kM = matches.filter((m) => m.bracket === 'K');
   const wM = matches.filter((m) => m.bracket === 'W');
-  if (wM.length > 0) return <>{adminBar}{podium}<DoubleElimBoard matches={matches} t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} bestOfFinal={S.bestOfFinal} finalRounds={S.bestOfFinalRounds} /></>;
-  if (groupM.length === 0) return <>{adminBar}{podium}<BracketView matches={matches.filter((m) => m.bracket !== 'T')} title="대진표" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} bestOfFinal={S.bestOfFinal} finalRounds={S.bestOfFinalRounds} />{tPanel}</>;
+  if (wM.length > 0) return <>{adminBar}{podium}<DoubleElimBoard matches={matches} t={t} nameOf={nameOf} canManage={canManage} admin={admin} myTeamIds={myTeamIds} bestOf={S.bestOf} bestOfFinal={S.bestOfFinal} finalRounds={S.bestOfFinalRounds} /></>;
+  if (groupM.length === 0) return <>{adminBar}{podium}<BracketView matches={matches.filter((m) => m.bracket !== 'T')} title="대진표" t={t} nameOf={nameOf} canManage={canManage} admin={admin} myTeamIds={myTeamIds} bestOf={S.bestOf} bestOfFinal={S.bestOfFinal} finalRounds={S.bestOfFinalRounds} />{tPanel}</>;
 
   // 그룹 스테이지 모드
   const gmap = {};
@@ -1608,12 +1610,14 @@ function Schedule({ t, matches, teams, nameOf, canManage, admin, S }) {
                     <span className={mm.winner === mm.team_a ? 'tg-win' : ''}>{nameOf(mm.team_a)}</span>
                     <span className="muted" style={{ fontSize: 10 }}>vs</span>
                     <span className={mm.winner === mm.team_b ? 'tg-win' : ''}>{nameOf(mm.team_b)}</span>
-                    {canManage && t.status === 'running' && !mm.winner && (
+                    {(canManage || myTeamIds.has(mm.team_a) || myTeamIds.has(mm.team_b)) && t.status === 'running' && !mm.winner && (
                       <span className="tg-btns">
                         <button className="mini" title={`${nameOf(mm.team_a)} 승`} onClick={() => admin({ matchId: mm.id, winner: mm.team_a }, '/bracket', 'PATCH')}>◀</button>
                         <button className="mini" title={`${nameOf(mm.team_b)} 승`} onClick={() => admin({ matchId: mm.id, winner: mm.team_b }, '/bracket', 'PATCH')}>▶</button>
                       </span>
                     )}
+                    {!mm.winner && mm.report_status === 'reported' && mm.reported_winner && <span className="bv-report" title="상대 주장 확인 대기">⏳{nameOf(mm.reported_winner)}</span>}
+                    {!mm.winner && mm.report_status === 'disputed' && <span className="bv-report dispute" title="양측 보고 불일치">⚠️</span>}
                   </div>
                 ))}
               </div>
@@ -1623,7 +1627,7 @@ function Schedule({ t, matches, teams, nameOf, canManage, admin, S }) {
         {canManage && t.status === 'running' && <p className="hint" style={{ marginTop: 8 }}>각 경기에서 이긴 팀 방향(◀/▶) 버튼 클릭. 초록 = 진출권.</p>}
       </div>
       {kM.length > 0
-        ? <BracketView matches={kM} title="본선 대진표" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={S.bestOf} bestOfFinal={S.bestOfFinal} finalRounds={S.bestOfFinalRounds} />
+        ? <BracketView matches={kM} title="본선 대진표" t={t} nameOf={nameOf} canManage={canManage} admin={admin} myTeamIds={myTeamIds} bestOf={S.bestOf} bestOfFinal={S.bestOfFinal} finalRounds={S.bestOfFinalRounds} />
         : <div className="panel center muted" style={{ padding: '24px 0' }}>조별 경기가 모두 끝나면 본선 대진이 자동으로 생성돼요.</div>}
       {tPanel}
     </>
@@ -1631,17 +1635,17 @@ function Schedule({ t, matches, teams, nameOf, canManage, admin, S }) {
 }
 
 // 더블 엘리: 승자조·패자조·최종결승 3단
-function DoubleElimBoard({ matches, t, nameOf, canManage, admin, bestOf = 1, bestOfFinal = 1, finalRounds = 0 }) {
+function DoubleElimBoard({ matches, t, nameOf, canManage, admin, myTeamIds, bestOf = 1, bestOfFinal = 1, finalRounds = 0 }) {
   const W = matches.filter((m) => m.bracket === 'W');
   const L = matches.filter((m) => m.bracket === 'L');
   const GF = matches.filter((m) => m.bracket === 'GF');
   return (
     <>
-      <BracketView matches={W} title="🏆 승자조" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={bestOf} bestOfFinal={bestOfFinal} finalRounds={finalRounds}
+      <BracketView matches={W} title="🏆 승자조" t={t} nameOf={nameOf} canManage={canManage} admin={admin} myTeamIds={myTeamIds} bestOf={bestOf} bestOfFinal={bestOfFinal} finalRounds={finalRounds}
         roundLabel={(r, tot) => (r === tot ? '승자조 결승' : `${2 ** (tot - r + 1)}강`)} />
-      <BracketView matches={L} title="💀 패자조" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={bestOf} bestOfFinal={bestOfFinal} finalRounds={finalRounds}
+      <BracketView matches={L} title="💀 패자조" t={t} nameOf={nameOf} canManage={canManage} admin={admin} myTeamIds={myTeamIds} bestOf={bestOf} bestOfFinal={bestOfFinal} finalRounds={finalRounds}
         roundLabel={(r, tot) => (r === tot ? '패자조 결승' : `패자조 R${r}`)} />
-      <BracketView matches={GF} title="👑 최종 결승" t={t} nameOf={nameOf} canManage={canManage} admin={admin} bestOf={bestOfFinal !== bestOf && finalRounds > 0 ? bestOfFinal : bestOf}
+      <BracketView matches={GF} title="👑 최종 결승" t={t} nameOf={nameOf} canManage={canManage} admin={admin} myTeamIds={myTeamIds} bestOf={bestOfFinal !== bestOf && finalRounds > 0 ? bestOfFinal : bestOf}
         roundLabel={() => '최종 결승'} />
     </>
   );
@@ -1657,7 +1661,8 @@ function serieLines(bestOf) {
   return lines;
 }
 
-function BracketView({ matches, title, t, nameOf, canManage, admin, roundLabel, bestOf = 1, bestOfFinal = 1, finalRounds = 0 }) {
+function BracketView({ matches, title, t, nameOf, canManage, admin, myTeamIds, roundLabel, bestOf = 1, bestOfFinal = 1, finalRounds = 0 }) {
+  const canRep = (m) => canManage || (myTeamIds && (myTeamIds.has(m.team_a) || myTeamIds.has(m.team_b)));
   const totalRounds = Math.max(...matches.map((m) => m.round));
   const rl = roundLabel || ((round) => (round === totalRounds ? '결승' : `${2 ** (totalRounds - round + 1)}강`));
   // 후반 라운드(결승 등)는 결승 BO 적용, 나머지는 기본 BO
@@ -1675,7 +1680,7 @@ function BracketView({ matches, title, t, nameOf, canManage, admin, roundLabel, 
             <div key={round} style={{ display: 'flex', flexDirection: 'column', gap: 10, justifyContent: 'space-around', minWidth: 168 }}>
               <div className="muted" style={{ fontSize: 11, textAlign: 'center' }}>{rl(round, totalRounds)}{rbo > 1 ? ` · BO${rbo}` : ''}</div>
               {matches.filter((m) => m.round === round).sort((a, b) => a.pos - b.pos).map((m) => {
-                const ready = canManage && t.status === 'running' && !m.winner && m.team_a && m.team_b;
+                const ready = canRep(m) && t.status === 'running' && !m.winner && m.team_a && m.team_b;
                 return (
                   <div key={m.id} style={{ border: '1px solid #33333c', borderRadius: 8, background: '#1c1c22' }}>
                     {[m.team_a, m.team_b].map((tid, k) => (
@@ -1692,6 +1697,12 @@ function BracketView({ matches, title, t, nameOf, canManage, admin, roundLabel, 
                           {lines.map((l, idx) => <option key={idx} value={idx}>{l.a} : {l.b}</option>)}
                         </select>
                       </div>
+                    )}
+                    {!m.winner && m.report_status === 'reported' && m.reported_winner && (
+                      <div className="bv-report" style={{ padding: '3px 9px', borderTop: '1px solid #2a2a33' }}>⏳ <b>{nameOf(m.reported_winner)}</b> 승 보고 · 상대 확인 대기</div>
+                    )}
+                    {!m.winner && m.report_status === 'disputed' && (
+                      <div className="bv-report dispute" style={{ padding: '3px 9px', borderTop: '1px solid #2a2a33' }}>⚠️ 결과 불일치 — 운영자 확인 필요</div>
                     )}
                     {(m.scheduled_at || schedulable(m)) && (
                       <div className="bv-sched-row">

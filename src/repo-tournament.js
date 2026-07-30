@@ -829,13 +829,46 @@ export async function setMatchSchedule(tournamentId, matchId, scheduledAt) {
   return getTournament(tournamentId);
 }
 
-// 경기 결과 입력: 승자 저장 + 진출/본선생성. 최종 결승이면 대회 종료.
-export async function reportMatch(matchId, b) {
+async function setReportFields(id, fields) {
+  const { error } = await db().from('tournament_matches').update(fields).eq('id', id);
+  if (error && /reported_winner|reported_by|report_status/i.test(error.message || '')) throw new Error('양측확인 마이그레이션(tournament-confirm-schema.sql)을 먼저 실행하세요');
+  if (error) throw error;
+}
+
+// 경기 결과 보고. 운영자=즉시 확정. 팀 주장=상대 주장 확인 대기(양측 일치→확정, 불일치→분쟁·운영자 개입).
+// ctx = { user, isOwner }. 레거시 호출(ctx 없음)은 즉시 확정으로 동작 유지.
+export async function reportMatch(matchId, b, ctx = {}) {
   const { data: m } = await db().from('tournament_matches').select('*').eq('id', matchId).maybeSingle();
   if (!m) throw new Error('경기를 찾을 수 없어요');
   const winner = b.winner;
   if (winner !== m.team_a && winner !== m.team_b) throw new Error('승자가 이 경기의 팀이 아니에요');
+  const { user, isOwner } = ctx;
+  if (isOwner || !user) return finalizeMatch(m, winner, b); // 운영자/관리자 즉시확정
+  // 주장 경로 — 이 경기 두 팀의 주장만 보고 가능
+  const ids = [m.team_a, m.team_b].filter(Boolean);
+  const { data: tRows } = await db().from('tournament_teams').select('id, captain_user_id').in('id', ids);
+  const caps = Object.fromEntries((tRows || []).map((t) => [t.id, t.captain_user_id]));
+  const mine = ids.find((tid) => caps[tid] === user.id);
+  if (!mine) { const e = new Error('이 경기의 팀 주장만 결과를 보고할 수 있어요'); e.status = 403; throw e; }
+  const otherId = mine === m.team_a ? m.team_b : m.team_a;
+  const nmap = await teamNameMap(m.tournament_id);
+  if (m.reported_winner && m.reported_by && m.reported_by !== user.id) { // 상대가 먼저 보고함 → 대조
+    if (m.reported_winner === winner) return finalizeMatch(m, winner, b); // 양측 일치 → 확정
+    await setReportFields(m.id, { report_status: 'disputed' }); // 불일치 → 분쟁
+    await postTournamentNotice(m.tournament_id, noticeEmbed('⚠️ 결과 불일치', `**${nmap[m.team_a] || 'A'}** vs **${nmap[m.team_b] || 'B'}** — 양 팀 보고가 달라 운영자 확인이 필요해요.`, { color: 0xc84f4f }));
+    const e = new Error('상대 팀 보고와 결과가 달라요 — 운영자 확인 대기'); e.status = 409; throw e;
+  }
+  // 내 보고 기록 → 상대 확인 대기
+  await setReportFields(m.id, { reported_winner: winner, reported_by: user.id, report_status: 'reported' });
+  await postTournamentNotice(m.tournament_id, noticeEmbed('📣 결과 보고', `**${nmap[winner] || '?'}** 승리로 보고됨 — 상대 팀 **${nmap[otherId] || '?'}** 주장의 확인 대기`, { color: COLOR.info, footer: '상대 주장이 같은 결과를 보고하면 확정돼요' }));
+  return { reported: true };
+}
+
+// 결과 확정 — 승자 저장 + 진출/본선생성 + 공지. (양측확인 통과 or 운영자)
+async function finalizeMatch(m, winner, b) {
+  const matchId = m.id;
   await db().from('tournament_matches').update({ winner, score_a: b.score_a ?? null, score_b: b.score_b ?? null }).eq('id', matchId);
+  try { await db().from('tournament_matches').update({ reported_winner: null, reported_by: null, report_status: null }).eq('id', matchId); } catch { /* 컬럼 미생성 무시 */ }
   const { data: all } = await db().from('tournament_matches').select('*').eq('tournament_id', m.tournament_id);
   const cur = all.map((x) => (x.id === matchId ? { ...x, winner } : x)); // 방금 결과 반영본
   if (m.bracket === 'T') {
