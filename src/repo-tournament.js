@@ -714,6 +714,40 @@ export async function deleteTeam(teamId) {
   if (error) throw error;
 }
 
+// 체크인 (노쇼 방지). 주장 본인 또는 운영자. 대진 생성 전(모집중)에만.
+export async function setTeamCheckin(teamId, value, ctx = {}) {
+  const { user, isOwner } = ctx;
+  const { data: team } = await db().from('tournament_teams').select('id, tournament_id, captain_user_id, name').eq('id', teamId).maybeSingle();
+  if (!team) throw new Error('팀을 찾을 수 없어요');
+  if (!isOwner) {
+    if (!user?.id) { const e = new Error('로그인이 필요해요'); e.status = 401; throw e; }
+    if (team.captain_user_id !== user.id) { const e = new Error('내 팀만 체크인할 수 있어요'); e.status = 403; throw e; }
+  }
+  const { data: t } = await db().from('tournaments').select('status').eq('id', team.tournament_id).maybeSingle();
+  if (t && t.status !== 'recruiting') { const e = new Error('이미 대진이 시작돼 체크인을 바꿀 수 없어요'); e.status = 400; throw e; }
+  const { error } = await db().from('tournament_teams').update({ checked_in: !!value }).eq('id', teamId);
+  if (error) { if (/checked_in/i.test(error.message || '')) throw new Error('체크인 마이그레이션(tournament-checkin-schema.sql)을 먼저 실행하세요'); throw error; }
+  return getTournament(team.tournament_id);
+}
+
+// 📢 체크인 독촉 공지 (운영자) — 아직 체크인 안 한 승인팀 목록. 반환=공지 채널 수.
+export async function announceCheckin(tournamentId) {
+  try {
+    const { data: t } = await db().from('tournaments').select('name').eq('id', tournamentId).maybeSingle();
+    const { data: teams } = await db().from('tournament_teams').select('name, status, checked_in').eq('tournament_id', tournamentId).eq('status', 'approved').order('created_at');
+    if (!teams?.length) return 0;
+    const pending = teams.filter((x) => !x.checked_in);
+    const body = pending.length
+      ? `아직 체크인 안 한 팀:\n${pending.map((x) => `• ${x.name}`).join('\n')}\n\n각 팀 주장은 사이트에서 **체크인**하세요.`
+      : '모든 팀 체크인 완료! ✅';
+    return await postTournamentNotice(tournamentId, noticeEmbed(
+      `✅ ${t?.name || '대회'} · 체크인`,
+      body,
+      { color: pending.length ? COLOR.bracket : COLOR.win, footer: pending.length ? '체크인 안 하면 대진에서 빠질 수 있어요' : '' },
+    ));
+  } catch { return 0; }
+}
+
 // 주장 본인이 팀 신청 취소 (셀프서비스). 모집 중 + 대진 생성 전에만. 남의 팀은 못 지움.
 export async function withdrawTeam(teamId, user) {
   if (!user?.id) { const e = new Error('로그인이 필요해요'); e.status = 401; throw e; }

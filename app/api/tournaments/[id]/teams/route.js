@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { applyTeam, setTeamStatus, deleteTeam, withdrawTeam } from '../../../../../src/repo-tournament.js';
+import { applyTeam, setTeamStatus, deleteTeam, withdrawTeam, setTeamCheckin, announceCheckin } from '../../../../../src/repo-tournament.js';
 import { requireTournamentOwner, getUser, errStatus } from '../../../../../src/auth.js';
 
 // 팀 신청 (공개 — 누구나 신청, 운영자가 승인). 로그인했으면 신청자를 주장으로 바인딩.
@@ -20,7 +20,14 @@ export async function PATCH(request, { params }) {
       await withdrawTeam(body.teamId, user);
       return NextResponse.json({ ok: true });
     }
+    if (body.action === 'checkin') { // 체크인 — 주장 본인 또는 운영자
+      const user = await getUser(request);
+      let isOwner = false;
+      try { await requireTournamentOwner(request, params.id); isOwner = true; } catch { /* 주장 경로 */ }
+      return NextResponse.json({ ok: true, ...(await setTeamCheckin(body.teamId, body.value, { user, isOwner })) });
+    }
     await requireTournamentOwner(request, params.id);
+    if (body.action === 'checkin-remind') return NextResponse.json({ ok: true, sent: await announceCheckin(params.id) });
     if (body.action === 'delete') await deleteTeam(body.teamId);
     else await setTeamStatus(body.teamId, body.status);
     return NextResponse.json({ ok: true });

@@ -759,24 +759,40 @@ function Apply({ t, teams, pool, auction, canManage, admin, id, reload, S, user,
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <b>{tm.seed ? `${tm.seed}. ` : ''}{tm.name}</b>
               {user && tm.captain_user_id === user.id && <span className="mine-badge">내 팀</span>}
+              {tm.checked_in && <span className="ci-badge">✅ 체크인</span>}
               <span className="muted" style={{ fontSize: 11 }}>{TST[tm.status]}{tm.captain ? ` · 주장 ${tm.captain}` : ''}</span>
               {canManage && t.status === 'recruiting' && (
                 <span style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+                  <button className="mini" onClick={() => admin({ teamId: tm.id, action: 'checkin', value: !tm.checked_in })}>{tm.checked_in ? '체크인 해제' : '체크인'}</button>
                   {tm.status !== 'approved' && <button className="mini" onClick={() => admin({ teamId: tm.id, status: 'approved' })}>승인</button>}
                   {tm.status !== 'rejected' && <button className="mini" onClick={() => admin({ teamId: tm.id, status: 'rejected' })}>거절</button>}
                   <button className="mini" onClick={() => { if (confirm('팀 삭제?')) admin({ teamId: tm.id, action: 'delete' }); }}>🗑</button>
                 </span>
               )}
               {!canManage && user && tm.captain_user_id === user.id && t.status === 'recruiting' && (
-                <button className="mini" style={{ marginLeft: 'auto' }} onClick={() => { if (confirm('내 팀 신청을 취소할까요?')) admin({ teamId: tm.id, action: 'withdraw' }); }}>신청 취소</button>
+                <span style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+                  <button className="mini" onClick={() => admin({ teamId: tm.id, action: 'checkin', value: !tm.checked_in })}>{tm.checked_in ? '체크인 해제' : '✅ 체크인'}</button>
+                  <button className="mini" onClick={() => { if (confirm('내 팀 신청을 취소할까요?')) admin({ teamId: tm.id, action: 'withdraw' }); }}>신청 취소</button>
+                </span>
               )}
             </div>
             <div className="muted" style={{ fontSize: 11.5, marginTop: 3 }}>{tm.members.map((mm) => `${mm.game_name}${mm.tier ? `(${mm.tier})` : ''}`).join(' · ') || '로스터 없음'}</div>
           </div>
         ))}
-        {canManage && t.status === 'recruiting' && (
-          <button className="btn" style={{ marginTop: 12 }} disabled={approved.length < 2} onClick={() => { if (confirm(`승인 ${approved.length}팀으로 대진을 생성할까요? (신청 마감)`)) admin({}, '/bracket', 'POST'); }} title={approved.length < 2 ? '승인 2팀 이상 필요' : ''}>⚔️ 대진 생성 ({approved.length}팀)</button>
-        )}
+        {canManage && t.status === 'recruiting' && (() => {
+          const notCk = approved.filter((x) => !x.checked_in);
+          const genConfirm = () => {
+            const warn = notCk.length ? `\n\n⚠️ 미체크인 ${notCk.length}팀 포함: ${notCk.map((x) => x.name).join(', ')}` : '';
+            if (confirm(`승인 ${approved.length}팀으로 대진을 생성할까요? (신청 마감)${warn}`)) admin({}, '/bracket', 'POST');
+          };
+          return (
+            <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+              <button className="btn" disabled={approved.length < 2} onClick={genConfirm} title={approved.length < 2 ? '승인 2팀 이상 필요' : ''}>⚔️ 대진 생성 ({approved.length}팀)</button>
+              <button className="mini" disabled={approved.length === 0} onClick={() => admin({ action: 'checkin-remind' })} title="아직 체크인 안 한 팀을 디코 공지로 독촉">📢 체크인 독촉</button>
+              {approved.length > 0 && <span className="muted" style={{ fontSize: 12 }}>체크인 {approved.length - notCk.length}/{approved.length}</span>}
+            </div>
+          );
+        })()}
       </div>
       )}
     </>
