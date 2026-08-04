@@ -478,6 +478,19 @@ export async function deleteAccount(id) {
   if (acc?.person_id) await recomputeBaseTier(acc.person_id); // 계정 삭제 → 남은 계정 기준 재계산
 }
 
+// 계정 티어 갱신 (op.gg 재조회 결과 반영) → base_tier 재계산. 계정 재추가 없이 랭크만 새로고침.
+export async function updateAccountTier(accountId, { opgg_tier, opgg_games, opgg_confidence }) {
+  const { data: acc } = await db().from('accounts').select('person_id').eq('id', accountId).maybeSingle();
+  if (!acc) throw new Error('계정을 찾을 수 없어요');
+  const { error } = await db().from('accounts').update({
+    opgg_tier: opgg_tier || null, opgg_games: opgg_games ?? null, opgg_confidence: opgg_confidence || null,
+    last_synced_at: new Date().toISOString(),
+  }).eq('id', accountId);
+  if (error) throw error;
+  await recomputeBaseTier(acc.person_id); // 계정 티어 → 사람 base_tier 반영(더 높으면 상향)
+  return acc.person_id;
+}
+
 // 본캐 지정 (같은 사람의 다른 계정은 해제)
 export async function setMainAccount(accountId, personId) {
   await db().from('accounts').update({ is_main: false }).eq('person_id', personId);

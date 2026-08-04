@@ -29,6 +29,7 @@ export default function PeoplePage() {
   const [err, setErr] = useState(null);
   const [loading, setLoading] = useState(true);
   const [deduping, setDeduping] = useState(false);
+  const [refreshingId, setRefreshingId] = useState(null); // 티어 갱신 중인 계정 id
 
   async function load() {
     if (!gid) return;
@@ -87,6 +88,17 @@ export default function PeoplePage() {
     } catch (e) { setAcctStatus((s) => ({ ...s, [p.id]: { error: e.message } })); }
   }
   const delAccount = (id) => api(`/api/accounts/${id}?gid=${gid}`, 'DELETE').then(load).catch((e) => setErr(e.message));
+  // 같은 계정 op.gg 티어 재조회 → 갱신 (재추가 없이 랭크만 새로고침)
+  async function refreshAccount(a) {
+    setRefreshingId(a.id); setErr(null);
+    try {
+      const prof = await fetch(`/api/seed?name=${encodeURIComponent(a.game_name)}&tag=${encodeURIComponent(a.tag_line)}&region=${a.region || 'NA'}`).then((x) => x.json());
+      if (!prof || prof.found === false) throw new Error(`${a.game_name}#${a.tag_line} 조회 실패 (닉·태그·지역 확인)`);
+      await api(`/api/accounts/${a.id}?gid=${gid}`, 'PATCH', { tier: { opgg_tier: prof.suggestedTier, opgg_games: prof.games, opgg_confidence: prof.confidence } });
+      await load();
+    } catch (e) { setErr(e.message); }
+    setRefreshingId(null);
+  }
   const setMain = (id, personId) => api(`/api/accounts/${id}?gid=${gid}`, 'PATCH', { setMain: true, personId }).then(load).catch((e) => setErr(e.message));
 
   return (
@@ -156,6 +168,7 @@ export default function PeoplePage() {
                       <span className="acct" key={a.id}>
                         {a.is_main ? <b className="main-star" title="본캐">★</b> : (canEdit && <button className="mini" title="본캐로 지정" onClick={() => setMain(a.id, p.id)}>본캐</button>)}
                         {a.game_name}#{a.tag_line} <span className="muted">{a.opgg_tier || a.region}</span>
+                        {canEdit && <button className="acct-refresh" title="랭크 갱신 (op.gg 재조회)" disabled={refreshingId === a.id} onClick={() => refreshAccount(a)}>{refreshingId === a.id ? '…' : '🔄'}</button>}
                         {canEdit && <button className="acct-x" title="계정 삭제" onClick={() => delAccount(a.id)}>✕</button>}
                       </span>
                     ))}
