@@ -178,7 +178,7 @@ export default function PlayerRecordPage() {
             </div>
             <div className="pl-right">
               <h2 style={{ fontSize: 15, margin: '0 2px 10px' }}>참여 경기 <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>· 배너 눌러 펼치면 그 경기 10명 전체 상세</span></h2>
-              <MatchHistory gid={gid} dd={dd} filterName={p.nickname || p.name} />
+              <MatchHistory gid={gid} dd={dd} filterPersonId={sel} filterName={p.nickname || p.name} />
             </div>
           </div>
         </>

@@ -408,7 +408,7 @@ function MatchCard({ m, dd, open, onToggle, onDelete, onSwap, byName, highlight,
   );
 }
 
-export default function MatchHistory({ gid, dd, filterName, showSearch }) {
+export default function MatchHistory({ gid, dd, filterName, filterPersonId, showSearch }) {
   const { canEdit } = useGroup();
   const [data, setData] = useState(null);
   const [open, setOpen] = useState({});
@@ -427,8 +427,9 @@ export default function MatchHistory({ gid, dd, filterName, showSearch }) {
         setData(r.matches);
         setCarryTh(r.carryThreshold ?? 20);
         // 최신 경기(필터 시 그 선수의 최신 경기) 한 개는 기본으로 펼쳐서 배너 보이게
-        const first = filterName
-          ? r.matches.find((m) => [...m.A, ...m.B].some((p) => normNm(p.name) === normNm(filterName)))
+        const matchP = (p) => (filterPersonId ? p.personId === filterPersonId : normNm(p.name) === normNm(filterName || ''));
+        const first = (filterPersonId || filterName)
+          ? r.matches.find((m) => [...m.A, ...m.B].some(matchP))
           : r.matches[0];
         if (first) setOpen({ [first.id]: true });
       }
@@ -473,8 +474,10 @@ export default function MatchHistory({ gid, dd, filterName, showSearch }) {
   if (!data) return <div className="panel center muted">불러오는 중…</div>;
 
   // 선수 필터 (그 사람이 낀 경기만) + 검색 (챔피언·선수 이름)
+  // person_id 우선 — 동명이인(디코닉·인게임닉 겹침) 오필터 방지. 없으면 이름 폴백.
   let list = data;
-  if (highlight) list = list.filter((m) => [...m.A, ...m.B].some((p) => normNm(p.name) === highlight));
+  if (filterPersonId) list = list.filter((m) => [...m.A, ...m.B].some((p) => p.personId === filterPersonId));
+  else if (highlight) list = list.filter((m) => [...m.A, ...m.B].some((p) => normNm(p.name) === highlight));
   const qn = q.trim().toLowerCase();
   if (qn) list = list.filter((m) => [...m.A, ...m.B].some((p) =>
     (p.name || '').toLowerCase().includes(qn) || (p.champion || '').toLowerCase().includes(qn)));
