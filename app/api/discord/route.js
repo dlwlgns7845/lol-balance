@@ -189,8 +189,8 @@ async function processRegister(i, gid) {
     const displayName = est.gameName || gameName;
 
     const key = normNm(displayName), gkey = normNm(gameName);
-    const exist = persons.find((p) => normNm(p.display_name) === key || normNm(p.nickname || '') === key
-      || (p.accounts || []).some((a) => normNm(a.game_name) === gkey)); // 이름·별명·등록계정(Riot ID)까지 매칭 → 중복 방지
+    const exist = persons.find((p) => normNm(p.display_name) === key
+      || (p.accounts || []).some((a) => normNm(a.game_name) === gkey)); // 인게임 이름·등록계정(Riot ID)으로 매칭. 디코 별명 제외(타인 인게임닉과 충돌 방지)
     if (exist && exist.discord_id) return followup(i, `"${displayName}" 은(는) 이미 다른 계정에 연동돼 있어요. 관리자에게 문의.`);
     let personId;
     const nick = callerNick(i);
@@ -702,7 +702,8 @@ async function handleTrim20Pick(i, qid) {
 // mapSlot 지정 시: 그 자리를 "기존 선수로 지정"하는 person 셀렉트를 보여줌.
 async function reviewData(pend, mapSlot) {
   const persons = await listPersons(pend.gid);
-  const known = new Set(persons.flatMap((p) => [p.display_name, p.nickname].filter(Boolean).map(normNm)));
+  // 인게임 이름 식별 = display_name + 등록계정(game_name). 디코 별명(nickname)은 타인 인게임닉과 충돌하므로 제외.
+  const known = new Set(persons.flatMap((p) => [p.display_name, ...(p.accounts || []).map((a) => a.game_name)].filter(Boolean).map(normNm)));
   const { winner, participants, durationMin } = pend.data;
   const isMapped = (p) => !!p.person_id || known.has(normNm(p.name));
   const teamField = (team, blue) => {

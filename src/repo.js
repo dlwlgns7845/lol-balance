@@ -520,7 +520,8 @@ async function findOrCreatePerson(groupId, name, tier, primary, secondary) {
   const { data: rows, error } = await db().from('persons')
     .select('id, display_name, nickname').eq('group_id', groupId);
   if (error) throw error;
-  const hit = (rows || []).find((p) => norm(p.display_name) === key || (p.nickname && norm(p.nickname) === key));
+  // 인게임 이름 매칭은 display_name 으로만. 디코 별명(nickname)은 가변·타인 인게임닉과 충돌하므로 키에서 제외.
+  const hit = (rows || []).find((p) => norm(p.display_name) === key);
   if (hit) return hit.id;
   const cleanName = stripInvisible(nm).trim() || nm; // #태그 보존 (인게임닉 = 이름#태그)
   const p = await createPerson(groupId, {
