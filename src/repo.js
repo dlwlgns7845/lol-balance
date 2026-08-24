@@ -1172,7 +1172,7 @@ export async function getAwards(groupId) {
   const maxBy = (pool, k) => pool.reduce((b, p) => (!b || (p[k] || 0) > (b[k] || 0) ? p : b), null);
   const wrPool = played.filter((p) => p.games >= 3);
   const pool = wrPool.length ? wrPool : played;
-  // 공공의적/기피대상: 라플라스 보정 승률(가상 2승2패). 판수 적으면 50%로 수렴 →
+  // 공공의적: 라플라스 보정 승률(가상 2승2패). 판수 적으면 50%로 수렴 →
   // 6승1패(0.78) > 3승0패(0.71). 판수·승률·승/패 횟수를 한 값으로 자연스레 합침.
   const ADJ = 2;
   const adjWr = (p) => (p.wins + ADJ) / (p.games + ADJ * 2);
@@ -1184,14 +1184,6 @@ export async function getAwards(groupId) {
     if (p.games !== b.games) return p.games > b.games ? p : b;
     return p.winrate > b.winrate ? p : b;
   }, null);
-  // 기피대상: 보정 승률 최저(=패 비중), 동률이면 판수 많은 쪽 → KDA 낮은 쪽. 3판 이상만(1~2판 반짝 방지).
-  const worstP = played.filter((p) => p.games >= 3).reduce((b, p) => {
-    if (!b) return p;
-    const a = adjWr(p), c = adjWr(b);
-    if (a !== c) return a < c ? p : b;
-    if (p.games !== b.games) return p.games > b.games ? p : b;
-    return (p.kda || 0) < (b.kda || 0) ? p : b;
-  }, null);
   // 개인 칭호도 3판 이상(pool)만 대상 — 1~2판 반짝 1등 방지. 고인물(판수)만 전체 대상.
   const farmP = maxBy(pool.filter((p) => p.csPerMin != null), 'csPerMin');
   const mvpP = maxBy(pool.filter((p) => p.mvp > 0), 'mvp');
@@ -1202,9 +1194,6 @@ export async function getAwards(groupId) {
   const corpseP = maxBy(pool.filter((p) => (p.totalD || 0) > 0), 'totalD');   // 시체: 누적 데스 1등
   const toolP = maxBy(pool.filter((p) => (p.totalA || 0) > 0), 'totalA');     // 도구: 누적 어시 1등
   const publicEnemy = peP && peP.games ? { id: peP.id, name: nm[peP.id], winrate: peP.winrate, wins: peP.wins, losses: peP.losses } : null;
-  // 기피대상: 가장 못 이기는 사람 (2명 이상 & 공공의적과 다를 때만)
-  const avoidPick = (played.length >= 2 && worstP && worstP.id !== peP?.id)
-    ? { id: worstP.id, name: nm[worstP.id], winrate: worstP.winrate, wins: worstP.wins, losses: worstP.losses, kda: worstP.kda } : null;
   const killer = killerP ? { id: killerP.id, name: nm[killerP.id], totalK: killerP.totalK } : null;
   const corpse = corpseP ? { id: corpseP.id, name: nm[corpseP.id], totalD: corpseP.totalD } : null;
   const tool = toolP ? { id: toolP.id, name: nm[toolP.id], totalA: toolP.totalA } : null;
@@ -1229,7 +1218,6 @@ export async function getAwards(groupId) {
   };
   // 개인 칭호 (항상 표시). 관계형(듀오·견우직녀·인간상성)은 밸런서에서 팀구성별로 표시하므로 여기선 제외.
   add(publicEnemy?.id, '🏆', '공공의적');
-  add(avoidPick?.id, '🚫', '기피대상');
   add(carryKing?.id, '💥', '캐리왕');
   add(gameAddict?.id, '🎮', '고인물');
   add(farmKing?.id, '🌾', '농사왕');
@@ -1243,8 +1231,15 @@ export async function getAwards(groupId) {
     if (s.w >= 2) add(id, '🔥', `${s.w}연승 중`, s.w);
     else if (s.l >= 2) add(id, '🧊', `${s.l}연패 중`, s.l);
   });
+  // 칭호왕: 지금까지 부여된 칭호(뱃지)를 가장 많이 가진 사람. 2개 이상일 때만 등장.
+  let titleKing = null;
+  Object.entries(byPerson).forEach(([id, badges]) => {
+    if (!titleKing || badges.length > titleKing.count) titleKing = { id, name: nm[id], count: badges.length };
+  });
+  if (titleKing && titleKing.count >= 2) add(titleKing.id, '👑', '칭호왕', titleKing.count);
+  else titleKing = null;
 
-  return { publicEnemy, avoidPick, carryKing, gameAddict, farmKing, mvpKing, aceKing, killer, corpse, tool, bestDuo, starCrossed, nemesis, winStreak, loseStreak, streakById, byPerson, byName };
+  return { publicEnemy, titleKing, carryKing, gameAddict, farmKing, mvpKing, aceKing, killer, corpse, tool, bestDuo, starCrossed, nemesis, winStreak, loseStreak, streakById, byPerson, byName };
 }
 
 // ── 경기 히스토리: 최근 경기별 풀 로스터 + MVP/ACE ──

@@ -261,7 +261,7 @@ async function cmdAwards(i, gid) {
   const L = [];
   const line = (ic, t, who, stat) => who && L.push(`${ic} **${t}** — ${who} ${stat ? `(${stat})` : ''}`);
   line('🏆', '공공의적', a.publicEnemy?.name, a.publicEnemy && `${wr(a.publicEnemy.winrate)} ${a.publicEnemy.wins}승${a.publicEnemy.losses}패`);
-  line('🚫', '기피대상', a.avoidPick?.name, a.avoidPick && `${wr(a.avoidPick.winrate)}`);
+  line('👑', '칭호왕', a.titleKing?.name, a.titleKing && `${a.titleKing.count}개 보유`);
   line('💥', '캐리왕', a.carryKing?.name, a.carryKing && `평균딜 ${(a.carryKing.avgDamage / 1000).toFixed(1)}k`);
   line('🎮', '고인물', a.gameAddict?.name, a.gameAddict && `${a.gameAddict.games}판`);
   line('🏅', 'MVP왕', a.mvpKing?.name, a.mvpKing && `${a.mvpKing.mvp}회`);
