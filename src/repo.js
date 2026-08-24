@@ -1192,7 +1192,7 @@ export async function getAwards(groupId) {
     if (p.games !== b.games) return p.games > b.games ? p : b;
     return (p.kda || 0) < (b.kda || 0) ? p : b;
   }, null);
-  // 개인 칭호도 3판 이상(pool)만 대상 — 1~2판 반짝 1등 방지. 겜창(판수)만 전체 대상.
+  // 개인 칭호도 3판 이상(pool)만 대상 — 1~2판 반짝 1등 방지. 고인물(판수)만 전체 대상.
   const farmP = maxBy(pool.filter((p) => p.csPerMin != null), 'csPerMin');
   const mvpP = maxBy(pool.filter((p) => p.mvp > 0), 'mvp');
   const aceP = maxBy(pool.filter((p) => p.ace > 0), 'ace');
@@ -1231,7 +1231,7 @@ export async function getAwards(groupId) {
   add(publicEnemy?.id, '🏆', '공공의적');
   add(avoidPick?.id, '🚫', '기피대상');
   add(carryKing?.id, '💥', '캐리왕');
-  add(gameAddict?.id, '🎮', '겜창');
+  add(gameAddict?.id, '🎮', '고인물');
   add(farmKing?.id, '🌾', '농사왕');
   add(mvpKing?.id, '🏅', 'MVP왕');
   add(aceKing?.id, '⭐', 'ACE왕');

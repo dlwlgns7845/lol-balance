@@ -40,7 +40,7 @@ export default function Awards({ gid }) {
       who: a.loseStreak?.name, stat: a.loseStreak ? `${a.loseStreak.streak}연패 🧊` : '2연패+ 없음' },
     { ic: '😈', title: '인간상성', sub: '상대로 만나면 압살',
       who: a.nemesis?.winner, stat: a.nemesis ? `${a.nemesis.loser} 상대 ${a.nemesis.wins}승 ${a.nemesis.losses}패` : '상대전적 3판+ 필요' },
-    { ic: '🎮', title: '겜창', sub: '내전 판수 1위',
+    { ic: '🎮', title: '고인물', sub: '내전 판수 1위',
       who: a.gameAddict?.name, stat: a.gameAddict ? `${a.gameAddict.games}판 출전` : '기록 쌓이면 등장' },
     { ic: '💞', title: '최고의 듀오', sub: '같은 팀 고승률',
       who: a.bestDuo ? `${a.bestDuo.a} + ${a.bestDuo.b}` : null, stat: a.bestDuo ? `승률 ${pct(a.bestDuo.winrate)}% · ${a.bestDuo.games}판` : '같은 팀 3판+ 필요' },

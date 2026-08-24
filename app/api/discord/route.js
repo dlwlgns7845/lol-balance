@@ -263,7 +263,7 @@ async function cmdAwards(i, gid) {
   line('🏆', '공공의적', a.publicEnemy?.name, a.publicEnemy && `${wr(a.publicEnemy.winrate)} ${a.publicEnemy.wins}승${a.publicEnemy.losses}패`);
   line('🚫', '기피대상', a.avoidPick?.name, a.avoidPick && `${wr(a.avoidPick.winrate)}`);
   line('💥', '캐리왕', a.carryKing?.name, a.carryKing && `평균딜 ${(a.carryKing.avgDamage / 1000).toFixed(1)}k`);
-  line('🎮', '겜창', a.gameAddict?.name, a.gameAddict && `${a.gameAddict.games}판`);
+  line('🎮', '고인물', a.gameAddict?.name, a.gameAddict && `${a.gameAddict.games}판`);
   line('🏅', 'MVP왕', a.mvpKing?.name, a.mvpKing && `${a.mvpKing.mvp}회`);
   line('⭐', 'ACE왕', a.aceKing?.name, a.aceKing && `${a.aceKing.ace}회`);
   line('⚔️', '킬러', a.killer?.name, a.killer && `${a.killer.totalK}킬`);
