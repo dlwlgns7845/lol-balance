@@ -1184,8 +1184,8 @@ export async function getAwards(groupId) {
     if (p.games !== b.games) return p.games > b.games ? p : b;
     return p.winrate > b.winrate ? p : b;
   }, null);
-  // 기피대상: 보정 승률 최저(=패 비중), 동률이면 판수 많은 쪽 → KDA 낮은 쪽
-  const worstP = played.reduce((b, p) => {
+  // 기피대상: 보정 승률 최저(=패 비중), 동률이면 판수 많은 쪽 → KDA 낮은 쪽. 3판 이상만(1~2판 반짝 방지).
+  const worstP = played.filter((p) => p.games >= 3).reduce((b, p) => {
     if (!b) return p;
     const a = adjWr(p), c = adjWr(b);
     if (a !== c) return a < c ? p : b;
