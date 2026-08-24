@@ -204,20 +204,25 @@ export async function fetchTierEstimate(gameName, tagLine, region) {
   // 티어 선정 기준(현재/역대/전시즌)·레벨은 프로필에서 그대로 전달 (멸망전 자격 판정용)
   const extra = { peakTier: prof.peakTier, curHighTier: prof.curHighTier, lastSeasonTier: prof.lastSeasonTier, level: prof.level ?? null };
 
-  if (cur && cur.tier && curGames >= 200) {
+  // 현재 시즌 솔랭 '랭크'가 있으면 근 3시즌 최고로 판정.
+  // ⚠️ op.gg league_stats.win/lose 는 '현재 스플릿'만 세서 시즌 총 판수가 커도(예: 700판) 리셋 직후엔 0~적게 잡힘.
+  //   → 판수 게이트(≥200)만으로 '역대(모든 시즌) 최고' 폴백에 빠지면 과대배정됨. 그래서 현재 랭크 존재를 기준으로 삼는다.
+  if (cur && cur.tier) {
     const best = bestRecent3(prof);
     if (best) {
+      const enough = curGames >= 200;
+      const nerf = best.key !== best.raw ? ` · 내전보정 ×0.6→${best.key}` : '';
       return { found: true, gameName: prof.gameName, tag: prof.tag,
         suggestedTier: best.key, ...extra,
-        basis: `현재 ${curGames}판≥200 → 근 3시즌 최고 (${best.label})${best.key !== best.raw ? ` · 내전보정 ×0.6→${best.key}` : ''}`,
-        games: curGames, confidence: 'high', source: 'opgg' };
+        basis: `${enough ? `현재 ${curGames}판≥200` : `현재 시즌 랭크 ${cur.tier}${cur.division || ''}`} → 근 3시즌 최고 (${best.label})${nerf}`,
+        games: curGames, confidence: enough ? 'high' : 'medium', source: 'opgg' };
     }
   }
-  // 현재 <200판(표본 부족) → 모든 시즌 통틀어 역대 최고 티어로 판정
+  // 현재 시즌 솔랭 언랭(랭크 없음) → 역대 최고 티어 폴백 (수동 확인 권장)
   if (prof.peakTier) {
     return { found: true, gameName: prof.gameName, tag: prof.tag, suggestedTier: prof.peakTier, ...extra,
-      basis: `현재 ${curGames}판<200 → 역대 최고 티어 (${prof.peakTier})`,
-      games: curGames, confidence: curGames >= 30 ? 'medium' : 'low', source: 'opgg' };
+      basis: `현재 시즌 랭크 없음 → 역대 최고 티어 (${prof.peakTier})`,
+      games: curGames, confidence: 'low', source: 'opgg' };
   }
   return { found: true, gameName: prof.gameName, tag: prof.tag, suggestedTier: null, ...extra, basis: '랭크 기록 없음', games: 0, confidence: 'low', source: 'opgg' };
 }
