@@ -431,6 +431,40 @@ function trimOptionsMessage(queue, n) {
   };
 }
 
+// 마감 처리 (백그라운드) — closeQueue + 팀짜기(무거움) → followupData로 원본 메시지 편집.
+// defer(type 6) 후 호출됨. 3초 시한에 안 묶여 전원 올라운더 같은 큰 탐색도 안전.
+async function closeAndPost(i, queue) {
+  try {
+    const qid = queue.id;
+    await closeQueue(qid);
+    const signups = await listSignups(qid);
+    const persons = await listPersons(queue.gid);
+    const metaMap = buildMetaMap(persons);
+    if (queue.size === 20) {
+      const alloc = allocateSignups({ ...queue, status: 'closed' }, signups);
+      const placed = LANES.flatMap((l) => alloc.lanes[l]);
+      if (signups.length === 20 && placed.length === 20) { // 풀 20 → 고저분리 4팀(기본)
+        const teams20 = autoTeams20({ ...queue, status: 'closed' }, signups, persons);
+        await pingTeams(i, signups, null, metaMap); // 전원 태그(4팀은 메시지에 표시)
+        return followupData(i, queueMessage({ ...queue, status: 'closed' }, signups, true, null, 0, teams20, metaMap));
+      }
+      if (signups.length >= 10) { // 부분 인원 → 10인 1게임
+        if (signups.length === 10) {
+          const ranked = buildTeamsRanked({ ...queue, status: 'closed' }, signups, metaMap);
+          return followupData(i, queueMessage({ ...queue, status: 'closed' }, signups, true, ranked[0], 0, null, metaMap, ranked.length));
+        }
+        return followupData(i, trimOptionsMessage(queue, signups.length)); // 11~19 → 초과 빼기 4지선다
+      }
+      return followupData(i, { embeds: [{ title: '🎮 롤 내전 · 20인 · 마감됨', color: GOLD, description: `❌ 신청 **${signups.length}명** — 10명 이상이어야 팀을 짤 수 있어요.` }], components: [] });
+    }
+    // 10인: 마감 = 팀 '미리보기'만 (자동 핑 없음). 조합 넘겨보고 ✅ 확정 눌러야 전원 호출됨.
+    const ranked = buildTeamsRanked({ ...queue, status: 'closed' }, signups, metaMap);
+    return followupData(i, queueMessage({ ...queue, status: 'closed' }, signups, true, ranked[0], 0, null, metaMap, ranked.length));
+  } catch (e) {
+    try { await followupData(i, { content: '⚠️ 마감 처리 중 오류가 났어요. 다시 시도해주세요.', embeds: [], components: [] }); } catch { /* 무시 */ }
+  }
+}
+
 // 나가기로 자리 나서 대기자가 배정되면 → 그 사람 태그해서 "자리 났어요" 알림. site: 키는 태그 못하니 스킵.
 async function pingPromoted(i, queue, before, after) {
   try {
@@ -531,30 +565,10 @@ async function handleComponent(i) {
     return updateMsg({ content: `✅ ${kick.length}명 킥 완료 — 모집 메시지가 갱신됐어요.`, embeds: [], components: [] });
   } else if (action === 'qc') { // 마감 (만든 사람만) → 자동팀 + 신청자 태그 호출
     if (queue.host_id && me !== queue.host_id) return ephem('모집 만든 사람만 마감할 수 있어요.');
-    await closeQueue(qid);
-    const signups = await listSignups(qid);
-    const persons = await listPersons(queue.gid);
-    const metaMap = buildMetaMap(persons);
-    if (queue.size === 20) {
-      const alloc = allocateSignups({ ...queue, status: 'closed' }, signups);
-      const placed = LANES.flatMap((l) => alloc.lanes[l]);
-      if (signups.length === 20 && placed.length === 20) { // 풀 20 → 고저분리 4팀(기본)
-        const teams20 = autoTeams20({ ...queue, status: 'closed' }, signups, persons);
-        waitUntil(pingTeams(i, signups, null, metaMap)); // 전원 태그(4팀은 메시지에 표시)
-        return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, null, 0, teams20, metaMap));
-      }
-      if (signups.length >= 10) { // 부분 인원 → 10인 1게임
-        if (signups.length === 10) {
-          const ranked = buildTeamsRanked({ ...queue, status: 'closed' }, signups, metaMap);
-          return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, ranked[0], 0, null, metaMap, ranked.length));
-        }
-        return updateMsg(trimOptionsMessage(queue, signups.length)); // 11~19 → 초과 빼기 4지선다
-      }
-      return updateMsg({ embeds: [{ title: '🎮 롤 내전 · 20인 · 마감됨', color: GOLD, description: `❌ 신청 **${signups.length}명** — 10명 이상이어야 팀을 짤 수 있어요.` }], components: [] });
-    }
-    // 10인: 마감 = 팀 '미리보기'만 (자동 핑 없음). 조합 넘겨보고 ✅ 확정 눌러야 전원 호출됨.
-    const ranked = buildTeamsRanked({ ...queue, status: 'closed' }, signups, metaMap);
-    return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, ranked[0], 0, null, metaMap, ranked.length));
+    // ⚠️ 팀짜기(balance)는 전원 올라운더(ALL)면 탐색공간이 폭발해 3초를 넘길 수 있음 → Discord 상호작용 시한 초과로 마감이 조용히 실패.
+    //    defer(type 6)로 먼저 ACK하고, 무거운 팀계산은 백그라운드에서 돌려 원본 메시지를 편집한다.
+    waitUntil(closeAndPost(i, queue));
+    return NextResponse.json({ type: 6 }); // DEFERRED_UPDATE_MESSAGE
   } else {
     return ephem('알 수 없는 버튼이에요.');
   }

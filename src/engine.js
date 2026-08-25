@@ -113,7 +113,7 @@ function forced(locks, players) {
  * @returns { feasible, candidates:[...], outliers:[...] }
  */
 export function balance(players, opts = {}) {
-  const { totalWeight = 0.3, shapeWeight = 0.4, offRoleWeight = 3, topK = 5, locks = null, table = TABLE } = opts;
+  const { totalWeight = 0.3, shapeWeight = 0.4, offRoleWeight = 3, topK = 5, locks = null, table = TABLE, maxNodes = 500000 } = opts;
   if (players.length !== 10) throw new Error('정확히 10명 필요');
   const W = laneWeights(table);
 
@@ -144,8 +144,13 @@ export function balance(players, opts = {}) {
     return out;
   }
 
+  // 탐색 상한: 전원 올라운더(모든 포지션 자격)면 조합이 폭발(~180만)해 느려짐 → 상한에서 멈춤(찾은 최선 후보 유지).
+  // 고정 라인 큐는 라인당 후보가 적어 이 상한에 한참 못 미침 → 영향 없음.
+  let nodes = 0;
   function recurse(pi) {
+    if (nodes >= maxNodes) return;
     if (pi === 5) {
+      nodes++;
       const cand = evaluate(A, B, totalWeight, shapeWeight, offRoleWeight, table, W);
       const sig = signature(cand.lanes);
       const cur = seen.get(sig);
@@ -153,6 +158,7 @@ export function balance(players, opts = {}) {
       return;
     }
     for (const [a, b] of pairs(pi)) {
+      if (nodes >= maxNodes) break;
       used[a] = used[b] = true;
       A[pi] = players[a]; B[pi] = players[b];
       recurse(pi + 1);
