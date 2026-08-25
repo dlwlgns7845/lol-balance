@@ -524,8 +524,16 @@ async function handleComponent(i) {
   if (action === 'rback') { const pd = await getPending(qid); return pd ? updateMsg(await reviewData(pd)) : updateMsg({ content: '⌛ 만료된 판독이에요.', embeds: [], components: [] }); }
   const queue = await getQueue(qid);
   if (!queue) return ephem('모집을 찾을 수 없어요 (오래된 메시지일 수 있어요).');
-  if (queue.status !== 'open') return ephem('이미 마감된 모집이에요.');
   const me = callerId(i);
+  if (queue.status !== 'open') {
+    // 이미 마감됐지만 팀이 안 떴을 수 있음(옛 타임아웃으로 closeQueue만 되고 편성 실패) → 마감 다시 누르면 팀 재생성.
+    if (action === 'qc') {
+      if (queue.host_id && me !== queue.host_id) return ephem('모집 만든 사람만 마감할 수 있어요.');
+      waitUntil(closeAndPost(i, queue));
+      return NextResponse.json({ type: 6 });
+    }
+    return ephem('이미 마감된 모집이에요.');
+  }
 
   if (action === 'qm') { // 메인 라인 선택/변경 → 참가
     const persons = await listPersons(queue.gid);
