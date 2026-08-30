@@ -4,13 +4,13 @@ import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { waitUntil } from '@vercel/functions';
 import { getStats, getAwards, getMatchHistory, listPersons, updatePerson, createPerson, addAccount, uploadAvatarFromUrl, saveMatch,
-  createQueue, getQueue, getOpenQueue, closeQueue, listSignups, getSignup, upsertSignup, removeSignup, setQueueMessage,
+  createQueue, getQueue, getOpenQueue, closeQueue, reopenQueue, listSignups, getSignup, upsertSignup, removeSignup, setQueueMessage,
   createPending, getPending, updatePending, deletePending,
   getGuildRoom, getGuildLink, requestGuildLink, getGroupByCode,
   isBotAdmin, grantBotAdmin, revokeBotAdmin, listBotAdmins } from '../../../src/repo.js';
 import { getTournamentByCode, linkGuildTournament, setGuildNoticeChannel } from '../../../src/repo-tournament.js';
 import { balance, balance20, balance20Split } from '../../../src/engine.js';
-import { LANES, allocateQueue } from '../../../src/queue.js';
+import { LANES, allocateQueue, subLanesOf } from '../../../src/queue.js';
 import { MAINTENANCE } from '../../../src/maintenance.js';
 import { queueMessage, buildTeamsRanked, buildMetaMap, allocateSignups, syncDiscordMessage, LANE_KR } from '../../../src/discord-queue.js';
 import { parseRoflBuffer } from '../../../src/rofl.js';
@@ -375,13 +375,22 @@ function autoTeams20(queue, signups, persons, mode = 'split', idx = [0, 0]) {
   if (placedIds.length !== 20) return null;
   const byD = new Map(persons.filter((p) => p.discord_id).map((p) => [p.discord_id, p]));
   const byId = new Map(persons.map((p) => [p.id, p]));
+  const info = new Map(signups.map((s) => [s.discord_id, s])); // 이번 큐 신청 정보(라인)
   const players = [];
   for (const did of placedIds) {
     const person = did.startsWith('site:') ? byId.get(did.slice(5)) : byD.get(did);
     if (!person) return null;
-    const positions = [...(person.primary_positions || []), ...(person.secondary_positions || [])];
-    if (!positions.length) return null; // 포지션 미지정 = 자동팀 불가
-    players.push({ name: person.nickname || person.display_name, tier: person.base_tier, secondaryTier: person.secondary_tier || null, positions, primary: person.primary_positions || [] });
+    // 🔑 팀편성 포지션 = '이번 큐에서 신청한 라인'(10인과 동일). 멤버관리 등록 포지션이 아님.
+    //    고정 라인으로 신청하면 그 라인 존중(올라운더로 안 풀림), ALL 신청만 전 라인 자유.
+    const s = info.get(did) || {};
+    const all = s.main === 'all';
+    let positions = all ? [...LANES] : [...new Set([s.main, ...subLanesOf(s)])].filter((l) => LANES.includes(l));
+    if (!positions.length) positions = [...LANES];
+    players.push({
+      name: person.nickname || person.display_name,
+      tier: person.base_tier, secondaryTier: person.secondary_tier || null,
+      positions, primary: all ? [] : [s.main], adj: all ? -1 : 0,
+    });
   }
   try {
     if (mode === 'even') {
@@ -531,6 +540,13 @@ async function handleComponent(i) {
       if (queue.host_id && me !== queue.host_id) return ephem('모집 만든 사람만 마감할 수 있어요.');
       waitUntil(closeAndPost(i, queue));
       return NextResponse.json({ type: 6 });
+    }
+    if (action === 'qo') { // 🔓 마감 번복 → 다시 열기 (신청자·자리 유지)
+      if (queue.host_id && me !== queue.host_id) return ephem('모집 만든 사람만 다시 열 수 있어요.');
+      try { await reopenQueue(qid); } catch (e) { return ephem(e.message); }
+      const signups = await listSignups(qid);
+      const metaMap = buildMetaMap(await listPersons(queue.gid));
+      return updateMsg(queueMessage({ ...queue, status: 'open' }, signups, false, null, 0, null, metaMap));
     }
     return ephem('이미 마감된 모집이에요.');
   }

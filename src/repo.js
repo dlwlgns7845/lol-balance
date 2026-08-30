@@ -832,6 +832,16 @@ export async function closeQueue(id) {
   if (error) throw error;
 }
 
+// 마감 번복 → 다시 열기 (호스트). 같은 방에 다른 열린 모집이 있으면 거부(한 방 한 모집 규칙).
+export async function reopenQueue(id) {
+  const { data: q } = await db().from('recruit_queues').select('id, gid').eq('id', id).maybeSingle();
+  if (!q) throw new Error('모집을 찾을 수 없어요');
+  const { data: other } = await db().from('recruit_queues').select('id').eq('gid', q.gid).eq('status', 'open').neq('id', id).limit(1);
+  if (other && other.length) { const e = new Error('이미 다른 열린 모집이 있어요 — 그걸 먼저 마감하세요.'); e.status = 400; throw e; }
+  const { error } = await db().from('recruit_queues').update({ status: 'open' }).eq('id', id);
+  if (error) throw error;
+}
+
 export async function listSignups(queueId) {
   const { data, error } = await db().from('recruit_signups')
     .select('*').eq('queue_id', queueId).order('created_at', { ascending: true }); // created_at = 선착순

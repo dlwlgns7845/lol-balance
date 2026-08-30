@@ -216,6 +216,10 @@ export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20
       ] }); });
     }
   }
+  // 마감 번복 — 호스트가 다시 열 수 있게 (신청자·자리 유지). Discord 액션 행 5개 한도 내.
+  if (closed && closedComponents.length < 5) {
+    closedComponents = [...closedComponents, { type: 1, components: [{ type: 2, style: 2, label: '🔓 다시 열기 (마감 취소)', custom_id: `qo:${queue.id}` }] }];
+  }
   return { embeds: [embed], components: closed ? closedComponents : queueComponents(queue.id), allowed_mentions: { parse: [] } };
 }
 
