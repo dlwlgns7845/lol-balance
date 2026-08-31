@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { waitUntil } from '@vercel/functions';
 import { getStats, getAwards, getMatchHistory, listPersons, updatePerson, createPerson, addAccount, uploadAvatarFromUrl, saveMatch,
-  createQueue, getQueue, getOpenQueue, closeQueue, reopenQueue, listSignups, getSignup, upsertSignup, removeSignup, setQueueMessage,
+  createQueue, getQueue, getOpenQueue, closeQueue, reopenQueue, setQueueSize, listSignups, getSignup, upsertSignup, removeSignup, setQueueMessage,
   createPending, getPending, updatePending, deletePending,
   getGuildRoom, getGuildLink, requestGuildLink, getGroupByCode,
   isBotAdmin, grantBotAdmin, revokeBotAdmin, listBotAdmins } from '../../../src/repo.js';
@@ -593,6 +593,11 @@ async function handleComponent(i) {
     //    defer(type 6)로 먼저 ACK하고, 무거운 팀계산은 백그라운드에서 돌려 원본 메시지를 편집한다.
     waitUntil(closeAndPost(i, queue));
     return NextResponse.json({ type: 6 }); // DEFERRED_UPDATE_MESSAGE
+  } else if (action === 'qsz') { // 👥 10↔20 인원 전환 (만든 사람만) — 신청자·대기 전원 그대로 유지
+    if (queue.host_id && me !== queue.host_id) return ephem('모집 만든 사람만 인원을 바꿀 수 있어요.');
+    const newSize = lane === '20' ? 20 : 10;
+    await setQueueSize(qid, newSize);
+    queue.size = newSize; // 아래 재렌더에 반영 (신청자는 그대로, 배정만 N=2↔4로 재계산)
   } else {
     return ephem('알 수 없는 버튼이에요.');
   }

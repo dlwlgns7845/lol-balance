@@ -832,6 +832,13 @@ export async function closeQueue(id) {
   if (error) throw error;
 }
 
+// 10↔20 인원 전환 (신청자·대기 그대로 유지 — size만 변경, 재배정은 렌더 때 자동).
+export async function setQueueSize(id, size) {
+  const sz = size === 20 ? 20 : 10;
+  const { error } = await db().from('recruit_queues').update({ size: sz }).eq('id', id);
+  if (error) throw error;
+}
+
 // 마감 번복 → 다시 열기 (호스트). 같은 방에 다른 열린 모집이 있으면 거부(한 방 한 모집 규칙).
 export async function reopenQueue(id) {
   const { data: q } = await db().from('recruit_queues').select('id, gid').eq('id', id).maybeSingle();

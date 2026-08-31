@@ -86,18 +86,22 @@ export function queueView(queue, signups, personMap) {
 }
 
 // 디코 버튼/드롭다운 (라인당 선착순)
-export function queueComponents(qid) {
+export function queueComponents(qid, size = 10) {
   const btn = (custom_id, label, style) => ({ type: 2, style, label, custom_id });
   const laneBtns = LANES.map((l) => btn(`qm:${qid}:${l}`, LANE_KR[l], 1));
   // ALL: 라인 5개 아래 줄. 디코는 버튼 폭 지정 불가 → 라벨을 넓게 패딩(　)해 위 5버튼 폭에 근접시킴.
   const allBtn = btn(`qm:${qid}:all`, '　　🌐 ALL · 아무 라인이나 (점수 −1 혜택)　　', 1);
+  // 10↔20 인원 전환 (신청자·대기 전원 그대로 유지). 방장만 실제 반영.
+  const szBtn = size === 20
+    ? btn(`qsz:${qid}:10`, '👤 10인으로 전환', 2)
+    : btn(`qsz:${qid}:20`, '👥 20인으로 전환', 2);
   return [
     { type: 1, components: laneBtns },  // 탑 정글 미드 원딜 서폿 (한 줄 · 서폿 안 밀림)
     { type: 1, components: [allBtn] },  // ALL (아랫줄 · 넓게)
     { type: 1, components: [{ type: 3, custom_id: `qs:${qid}`, placeholder: '부/대기 라인 (여러 개 선택 가능 · 없어도 됨)',
       min_values: 0, max_values: LANES.length,
       options: LANES.map((l) => ({ label: LANE_KR[l], value: l })) }] },
-    { type: 1, components: [btn(`ql:${qid}`, '❌ 나가기', 4), btn(`qk:${qid}`, '🚫 킥(방장)', 2), btn(`qc:${qid}`, '🔒 마감', 2)] },
+    { type: 1, components: [btn(`ql:${qid}`, '❌ 나가기', 4), btn(`qk:${qid}`, '🚫 킥(방장)', 2), btn(`qc:${qid}`, '🔒 마감', 2), szBtn] },
   ];
 }
 
@@ -220,7 +224,7 @@ export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20
   if (closed && closedComponents.length < 5) {
     closedComponents = [...closedComponents, { type: 1, components: [{ type: 2, style: 2, label: '🔓 다시 열기 (마감 취소)', custom_id: `qo:${queue.id}` }] }];
   }
-  return { embeds: [embed], components: closed ? closedComponents : queueComponents(queue.id), allowed_mentions: { parse: [] } };
+  return { embeds: [embed], components: closed ? closedComponents : queueComponents(queue.id, queue.size), allowed_mentions: { parse: [] } };
 }
 
 // 사이트→디코: 저장된 채널/메시지를 봇토큰으로 PATCH (양방향 동기화). 토큰/ID 없으면 조용히 스킵.
