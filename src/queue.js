@@ -1,6 +1,8 @@
 // 내전 모집 큐 배정 (순수 로직, 디코/DB 없음).
-// 규칙: 메인전용 > 메인+부(유연자) > 부라인, 동급은 선착순. 유연자는 밀리면 부라인으로(연쇄), 갈 곳 없으면 대기.
-// 안정매칭(선수-제안 deferred acceptance)으로 구현 → 밀림·연쇄·대기가 규칙대로 수렴.
+// 규칙: 순수 선착순 · 무축출. 먼저 신청한 사람은 절대 안 밀린다.
+//  - 고정 라인: 신청 순서대로 주라인 → (차면)부라인 → (다 차면)대기. 이미 앉은 사람은 나중 신청자가 못 밀어냄.
+//  - 올라운더(ALL): 고정 배정 후 남은 빈 자리만 채움(빈 라인 우선), 없으면 대기.
+// (옛 안정매칭은 나중 온 메인전용이 먼저 온 유연자를 밀어내 대기시키는 문제가 있어 선착순으로 교체.)
 
 export const LANES = ['top', 'jungle', 'mid', 'adc', 'sup'];
 
@@ -20,35 +22,20 @@ export function subLanesOf(s) {
 export function allocateQueue(signups, size = 10) {
   const N = Math.max(1, Math.floor(size / 5));
   const byId = new Map(signups.map((s) => [s.id, s]));
-  // 특정 주라인(부라인 ALL 포함)은 안정매칭, 주라인 ALL(올라운더)은 2단계에서 빈 라인 채움.
-  const fixed = signups.filter((s) => s.main !== 'all');
-  const rovers = signups.filter((s) => s.main === 'all').slice().sort((a, b) => a.order - b.order);
-  const prefs = new Map(fixed.map((s) => [s.id, [s.main, ...subLanesOf(s)]]));
-  const nextIdx = new Map(fixed.map((s) => [s.id, 0]));
   const held = {}; LANES.forEach((l) => { held[l] = []; });
-  // 라인 내 우선순위(낮을수록 우선): 메인전용(0) < 메인+부(1) < 부라인(2), 동급이면 선착순(order)
-  const classAt = (s, lane) => (s.main === lane ? (s.sub ? 1 : 0) : 2);
-  const rank = (id, lane) => classAt(byId.get(id), lane) * 1e9 + byId.get(id).order;
-
-  // Phase 1: 특정 주라인 신청자 안정매칭 (선착순·밀림·연쇄)
-  const free = fixed.map((s) => s.id);
   const waitlist = [];
-  let guard = 0;
-  while (free.length && guard++ < 100000) {
-    const id = free.shift();
-    const pref = prefs.get(id);
-    const pi = nextIdx.get(id);
-    if (pi >= pref.length) { waitlist.push(id); continue; } // 더 갈 라인 없음 → 대기
-    const lane = pref[pi];
-    nextIdx.set(id, pi + 1);
-    held[lane].push(id);
-    if (held[lane].length > N) { // 초과 → 가장 후순위 1명 밀어냄(연쇄)
-      held[lane].sort((a, b) => rank(a, lane) - rank(b, lane));
-      free.push(held[lane].pop());
-    }
-  }
+  // 신청 순서대로 (created_at = order). 먼저 온 사람이 자리를 먼저 잡고, 한 번 앉으면 안 밀린다.
+  const ordered = [...signups].sort((a, b) => a.order - b.order);
+  const fixed = ordered.filter((s) => s.main !== 'all');
+  const rovers = ordered.filter((s) => s.main === 'all');
 
-  // Phase 2: 올라운더(주라인 ALL) → 선착순으로 가장 빈 라인부터 채움 (없으면 대기)
+  // Phase 1: 고정 라인 — 주라인 → (차면)부라인(신청 순) → (다 차면)대기. 축출 없음(이미 앉은 사람 유지).
+  for (const s of fixed) {
+    const prefs = [s.main, ...subLanesOf(s)].filter((l) => LANES.includes(l));
+    const lane = prefs.find((l) => held[l].length < N);
+    if (lane) held[lane].push(s.id); else waitlist.push(s.id);
+  }
+  // Phase 2: 올라운더(주라인 ALL) → 고정 배정 후 남은 빈 라인 채움(가장 빈 라인 우선). 없으면 대기.
   for (const s of rovers) {
     const open = LANES.filter((l) => held[l].length < N);
     if (!open.length) { waitlist.push(s.id); continue; }
