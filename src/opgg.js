@@ -154,7 +154,11 @@ export function mapTierApexAware(tier, division, lp) {
 // 내전 보정: "현재 시즌" 마스터+ 는 LP에 ×0.6 (M1200→720→M700). 마스터 1200 독주 방지.
 //   → 여전히 마스터급이지만 저티어 팀과 밸런스 가능. 지난 시즌·다이아↓·LP없음은 그대로.
 export const APEX_NERF = 0.6;
+// ⚠️ 이 보정은 '현재 시즌' 인플레 대응 — 2026 시즌 한정 정책. 과거 시즌 티어엔 절대 적용 안 됨(bestRecent3에서 cur만 보정).
+//   시즌이 바뀌어 인플레가 정상화되면(2027~) 이 값을 false로 바꿔 현재 시즌 보정을 끈다.
+export const NERF_CURRENT_SEASON = true;
 export function nerfCurrentApex(key) {
+  if (!NERF_CURRENT_SEASON) return key; // 시즌 보정 off → 원본 그대로
   if (!key || key[0] !== 'M') return key;
   const lp = key === 'M1800+' ? 1800 : (parseInt(key.slice(1), 10) || 0);
   const adj = Math.floor((lp * APEX_NERF) / 100) * 100;
