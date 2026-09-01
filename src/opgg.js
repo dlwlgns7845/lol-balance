@@ -204,17 +204,20 @@ export async function fetchTierEstimate(gameName, tagLine, region) {
   // 티어 선정 기준(현재/역대/전시즌)·레벨은 프로필에서 그대로 전달 (멸망전 자격 판정용)
   const extra = { peakTier: prof.peakTier, curHighTier: prof.curHighTier, lastSeasonTier: prof.lastSeasonTier, level: prof.level ?? null };
 
-  // 현재 시즌 솔랭 '랭크'가 있으면 근 3시즌 최고로 판정.
+  // 현재 시즌 '랭크'(솔랭 or 현시즌 최고티어)가 있으면 근 3시즌 최고로 판정 → 현시즌 마스터+는 내전보정(×0.6) 적용.
   // ⚠️ op.gg league_stats.win/lose 는 '현재 스플릿'만 세서 시즌 총 판수가 커도(예: 700판) 리셋 직후엔 0~적게 잡힘.
-  //   → 판수 게이트(≥200)만으로 '역대(모든 시즌) 최고' 폴백에 빠지면 과대배정됨. 그래서 현재 랭크 존재를 기준으로 삼는다.
-  if (cur && cur.tier) {
+  //   → 판수 게이트만으로 판정하면 안 됨. 또 solo(league_stats)가 비어도 curHigh(현시즌 최고)가 있으면 현시즌 데이터이므로
+  //     반드시 이 경로로 태워 보정한다. (안 그러면 역대최고 폴백으로 빠져 마스터 고LP가 raw로 과대배정됨 — Diamond#0416 케이스)
+  const curTierName = (cur && cur.tier) ? `${cur.tier}${cur.division || ''}`
+    : (prof.curHigh && prof.curHigh.tier) ? `${prof.curHigh.tier}${prof.curHigh.division || ''}(현시즌 최고)` : null;
+  if (curTierName) {
     const best = bestRecent3(prof);
     if (best) {
       const enough = curGames >= 200;
-      const nerf = best.key !== best.raw ? ` · 내전보정 ×0.6→${best.key}` : '';
+      const nerf = best.key !== best.raw ? ` · 내전보정 ×${APEX_NERF}→${best.key}` : '';
       return { found: true, gameName: prof.gameName, tag: prof.tag,
         suggestedTier: best.key, ...extra,
-        basis: `${enough ? `현재 ${curGames}판≥200` : `현재 시즌 랭크 ${cur.tier}${cur.division || ''}`} → 근 3시즌 최고 (${best.label})${nerf}`,
+        basis: `${enough ? `현재 ${curGames}판≥200` : `현재 시즌 랭크 ${curTierName}`} → 근 3시즌 최고 (${best.label})${nerf}`,
         games: curGames, confidence: enough ? 'high' : 'medium', source: 'opgg' };
     }
   }
