@@ -3,7 +3,7 @@
 import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { waitUntil } from '@vercel/functions';
-import { getStats, getAwards, getMatchHistory, listPersons, updatePerson, createPerson, addAccount, uploadAvatarFromUrl, saveMatch,
+import { getStats, getAwards, getMatchHistory, listPersons, updatePerson, createPerson, addAccount, uploadAvatarFromUrl, saveMatch, refreshStalePersonTiers,
   createQueue, getQueue, getOpenQueue, closeQueue, reopenQueue, setQueueSize, listSignups, getSignup, upsertSignup, removeSignup, setQueueMessage,
   createPending, getPending, updatePending, deletePending,
   getGuildRoom, getGuildLink, requestGuildLink, getGroupByCode,
@@ -564,6 +564,7 @@ async function handleComponent(i) {
     else if (ex?.sub === lane) patch.sub = null; // 부라인이 새 메인과 겹치면 해제
     if (!ex) patch.name = meP.nickname || meP.display_name; // 등록 이름으로 표시
     await upsertSignup(qid, me, patch);
+    waitUntil(refreshStalePersonTiers(meP.id)); // 신청 시 티어 자동 갱신(7일+ 오래된 계정만, 백그라운드)
   } else if (action === 'qs') { // 부/대기 라인 드롭다운 (여러 개 가능)
     const ex = await getSignup(qid, me);
     if (!ex) return ephem('먼저 메인 라인을 선택하세요.');

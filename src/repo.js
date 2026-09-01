@@ -1,6 +1,7 @@
 // Supabase 데이터 접근 (서버 전용). groups / persons / accounts CRUD.
 import { db } from './supabase.js';
 import { TIER_ORDER } from './table.js';
+import { fetchTierEstimate } from './opgg.js';
 
 // 티어 순위(작을수록 높음). base_tier = 계정들 중 가장 높은 티어로.
 const tierRank = (t) => { const i = TIER_ORDER.indexOf(t); return i === -1 ? 9999 : i; };
@@ -489,6 +490,28 @@ export async function updateAccountTier(accountId, { opgg_tier, opgg_games, opgg
   if (error) throw error;
   await recomputeBaseTier(acc.person_id); // 계정 티어 → 사람 base_tier 반영(더 높으면 상향)
   return acc.person_id;
+}
+
+// 오래된 계정 티어 자동 갱신 (신청 트리거용). maxAge 지난 계정만 op.gg 재조회 → base_tier 반영.
+// best-effort: op.gg 실패·에러는 조용히 무시(신청 흐름 안 막음). 최근 갱신된 계정은 스킵(과부하 방지).
+export async function refreshStalePersonTiers(personId, maxAgeMs = 7 * 24 * 3600 * 1000) {
+  if (!personId) return;
+  try {
+    const { data: accts } = await db().from('accounts')
+      .select('id, game_name, tag_line, region, last_synced_at').eq('person_id', personId);
+    if (!accts?.length) return;
+    const now = Date.now();
+    for (const a of accts) {
+      const age = a.last_synced_at ? now - new Date(a.last_synced_at).getTime() : Infinity;
+      if (age < maxAgeMs) continue; // 최근(7일 내) 갱신 → 스킵
+      try {
+        const est = await fetchTierEstimate(a.game_name, a.tag_line, a.region || 'NA');
+        if (est && est.found !== false && est.suggestedTier) {
+          await updateAccountTier(a.id, { opgg_tier: est.suggestedTier, opgg_games: est.games, opgg_confidence: est.confidence });
+        }
+      } catch { /* 계정 하나 실패해도 나머지 진행 */ }
+    }
+  } catch { /* 갱신 실패는 무시 */ }
 }
 
 // 본캐 지정 (같은 사람의 다른 계정은 해제)
