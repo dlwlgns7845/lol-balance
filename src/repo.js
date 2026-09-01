@@ -533,12 +533,31 @@ export async function createReport(r) {
   return data;
 }
 
-export async function listReports(gid, { limit = 50 } = {}) {
+export async function listReports(gid, { limit = 100 } = {}) {
   if (!gid) return [];
   const { data, error } = await db().from('reports')
     .select('*').eq('gid', gid).order('created_at', { ascending: false }).limit(limit);
   if (error) return [];
   return data || [];
+}
+
+export async function setReportStatus(id, status) {
+  if (!['open', 'reviewed', 'dismissed', 'actioned'].includes(status)) throw new Error('status 값 오류');
+  const { error } = await db().from('reports').update({ status }).eq('id', id);
+  if (error) throw error;
+}
+
+// 신고 알림 채널 (비공개) — 서버 관리자가 /신고채널 로 지정. 새 신고가 여기로 포스팅됨.
+export async function setGuildReportChannel(guildId, channelId) {
+  const { error } = await db().from('discord_guilds').update({ report_channel_id: channelId || null }).eq('guild_id', guildId);
+  if (error) { if (/report_channel/i.test(error.message || '')) throw new Error('신고 마이그레이션(reports-schema.sql)을 먼저 실행하세요'); throw error; }
+}
+export async function getGuildReportChannel(guildId) {
+  if (!guildId) return null;
+  try {
+    const { data } = await db().from('discord_guilds').select('report_channel_id').eq('guild_id', guildId).maybeSingle();
+    return data?.report_channel_id || null;
+  } catch { return null; }
 }
 
 // 본캐 지정 (같은 사람의 다른 계정은 해제)

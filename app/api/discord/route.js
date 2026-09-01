@@ -7,7 +7,7 @@ import { getStats, getAwards, getMatchHistory, listPersons, updatePerson, create
   createQueue, getQueue, getOpenQueue, closeQueue, reopenQueue, setQueueSize, listSignups, getSignup, upsertSignup, removeSignup, setQueueMessage,
   createPending, getPending, updatePending, deletePending,
   getGuildRoom, getGuildLink, requestGuildLink, getGroupByCode,
-  isBotAdmin, grantBotAdmin, revokeBotAdmin, listBotAdmins, createReport, listReports } from '../../../src/repo.js';
+  isBotAdmin, grantBotAdmin, revokeBotAdmin, listBotAdmins, createReport, listReports, setGuildReportChannel, getGuildReportChannel } from '../../../src/repo.js';
 import { getTournamentByCode, linkGuildTournament, setGuildNoticeChannel } from '../../../src/repo-tournament.js';
 import { balance, balance20, balance20Split } from '../../../src/engine.js';
 import { LANES, allocateQueue, subLanesOf } from '../../../src/queue.js';
@@ -1020,6 +1020,28 @@ async function cmdAdmin(i, gid) {
 
 // ── 신고 (비공개 · 운영자만 조회 · 판단용 축적) ──
 const REPORT_CAT = { noshow: '노쇼/잠수', troll: '트롤/대리', toxic: '비매너/욕설', other: '기타' };
+// 신고 알림 → 지정된 비공개 신고 채널에 임베드 포스팅 (best-effort). 채널 미설정이면 조용히 스킵.
+async function postReportNotice(guildId, r) {
+  try {
+    const ch = await getGuildReportChannel(guildId);
+    const token = process.env.DISCORD_BOT_TOKEN;
+    if (!ch || !token) return;
+    const embed = {
+      title: '🚨 새 신고 접수', color: 0xc84f4f,
+      fields: [
+        { name: '대상', value: r.targetDiscordId ? `<@${r.targetDiscordId}>${r.targetName ? ` (${r.targetName})` : ''}` : (r.targetName || '?'), inline: true },
+        { name: '사유', value: REPORT_CAT[r.category] || r.category, inline: true },
+        { name: '신고자', value: r.reporterName || (r.reporterDiscordId ? `<@${r.reporterDiscordId}>` : '?'), inline: true },
+        ...(r.detail ? [{ name: '내용', value: r.detail.slice(0, 1000) }] : []),
+      ],
+      footer: { text: '운영진 전용 · /신고목록 또는 사이트에서 누적 확인' },
+    };
+    await fetch(`https://discord.com/api/v10/channels/${ch}/messages`, {
+      method: 'POST', headers: { Authorization: `Bot ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ embeds: [embed], allowed_mentions: { parse: [] } }),
+    });
+  } catch { /* 알림 실패해도 신고는 저장됨 */ }
+}
 async function cmdReport(i, gid) {
   const targetId = opt(i, '대상');
   if (!targetId) return ephem('신고할 대상을 선택하세요. 예: `/신고 대상:@사람 사유:노쇼/잠수`');
@@ -1030,10 +1052,23 @@ async function cmdReport(i, gid) {
   const targetName = u?.global_name || u?.username || null;
   const meU = i.member?.user || i.user;
   const reporterName = i.member?.nick || meU?.global_name || meU?.username || null;
+  const rec = { gid, reporterDiscordId: callerId(i), reporterName, targetDiscordId: targetId, targetName, category, detail };
   try {
-    await createReport({ gid, reporterDiscordId: callerId(i), reporterName, targetDiscordId: targetId, targetName, category, detail });
+    await createReport(rec);
   } catch (e) { return ephem('신고 접수 실패: ' + e.message); }
+  waitUntil(postReportNotice(i.guild_id, rec)); // 관리자 알림(비공개 채널), 백그라운드
   return ephem(`🚨 신고 접수됐어요 — **운영자에게만** 전달되고 공개되지 않아요.\n대상: <@${targetId}> · 사유: ${REPORT_CAT[category] || category}\n⚠️ 무고·보복성 신고는 운영자가 신고자도 함께 확인해요.`);
+}
+
+// 이 채널을 비공개 신고 알림 채널로 설정/해제 (서버 관리자만)
+async function cmdReportChannel(i, gid) {
+  if (!isServerAdmin(i)) return ephem('⚠️ 서버 관리자만 신고 채널을 설정할 수 있어요.');
+  const action = opt(i, '동작') || '연결';
+  try {
+    if (action === '해제') { await setGuildReportChannel(i.guild_id, null); return ephem('🔕 신고 알림 채널을 해제했어요. (신고는 계속 쌓이고 `/신고목록`·사이트에서 볼 수 있어요)'); }
+    await setGuildReportChannel(i.guild_id, i.channel_id);
+  } catch (e) { return ephem('설정 실패: ' + e.message); }
+  return ephem('🚨 이 채널을 **신고 알림 채널**로 설정했어요. 새 신고가 여기로 (비공개로) 올라와요.\n⚠️ 이 채널은 반드시 **운영진만 보이게** 권한을 잠가주세요.');
 }
 
 async function cmdReports(i, gid) {
@@ -1054,7 +1089,7 @@ async function cmdReports(i, gid) {
   return ephem(body.length > 1900 ? body.slice(0, 1900) + '\n… (더 있음)' : body);
 }
 
-const HANDLERS = { 리더보드: cmdLeaderboard, 전적: cmdRecord, 내전적: cmdMyRecord, 연동: cmdLink, 가입: cmdRegister, 프로필: cmdProfile, 칭호: cmdAwards, 방: cmdRoom, 밸런스: cmdBalance, 모집: cmdRecruit, 기록: cmdMatchShot, 방연결: cmdLinkGuild, 대회공지: cmdTourneyNotice, 관리자: cmdAdmin, 신고: cmdReport, 신고목록: cmdReports };
+const HANDLERS = { 리더보드: cmdLeaderboard, 전적: cmdRecord, 내전적: cmdMyRecord, 연동: cmdLink, 가입: cmdRegister, 프로필: cmdProfile, 칭호: cmdAwards, 방: cmdRoom, 밸런스: cmdBalance, 모집: cmdRecruit, 기록: cmdMatchShot, 방연결: cmdLinkGuild, 대회공지: cmdTourneyNotice, 관리자: cmdAdmin, 신고: cmdReport, 신고목록: cmdReports, 신고채널: cmdReportChannel };
 
 export async function POST(request) {
   const body = await request.text();

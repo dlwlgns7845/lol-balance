@@ -15,9 +15,11 @@ const NAV = [
 ];
 
 export default function AppShell({ children }) {
-  const { group, leave, user, discord, canEdit, canRecord, authOn, isAdmin, login, logout, claim, showAwards, setShowAwards } = useGroup();
+  const { group, role, leave, user, discord, canEdit, canRecord, authOn, isAdmin, login, logout, claim, showAwards, setShowAwards } = useGroup();
   const path = usePathname();
-  const nav = isAdmin ? [...NAV, { href: '/admin', label: '관리자', ic: '🛡' }] : NAV;
+  const canModerate = isAdmin || role === 'owner' || role === 'editor';
+  let nav = canModerate ? [...NAV, { href: '/reports', label: '신고', ic: '🚨' }] : NAV;
+  if (isAdmin) nav = [...nav, { href: '/admin', label: '관리자', ic: '🛡' }];
   const [menu, setMenu] = useState(false);
   const [settings, setSettings] = useState(false); // 방 설정·권한 모달
   const canManage = isAdmin || (user && group?.owner_id && group.owner_id === user.id);

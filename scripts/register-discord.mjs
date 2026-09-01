@@ -66,6 +66,10 @@ const commands = [
   ] },
   { name: '신고목록', description: '신고 내역 조회 (운영자 전용 · 나만 보임)', type: 1,
     default_member_permissions: '32' }, // Manage Guild — 서버 관리자만 목록에 노출
+  { name: '신고채널', description: '이 채널을 비공개 신고 알림 채널로 설정/해제 (서버 관리자만)', type: 1,
+    default_member_permissions: '32',
+    options: [{ name: '동작', description: '연결(기본) / 해제', type: 3, required: false,
+      choices: [{ name: '연결', value: '연결' }, { name: '해제', value: '해제' }] }] },
 ];
 
 // --global (또는 GUILD_ID 없음) = 전역 등록(모든 서버, ~1시간). 아니면 GUILD_ID 서버에 즉시(테스트).
