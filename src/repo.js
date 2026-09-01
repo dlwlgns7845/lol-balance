@@ -8,7 +8,8 @@ const tierRank = (t) => { const i = TIER_ORDER.indexOf(t); return i === -1 ? 999
 // 기존 base_tier + 계정 티어들 중 가장 높은 것으로 (더 높은 쪽 채택, 낮추지 않음)
 export async function recomputeBaseTier(personId) {
   if (!personId) return;
-  const { data: person } = await db().from('persons').select('base_tier').eq('id', personId).maybeSingle();
+  const { data: person } = await db().from('persons').select('base_tier, tier_locked').eq('id', personId).maybeSingle();
+  if (person?.tier_locked) return; // 운영자 수동 고정 → base_tier 안 건드림 (자동 갱신·계정변경 무시)
   const { data: accts } = await db().from('accounts').select('opgg_tier').eq('person_id', personId);
   const tiers = [person?.base_tier, ...(accts || []).map((x) => x.opgg_tier)].filter(Boolean);
   if (!tiers.length) return;
@@ -406,7 +407,7 @@ export async function createPerson(groupId, p = {}) {
 }
 
 export async function updatePerson(id, patch) {
-  const allowed = ['display_name', 'nickname', 'base_tier', 'secondary_tier', 'primary_positions', 'secondary_positions', 'adjust', 'rating_games', 'notes', 'discord_id', 'profile'];
+  const allowed = ['display_name', 'nickname', 'base_tier', 'secondary_tier', 'tier_locked', 'primary_positions', 'secondary_positions', 'adjust', 'rating_games', 'notes', 'discord_id', 'profile'];
   const clean = {};
   for (const k of allowed) if (k in patch) clean[k] = patch[k];
   const { data, error } = await db().from('persons').update(clean).eq('id', id).select().single();
@@ -497,6 +498,8 @@ export async function updateAccountTier(accountId, { opgg_tier, opgg_games, opgg
 export async function refreshStalePersonTiers(personId, maxAgeMs = 7 * 24 * 3600 * 1000) {
   if (!personId) return;
   try {
+    const { data: person } = await db().from('persons').select('tier_locked').eq('id', personId).maybeSingle();
+    if (person?.tier_locked) return; // 수동 고정 → 자동 갱신 대상 아님 (op.gg 재조회조차 안 함)
     const { data: accts } = await db().from('accounts')
       .select('id, game_name, tag_line, region, last_synced_at').eq('person_id', personId);
     if (!accts?.length) return;

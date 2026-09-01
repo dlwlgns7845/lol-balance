@@ -131,6 +131,7 @@ create index if not exists idx_champion_refs_kind on champion_refs(kind);
 alter table persons add column if not exists discord_id text;        -- 디코 유저 ID (1인 1연동)
 alter table persons add column if not exists profile jsonb;          -- { avatar: url } 프로필 사진
 alter table persons add column if not exists secondary_tier text;    -- 부라인 배치 시 적용 티어 (점수표 키)
+alter table persons add column if not exists tier_locked boolean not null default false; -- 운영자 수동 티어 고정: op.gg 자동 갱신·recompute가 base_tier 안 건드림
 -- groups: 저티어 자동보정 on/off
 alter table groups add column if not exists adjust_enabled boolean not null default false;
 

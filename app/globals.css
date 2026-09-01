@@ -237,6 +237,9 @@ input[type=range] { padding: 0; accent-color: var(--gold); }
 .acct .acct-refresh { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 11px; padding: 0 2px; }
 .acct .acct-refresh:hover:not(:disabled) { color: var(--accent, #4fb6d6); }
 .acct .acct-refresh:disabled { opacity: .5; cursor: default; }
+.tier-lock { background: none; border: 0; cursor: default; font-size: 12px; padding: 0 2px; opacity: .55; }
+.tier-lock.on { cursor: pointer; opacity: 1; }
+.tier-lock.on:hover { opacity: .7; }
 .acct-add { display: inline-flex; gap: 6px; }
 .acct-add input { width: 200px; padding: 5px 9px; }
 .rating-line { font-size: 12px; }

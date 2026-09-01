@@ -101,6 +101,18 @@ export default function PeoplePage() {
   }
   const setMain = (id, personId) => api(`/api/accounts/${id}?gid=${gid}`, 'PATCH', { setMain: true, personId }).then(load).catch((e) => setErr(e.message));
 
+  // 수동 고정 해제 → 자동(op.gg)으로 되돌림. 본캐 있으면 즉시 재조회해 base_tier 재계산, 없으면 잠금만 해제.
+  async function unlockTier(p) {
+    if (!confirm(`"${p.nickname || p.display_name}" 티어를 자동(op.gg 반영)으로 되돌릴까요?\n다음 갱신부터 op.gg 티어가 반영돼요.`)) return;
+    setErr(null);
+    try {
+      await api(`/api/persons/${p.id}?gid=${gid}`, 'PATCH', { tier_locked: false });
+      const main = (p.accounts || []).find((a) => a.is_main) || (p.accounts || [])[0];
+      if (main) await refreshAccount(main); // 즉시 op.gg 재조회 → 재계산 (잠금 풀렸으니 반영됨)
+      else await load();
+    } catch (e) { setErr(e.message); }
+  }
+
   return (
     <div>
       <div className="page-head">
@@ -148,9 +160,12 @@ export default function PeoplePage() {
                     {canEdit && p.discord_id && <button className="m-unlink" title="이 선수의 디코 연동 해제 (기록은 보존)" onClick={() => { if (confirm(`"${p.nickname || p.display_name}"의 디스코드 연동을 해제할까요?\n기록은 그대로 남습니다.`)) patchPerson(p.id, { discord_id: null }); }}>해제</button>}
                   </span>
                   <div className="m-tiercell">
-                    <select className="m-tier" value={p.base_tier} disabled={!canEdit} title="주라인 티어 (메인 포지션 기준)" onChange={(e) => patchPerson(p.id, { base_tier: e.target.value })}>
+                    <select className="m-tier" value={p.base_tier} disabled={!canEdit} title="주라인 티어 (메인 포지션 기준) · 직접 바꾸면 수동 고정됨(자동 갱신이 안 건드림)" onChange={(e) => patchPerson(p.id, { base_tier: e.target.value, tier_locked: true })}>
                       {TIER_ORDER.map((k) => <option key={k} value={k}>{TIER_LABEL[k]}</option>)}
                     </select>
+                    {canEdit && (p.tier_locked
+                      ? <button className="tier-lock on" title="수동 고정됨 — op.gg 자동 갱신이 이 티어를 안 건드려요. 클릭하면 자동(op.gg 반영)으로 되돌립니다." onClick={() => unlockTier(p)}>🔒</button>
+                      : <span className="tier-lock" title="자동 — op.gg 갱신이 반영돼요. 티어를 직접 바꾸면 수동 고정됩니다.">🔓</span>)}
                     <select className="m-sectier" value={p.secondary_tier || ''} disabled={!canEdit} title="부라인 티어 — 주포지션 아닌 라인에 배치되면 이 티어로 계산 (보통 더 낮게). 비우면 주라인 티어 그대로." onChange={(e) => patchPerson(p.id, { secondary_tier: e.target.value || null })}>
                       <option value="">부라인 —</option>
                       {TIER_ORDER.map((k) => <option key={k} value={k}>부: {TIER_LABEL[k]}</option>)}
