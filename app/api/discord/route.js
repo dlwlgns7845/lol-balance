@@ -452,12 +452,15 @@ async function closeAndPost(i, queue) {
     if (queue.size === 20) {
       const alloc = allocateSignups({ ...queue, status: 'closed' }, signups);
       const placed = LANES.flatMap((l) => alloc.lanes[l]);
-      if (signups.length === 20 && placed.length === 20) { // 풀 20 → 고저분리 4팀(기본)
+      if (placed.length === 20) { // 20명 배정됨(21명+ 이면 초과분은 대기) → 고저분리 4팀
         const teams20 = autoTeams20({ ...queue, status: 'closed' }, signups, persons);
-        await pingTeams(i, signups, null, metaMap); // 전원 태그(4팀은 메시지에 표시)
-        return followupData(i, queueMessage({ ...queue, status: 'closed' }, signups, true, null, 0, teams20, metaMap));
+        if (teams20) {
+          await pingTeams(i, signups, null, metaMap); // 전원 태그(4팀은 메시지에 표시)
+          return followupData(i, queueMessage({ ...queue, status: 'closed' }, signups, true, null, 0, teams20, metaMap));
+        }
+        // teams20 실패(포지션 미지정 등) → 아래 폴백
       }
-      if (signups.length >= 10) { // 부분 인원 → 10인 1게임
+      if (signups.length >= 10) { // 부분 인원(20 미만) → 10인 1게임
         if (signups.length === 10) {
           const ranked = buildTeamsRanked({ ...queue, status: 'closed' }, signups, metaMap);
           return followupData(i, queueMessage({ ...queue, status: 'closed' }, signups, true, ranked[0], 0, null, metaMap, ranked.length));
