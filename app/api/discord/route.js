@@ -7,7 +7,7 @@ import { getStats, getAwards, getMatchHistory, listPersons, updatePerson, create
   createQueue, getQueue, getOpenQueue, closeQueue, reopenQueue, setQueueSize, listSignups, getSignup, upsertSignup, removeSignup, setQueueMessage,
   createPending, getPending, updatePending, deletePending,
   getGuildRoom, getGuildLink, requestGuildLink, getGroupByCode,
-  isBotAdmin, grantBotAdmin, revokeBotAdmin, listBotAdmins } from '../../../src/repo.js';
+  isBotAdmin, grantBotAdmin, revokeBotAdmin, listBotAdmins, createReport, listReports } from '../../../src/repo.js';
 import { getTournamentByCode, linkGuildTournament, setGuildNoticeChannel } from '../../../src/repo-tournament.js';
 import { balance, balance20, balance20Split } from '../../../src/engine.js';
 import { LANES, allocateQueue, subLanesOf } from '../../../src/queue.js';
@@ -1018,7 +1018,43 @@ async function cmdAdmin(i, gid) {
   return ephem('동작을 선택하세요 (승격 / 해제 / 목록).');
 }
 
-const HANDLERS = { 리더보드: cmdLeaderboard, 전적: cmdRecord, 내전적: cmdMyRecord, 연동: cmdLink, 가입: cmdRegister, 프로필: cmdProfile, 칭호: cmdAwards, 방: cmdRoom, 밸런스: cmdBalance, 모집: cmdRecruit, 기록: cmdMatchShot, 방연결: cmdLinkGuild, 대회공지: cmdTourneyNotice, 관리자: cmdAdmin };
+// ── 신고 (비공개 · 운영자만 조회 · 판단용 축적) ──
+const REPORT_CAT = { noshow: '노쇼/잠수', troll: '트롤/대리', toxic: '비매너/욕설', other: '기타' };
+async function cmdReport(i, gid) {
+  const targetId = opt(i, '대상');
+  if (!targetId) return ephem('신고할 대상을 선택하세요. 예: `/신고 대상:@사람 사유:노쇼/잠수`');
+  if (targetId === callerId(i)) return ephem('본인은 신고할 수 없어요.');
+  const category = opt(i, '사유') || 'other';
+  const detail = (opt(i, '내용') || '').trim();
+  const u = i.data?.resolved?.users?.[targetId];
+  const targetName = u?.global_name || u?.username || null;
+  const meU = i.member?.user || i.user;
+  const reporterName = i.member?.nick || meU?.global_name || meU?.username || null;
+  try {
+    await createReport({ gid, reporterDiscordId: callerId(i), reporterName, targetDiscordId: targetId, targetName, category, detail });
+  } catch (e) { return ephem('신고 접수 실패: ' + e.message); }
+  return ephem(`🚨 신고 접수됐어요 — **운영자에게만** 전달되고 공개되지 않아요.\n대상: <@${targetId}> · 사유: ${REPORT_CAT[category] || category}\n⚠️ 무고·보복성 신고는 운영자가 신고자도 함께 확인해요.`);
+}
+
+async function cmdReports(i, gid) {
+  if (!isServerAdmin(i) && !(await isBotAdmin(gid, callerId(i)))) return ephem('⚠️ 신고 내역은 운영자만 볼 수 있어요.');
+  const reports = await listReports(gid, { limit: 50 });
+  if (!reports.length) return ephem('접수된 신고가 없어요.');
+  const cnt = {};
+  reports.forEach((r) => { const k = r.target_discord_id || r.target_name || '?'; (cnt[k] = cnt[k] || { n: 0, name: r.target_name, id: r.target_discord_id }).n += 1; });
+  const nameLabel = (v) => v.name || (v.id ? `<@${v.id}>` : '?');
+  const top = Object.values(cnt).sort((a, b) => b.n - a.n).slice(0, 10)
+    .map((v, idx) => `${idx + 1}. ${nameLabel(v)} — **${v.n}건**`).join('\n');
+  const recent = reports.slice(0, 12).map((r) => {
+    const d = new Date(r.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const tgt = r.target_name || (r.target_discord_id ? `<@${r.target_discord_id}>` : '?');
+    return `• ${REPORT_CAT[r.category] || r.category} · ${tgt}${r.detail ? ` — ${r.detail.slice(0, 50)}` : ''} _(신고: ${r.reporter_name || '?'}, ${d})_`;
+  }).join('\n');
+  const body = `🚨 **신고 내역** (운영자 전용 · 나만 보임)\n\n__누적 많은 대상__\n${top}\n\n__최근 신고__\n${recent}`;
+  return ephem(body.length > 1900 ? body.slice(0, 1900) + '\n… (더 있음)' : body);
+}
+
+const HANDLERS = { 리더보드: cmdLeaderboard, 전적: cmdRecord, 내전적: cmdMyRecord, 연동: cmdLink, 가입: cmdRegister, 프로필: cmdProfile, 칭호: cmdAwards, 방: cmdRoom, 밸런스: cmdBalance, 모집: cmdRecruit, 기록: cmdMatchShot, 방연결: cmdLinkGuild, 대회공지: cmdTourneyNotice, 관리자: cmdAdmin, 신고: cmdReport, 신고목록: cmdReports };
 
 export async function POST(request) {
   const body = await request.text();

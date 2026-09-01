@@ -517,6 +517,30 @@ export async function refreshStalePersonTiers(personId, maxAgeMs = 7 * 24 * 3600
   } catch { /* 갱신 실패는 무시 */ }
 }
 
+// ── 신고 (비공개 · 운영자만 조회 · 판단용 축적) ──
+export async function createReport(r) {
+  const row = {
+    gid: r.gid || null,
+    reporter_discord_id: r.reporterDiscordId || null, reporter_name: r.reporterName || null,
+    target_discord_id: r.targetDiscordId || null, target_name: r.targetName || null,
+    category: r.category || 'other', detail: r.detail || null,
+  };
+  const { data, error } = await db().from('reports').insert(row).select().single();
+  if (error) {
+    if (/reports|does not exist|schema cache/i.test(error.message || '')) throw new Error('신고 마이그레이션(reports-schema.sql)을 먼저 실행하세요');
+    throw error;
+  }
+  return data;
+}
+
+export async function listReports(gid, { limit = 50 } = {}) {
+  if (!gid) return [];
+  const { data, error } = await db().from('reports')
+    .select('*').eq('gid', gid).order('created_at', { ascending: false }).limit(limit);
+  if (error) return [];
+  return data || [];
+}
+
 // 본캐 지정 (같은 사람의 다른 계정은 해제)
 export async function setMainAccount(accountId, personId) {
   await db().from('accounts').update({ is_main: false }).eq('person_id', personId);

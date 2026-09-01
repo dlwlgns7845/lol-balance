@@ -57,6 +57,15 @@ const commands = [
         choices: [{ name: '승격', value: '승격' }, { name: '해제', value: '해제' }, { name: '목록', value: '목록' }] },
       { name: '유저', description: '대상 유저 (승격·해제 시)', type: 6, required: false },
     ] },
+  { name: '신고', description: '플레이어 신고 (운영자에게만 전달 · 비공개)', type: 1, options: [
+    { name: '대상', description: '신고할 유저', type: 6, required: true },
+    { name: '사유', description: '신고 사유', type: 3, required: true, choices: [
+      { name: '노쇼/잠수', value: 'noshow' }, { name: '트롤/대리', value: 'troll' },
+      { name: '비매너/욕설', value: 'toxic' }, { name: '기타', value: 'other' }] },
+    { name: '내용', description: '상세 내용 (선택)', type: 3, required: false },
+  ] },
+  { name: '신고목록', description: '신고 내역 조회 (운영자 전용 · 나만 보임)', type: 1,
+    default_member_permissions: '32' }, // Manage Guild — 서버 관리자만 목록에 노출
 ];
 
 // --global (또는 GUILD_ID 없음) = 전역 등록(모든 서버, ~1시간). 아니면 GUILD_ID 서버에 즉시(테스트).
