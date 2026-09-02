@@ -1064,7 +1064,20 @@ async function cmdReport(i, gid) {
   return ephem(`🚨 신고 접수됐어요 — **운영자에게만** 전달되고 공개되지 않아요.\n대상: <@${targetId}> · 사유: ${REPORT_CAT[category] || category}\n⚠️ 무고·보복성 신고는 운영자가 신고자도 함께 확인해요.`);
 }
 
-// 이 채널을 비공개 신고 알림 채널로 설정/해제 (서버 관리자만)
+// 봇 토큰으로 채널에 메시지 시도 → 성공여부 반환 (권한 진단용).
+async function tryPostToChannel(channelId, payload) {
+  const token = process.env.DISCORD_BOT_TOKEN;
+  if (!token || !channelId) return false;
+  try {
+    const r = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+      method: 'POST', headers: { Authorization: `Bot ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, allowed_mentions: { parse: [] } }),
+    });
+    return r.ok;
+  } catch { return false; }
+}
+
+// 이 채널을 비공개 신고 알림 채널로 설정/해제 (운영진만)
 async function cmdReportChannel(i, gid) {
   if (!isModerator(i) && !(await isBotAdmin(gid, callerId(i)))) return ephem('⚠️ 운영진(관리자·추방·차단 권한)만 신고 채널을 설정할 수 있어요.');
   const action = opt(i, '동작') || '연결';
@@ -1072,7 +1085,12 @@ async function cmdReportChannel(i, gid) {
     if (action === '해제') { await setGuildReportChannel(i.guild_id, null); return ephem('🔕 신고 알림 채널을 해제했어요. (신고는 계속 쌓이고 `/신고목록`·사이트에서 볼 수 있어요)'); }
     await setGuildReportChannel(i.guild_id, i.channel_id);
   } catch (e) { return ephem('설정 실패: ' + e.message); }
-  return ephem('🚨 이 채널을 **신고 알림 채널**로 설정했어요. 새 신고가 여기로 (비공개로) 올라와요.\n⚠️ 이 채널은 반드시 **운영진만 보이게** 권한을 잠가주세요.');
+  // 실제로 이 채널에 봇이 글을 쓸 수 있는지 즉시 확인 (권한 진단)
+  const posted = await tryPostToChannel(i.channel_id, { content: '🚨 이 채널이 **신고 알림 채널**로 설정됐어요. 새 신고가 여기로 올라와요.' });
+  if (!posted) {
+    return ephem('⚠️ 채널은 지정했는데 **봇이 이 채널에 글을 못 써요.**\n이 채널(또는 상위 카테고리) 권한에서 내전봇(또는 봇 역할)에게 **채널 보기 · 메시지 보내기 · 링크 첨부**를 켜주세요. 그러면 신고가 여기로 옵니다.\n(봇 토큰이 서버에 설정 안 됐어도 이럴 수 있어요.)');
+  }
+  return ephem('🚨 이 채널을 신고 알림 채널로 설정했어요 — 방금 **확인 메시지**를 이 채널에 올렸어요(보이면 정상). ⚠️ 이 채널은 운영진만 보이게 권한 잠가주세요.');
 }
 
 async function cmdReports(i, gid) {
