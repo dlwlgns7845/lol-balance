@@ -315,3 +315,43 @@ export function balance20Split(players, opts = {}) {
   const bot = order.slice(10).map((i) => players[i]);
   return { games: [forceBalance(top, opts), forceBalance(bot, opts)], lobbies: [top, bot] };
 }
+
+/**
+ * balance20SplitByLane — 라인별 고저분리. 각 라인 4명 중 상위2 = 고티어 게임, 하위2 = 저티어 게임.
+ * → 신청 라인 100% 유지(오프라인 스크램블 없음) + 게임 간 티어 분리. 각 player는 .lane(배정 라인) 필요.
+ * 각 게임은 라인 고정, A/B(블루/레드)만 2^5 조합으로 최적화해 후보 제공(리롤용).
+ */
+export function balance20SplitByLane(players, opts = {}) {
+  const { table = TABLE } = opts;
+  if (players.length !== 20) throw new Error('정확히 20명 필요');
+  const byLane = {}; POS.forEach((l) => { byLane[l] = []; });
+  for (const p of players) {
+    const lane = p.lane && POS.includes(p.lane) ? p.lane : null;
+    if (!lane) return balance20Split(players, opts); // 라인정보 없으면 기존 방식 폴백
+    byLane[lane].push(p);
+  }
+  if (POS.some((l) => byLane[l].length !== 4)) return balance20Split(players, opts); // 4/라인 아니면 폴백
+  const high = {}, low = {};
+  POS.forEach((l) => {
+    const sorted = [...byLane[l]].sort((a, b) => pPts(b, POS.indexOf(l), table) - pPts(a, POS.indexOf(l), table));
+    high[l] = [sorted[0], sorted[1]]; // 상위 2 → 고티어 게임
+    low[l] = [sorted[2], sorted[3]];  // 하위 2 → 저티어 게임
+  });
+  const candsFor = (pairByLane) => {
+    const out = []; const seen = new Set();
+    for (let m = 0; m < 32; m++) { // 라인별 A/B 스왑 비트마스크 (라인은 고정)
+      const A = new Array(5), B = new Array(5);
+      POS.forEach((l, pi) => { const [x, y] = pairByLane[l]; const sw = (m >> pi) & 1; A[pi] = sw ? y : x; B[pi] = sw ? x : y; });
+      const c = scoreTeams(A, B, opts);
+      const sig = c.lanes.map((L) => `${Math.min(L.a.pts, L.b.pts)}-${Math.max(L.a.pts, L.b.pts)}`).join('|');
+      if (seen.has(sig)) continue; seen.add(sig);
+      out.push(c);
+    }
+    out.sort((a, b) => a.totalDiff - b.totalDiff);
+    return out;
+  };
+  return {
+    games: [{ candidates: candsFor(high) }, { candidates: candsFor(low) }],
+    lobbies: [POS.flatMap((l) => high[l]), POS.flatMap((l) => low[l])],
+  };
+}

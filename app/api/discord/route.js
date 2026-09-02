@@ -9,7 +9,7 @@ import { getStats, getAwards, getMatchHistory, listPersons, updatePerson, create
   getGuildRoom, getGuildLink, requestGuildLink, getGroupByCode,
   isBotAdmin, grantBotAdmin, revokeBotAdmin, listBotAdmins, createReport, listReports, setGuildReportChannel, getGuildReportChannel } from '../../../src/repo.js';
 import { getTournamentByCode, linkGuildTournament, setGuildNoticeChannel } from '../../../src/repo-tournament.js';
-import { balance, balance20, balance20Split } from '../../../src/engine.js';
+import { balance, balance20, balance20Split, balance20SplitByLane } from '../../../src/engine.js';
 import { LANES, allocateQueue, subLanesOf } from '../../../src/queue.js';
 import { MAINTENANCE } from '../../../src/maintenance.js';
 import { queueMessage, buildTeamsRanked, buildMetaMap, allocateSignups, syncDiscordMessage, LANE_KR } from '../../../src/discord-queue.js';
@@ -376,6 +376,7 @@ function autoTeams20(queue, signups, persons, mode = 'split', idx = [0, 0]) {
   const byD = new Map(persons.filter((p) => p.discord_id).map((p) => [p.discord_id, p]));
   const byId = new Map(persons.map((p) => [p.id, p]));
   const info = new Map(signups.map((s) => [s.discord_id, s])); // 이번 큐 신청 정보(라인)
+  const laneOf = {}; LANES.forEach((l) => alloc.lanes[l].forEach((did) => { laneOf[did] = l; })); // 배정 라인(고저분리용)
   const players = [];
   for (const did of placedIds) {
     const person = did.startsWith('site:') ? byId.get(did.slice(5)) : byD.get(did);
@@ -390,6 +391,7 @@ function autoTeams20(queue, signups, persons, mode = 'split', idx = [0, 0]) {
       name: person.nickname || person.display_name,
       tier: person.base_tier, secondaryTier: person.secondary_tier || null,
       positions, primary: all ? [] : [s.main], adj: all ? -1 : 0,
+      lane: laneOf[did], // 배정된 라인 — 고저분리(라인별) 시 이 라인 고정
     });
   }
   try {
@@ -400,7 +402,7 @@ function autoTeams20(queue, signups, persons, mode = 'split', idx = [0, 0]) {
       const a = arr[ai];
       return { mode: 'even', spread: a.spread, counts: [arr.length], cur: [ai], games: a.views.map(gameCell) };
     }
-    const r = balance20Split(players);
+    const r = balance20SplitByLane(players); // 라인별 고저분리 (신청 라인 유지)
     const g0 = r.games[0].candidates, g1 = r.games[1].candidates;
     const i0 = wrap(idx[0] || 0, g0.length), i1 = wrap(idx[1] || 0, g1.length);
     return { mode: 'split', counts: [g0.length, g1.length], cur: [i0, i1], games: [gameCell(g0[i0]), gameCell(g1[i1])] };
