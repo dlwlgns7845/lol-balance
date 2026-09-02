@@ -64,10 +64,10 @@ const commands = [
       { name: '비매너/욕설', value: 'toxic' }, { name: '기타', value: 'other' }] },
     { name: '내용', description: '상세 내용 (선택)', type: 3, required: false },
   ] },
-  { name: '신고목록', description: '신고 내역 조회 (운영자 전용 · 나만 보임)', type: 1,
-    default_member_permissions: '32' }, // Manage Guild — 서버 관리자만 목록에 노출
-  { name: '신고채널', description: '이 채널을 비공개 신고 알림 채널로 설정/해제 (서버 관리자만)', type: 1,
-    default_member_permissions: '32',
+  { name: '신고목록', description: '신고 내역 조회 (운영진 전용 · 나만 보임)', type: 1,
+    default_member_permissions: '2' }, // Kick Members — 모드팀(추방 권한)에게 노출. 서버단에서 추방·차단·관리자·서버관리 허용
+  { name: '신고채널', description: '이 채널을 비공개 신고 알림 채널로 설정/해제 (운영진)', type: 1,
+    default_member_permissions: '2', // Kick Members
     options: [{ name: '동작', description: '연결(기본) / 해제', type: 3, required: false,
       choices: [{ name: '연결', value: '연결' }, { name: '해제', value: '해제' }] }] },
 ];

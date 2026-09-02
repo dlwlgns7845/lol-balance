@@ -940,6 +940,8 @@ async function handleModalSubmit(i) {
 
 // 서버 관리자(Manage Guild | Administrator) 감지 — Discord 권한 비트
 const isServerAdmin = (i) => { const p = BigInt(i.member?.permissions || '0'); return (p & 0x20n) !== 0n || (p & 0x8n) !== 0n; };
+// 모더레이터: 관리자 | 서버관리 | 추방 | 차단 | 메시지관리 — 신고 운영용(모드팀도 가능)
+const isModerator = (i) => { const p = BigInt(i.member?.permissions || '0'); return (p & 0x8n) !== 0n || (p & 0x20n) !== 0n || (p & 0x2n) !== 0n || (p & 0x4n) !== 0n || (p & 0x2000n) !== 0n; };
 
 async function cmdMatchShot(i, gid) {
   // 서버 관리자 또는 봇 관리자(/관리자 승격)만 기록 가능
@@ -1064,7 +1066,7 @@ async function cmdReport(i, gid) {
 
 // 이 채널을 비공개 신고 알림 채널로 설정/해제 (서버 관리자만)
 async function cmdReportChannel(i, gid) {
-  if (!isServerAdmin(i)) return ephem('⚠️ 서버 관리자만 신고 채널을 설정할 수 있어요.');
+  if (!isModerator(i) && !(await isBotAdmin(gid, callerId(i)))) return ephem('⚠️ 운영진(관리자·추방·차단 권한)만 신고 채널을 설정할 수 있어요.');
   const action = opt(i, '동작') || '연결';
   try {
     if (action === '해제') { await setGuildReportChannel(i.guild_id, null); return ephem('🔕 신고 알림 채널을 해제했어요. (신고는 계속 쌓이고 `/신고목록`·사이트에서 볼 수 있어요)'); }
@@ -1074,7 +1076,7 @@ async function cmdReportChannel(i, gid) {
 }
 
 async function cmdReports(i, gid) {
-  if (!isServerAdmin(i) && !(await isBotAdmin(gid, callerId(i)))) return ephem('⚠️ 신고 내역은 운영자만 볼 수 있어요.');
+  if (!isModerator(i) && !(await isBotAdmin(gid, callerId(i)))) return ephem('⚠️ 신고 내역은 운영진(관리자·추방·차단 권한)만 볼 수 있어요.');
   const reports = await listReports(gid, { limit: 50 });
   if (!reports.length) return ephem('접수된 신고가 없어요.');
   const cnt = {};
