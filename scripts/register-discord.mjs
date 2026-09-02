@@ -9,7 +9,8 @@ for (const line of fs.readFileSync('.env.local', 'utf8').split(/\r?\n/)) {
 
 const APP_ID = process.env.DISCORD_APP_ID;
 const TOKEN = process.env.DISCORD_BOT_TOKEN;
-const GUILD_ID = process.env.DISCORD_GUILD_ID; // 선택: 테스트 서버 즉시 등록
+// 서버 지정: --guild=<서버ID> (우선) 또는 .env.local DISCORD_GUILD_ID. 즉시 등록용.
+const GUILD_ID = (process.argv.find((a) => a.startsWith('--guild=')) || '').split('=')[1] || process.env.DISCORD_GUILD_ID;
 if (!APP_ID || !TOKEN) { console.error('DISCORD_APP_ID / DISCORD_BOT_TOKEN 가 .env.local 에 필요합니다.'); process.exit(1); }
 
 const S = (name, description, required = true) => ({ name, description, type: 3, required }); // STRING 옵션
