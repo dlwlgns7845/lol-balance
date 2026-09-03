@@ -340,9 +340,27 @@ export function balance20EvenByLane(players, opts = {}) {
       const tIdx = [0, 1, 2, 3].sort((a, b) => sum[a] - sum[b]); // 약한 팀부터
       ps.forEach((p, k) => { const t = tIdx[k]; teamLane[t][lane] = p; sum[t] += pPts(p, li, table); }); // 강한선수→약한팀
     }
+    // 국소 최적화: 같은 라인 내 두 팀 선수 교체로 4팀 총점 편차 줄이기 (라인은 그대로 유지) — '팀1만 높음' 방지
+    let improved = true;
+    while (improved) {
+      improved = false;
+      for (let li = 0; li < 5; li++) {
+        const lane = POS[li];
+        for (let t1 = 0; t1 < 4; t1++) for (let t2 = t1 + 1; t2 < 4; t2++) {
+          const d1 = pPts(teamLane[t1][lane], li, table), d2 = pPts(teamLane[t2][lane], li, table);
+          if (d1 === d2) continue;
+          const cur = Math.max(...sum) - Math.min(...sum);
+          const ns = [...sum]; ns[t1] += (d2 - d1); ns[t2] += (d1 - d2);
+          if (Math.max(...ns) - Math.min(...ns) < cur - 1e-9) {
+            const tmp = teamLane[t1][lane]; teamLane[t1][lane] = teamLane[t2][lane]; teamLane[t2][lane] = tmp;
+            sum[t1] = ns[t1]; sum[t2] = ns[t2]; improved = true;
+          }
+        }
+      }
+    }
     const teamArr = teamLane.map((tl) => POS.map((l) => tl[l]));
     const ti = [0, 1, 2, 3].sort((a, b) => sum[b] - sum[a]); // 강→약 팀
-    const pairs = [[ti[0], ti[3]], [ti[1], ti[2]]]; // (최강+최약)/(2위+3위)
+    const pairs = [[ti[0], ti[3]], [ti[1], ti[2]]]; // (최강+최약)/(2위+3위) → 게임 간 균등
     const views = pairs.map(([ta, tb]) => {
       const [A, B] = sum[ta] >= sum[tb] ? [teamArr[ta], teamArr[tb]] : [teamArr[tb], teamArr[ta]];
       return scoreTeams(A, B, opts);
@@ -354,6 +372,7 @@ export function balance20EvenByLane(players, opts = {}) {
       spread: Math.round((Math.max(...sum) - Math.min(...sum)) * 10) / 10,
     });
   }
+  arrangements.sort((a, b) => a.spread - b.spread); // 가장 균등한 조합이 먼저(기본 표시)
   return { arrangements };
 }
 

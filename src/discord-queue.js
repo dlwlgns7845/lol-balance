@@ -159,7 +159,9 @@ export function queueMessage(queue, signups, closed, teams, teamIdx = 0, teams20
   if (closed && teams) desc = confirmed
     ? `✅ **팀 확정 완료!** · 조합 ${teamIdx + 1}/${teamTotal} · 점수차 ${teams.diff.toFixed(1)} · 전원 호출됨`
     : `**팀 미리보기** · 총 ${teamTotal}개 조합 중 ${teamIdx + 1}번째 · 점수차 ${teams.diff.toFixed(1)}\n◀ / ▶ 로 다른 조합 보고 → ✅ 확정을 누르면 전원 호출`;
-  else if (closed && teams20) desc = '**팀 확정** · 고저분리 4팀';
+  else if (closed && teams20) desc = teams20.mode === 'even'
+    ? `**팀 확정** · 4팀 균등${teams20.spread != null ? ` (편차 ${teams20.spread})` : ''}`
+    : '**팀 확정** · 고저분리 4팀';
   else {
     desc = intro + lines.join('\n');
     if (wait.length) desc += `\n\n⏳ **대기표** (${wait.length}명) · _자리 나면 받는 라인 중 빈 곳으로 자동 승격_\n${wait.join('\n')}`;
