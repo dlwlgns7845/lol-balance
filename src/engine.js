@@ -317,6 +317,47 @@ export function balance20Split(players, opts = {}) {
 }
 
 /**
+ * balance20EvenByLane — 라인별 4팀 균등. 각 라인 4명을 4팀에 1명씩(강한선수→약한팀) 배치 → 팀 총점 균등.
+ * 신청 라인 100% 유지(스크램블 없음). 4팀을 (최강+최약)/(2위+3위)로 페어링해 2게임 균등. lane 필요.
+ */
+export function balance20EvenByLane(players, opts = {}) {
+  const { table = TABLE } = opts;
+  if (players.length !== 20) throw new Error('정확히 20명 필요');
+  const byLane = {}; POS.forEach((l) => { byLane[l] = []; });
+  for (const p of players) {
+    const lane = p.lane && POS.includes(p.lane) ? p.lane : null;
+    if (!lane) return balance20(players, opts); // 라인정보 없으면 폴백
+    byLane[lane].push(p);
+  }
+  if (POS.some((l) => byLane[l].length !== 4)) return balance20(players, opts);
+  const laneOrders = [[0, 1, 2, 3, 4], [4, 3, 2, 1, 0], [2, 0, 4, 1, 3], [1, 3, 0, 4, 2]]; // 처리순서 변형 = 리롤
+  const seen = new Set(); const arrangements = [];
+  for (const order of laneOrders) {
+    const teamLane = [{}, {}, {}, {}]; const sum = [0, 0, 0, 0];
+    for (const li of order) {
+      const lane = POS[li];
+      const ps = [...byLane[lane]].sort((a, b) => pPts(b, li, table) - pPts(a, li, table)); // 강→약
+      const tIdx = [0, 1, 2, 3].sort((a, b) => sum[a] - sum[b]); // 약한 팀부터
+      ps.forEach((p, k) => { const t = tIdx[k]; teamLane[t][lane] = p; sum[t] += pPts(p, li, table); }); // 강한선수→약한팀
+    }
+    const teamArr = teamLane.map((tl) => POS.map((l) => tl[l]));
+    const ti = [0, 1, 2, 3].sort((a, b) => sum[b] - sum[a]); // 강→약 팀
+    const pairs = [[ti[0], ti[3]], [ti[1], ti[2]]]; // (최강+최약)/(2위+3위)
+    const views = pairs.map(([ta, tb]) => {
+      const [A, B] = sum[ta] >= sum[tb] ? [teamArr[ta], teamArr[tb]] : [teamArr[tb], teamArr[ta]];
+      return scoreTeams(A, B, opts);
+    });
+    const sig = views.map((v) => v.lanes.map((L) => [L.a.name, L.b.name].sort().join('-')).sort().join(',')).sort().join('|');
+    if (seen.has(sig)) continue; seen.add(sig);
+    arrangements.push({
+      views, teamSums: pairs.flat().map((t) => Math.round(sum[t] * 10) / 10),
+      spread: Math.round((Math.max(...sum) - Math.min(...sum)) * 10) / 10,
+    });
+  }
+  return { arrangements };
+}
+
+/**
  * balance20SplitByLane — 라인별 고저분리. 각 라인 4명 중 상위2 = 고티어 게임, 하위2 = 저티어 게임.
  * → 신청 라인 100% 유지(오프라인 스크램블 없음) + 게임 간 티어 분리. 각 player는 .lane(배정 라인) 필요.
  * 각 게임은 라인 고정, A/B(블루/레드)만 2^5 조합으로 최적화해 후보 제공(리롤용).

@@ -9,7 +9,7 @@ import { getStats, getAwards, getMatchHistory, listPersons, updatePerson, create
   getGuildRoom, getGuildLink, requestGuildLink, getGroupByCode,
   isBotAdmin, grantBotAdmin, revokeBotAdmin, listBotAdmins, createReport, listReports, setGuildReportChannel, getGuildReportChannel } from '../../../src/repo.js';
 import { getTournamentByCode, linkGuildTournament, setGuildNoticeChannel } from '../../../src/repo-tournament.js';
-import { balance, balance20, balance20Split, balance20SplitByLane } from '../../../src/engine.js';
+import { balance, balance20, balance20Split, balance20SplitByLane, balance20EvenByLane } from '../../../src/engine.js';
 import { LANES, allocateQueue, subLanesOf } from '../../../src/queue.js';
 import { MAINTENANCE } from '../../../src/maintenance.js';
 import { queueMessage, buildTeamsRanked, buildMetaMap, allocateSignups, syncDiscordMessage, LANE_KR } from '../../../src/discord-queue.js';
@@ -399,7 +399,7 @@ function autoTeams20(queue, signups, persons, mode = 'split', idx = [0, 0]) {
   }
   try {
     if (mode === 'even') {
-      const arr = balance20(players).arrangements;
+      const arr = balance20EvenByLane(players).arrangements; // 라인별 4팀 균등 (신청 라인 유지)
       if (!arr.length) return null;
       const ai = wrap(idx[0] || 0, arr.length);
       const a = arr[ai];
