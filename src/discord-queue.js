@@ -20,7 +20,9 @@ export function buildTeamsRanked(queue, signups, personMap) {
     return {
       name: id, discordId: id, // name=discord_id (유니크 키). 표시는 metaMap으로.
       tier: p.baseTier || 'G2', secondaryTier: p.secTier || null,
-      positions, primary: all ? [] : [s.main], // 올라운더는 주포지션 없음 → off-role 페널티 없이 자유 배치
+      positions,
+      // 부라인 티어(secondary) 판단 = 멤버관리 주포지션 기준. 주포지션 밖에 배치되면 secondary_tier 적용. 올라운더는 없음(자유 배치).
+      primary: all ? [] : (p.primary || []),
       adj: all ? -1 : 0, // 올라운더 점수 −1 혜택
     };
   });

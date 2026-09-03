@@ -390,7 +390,10 @@ function autoTeams20(queue, signups, persons, mode = 'split', idx = [0, 0]) {
     players.push({
       name: person.nickname || person.display_name,
       tier: person.base_tier, secondaryTier: person.secondary_tier || null,
-      positions, primary: all ? [] : [s.main], adj: all ? -1 : 0,
+      positions,
+      // 부라인 티어(secondary) 판단 = 멤버관리의 주포지션 기준(큐 메인 아님). 주포지션 밖 라인에 배치되면 secondary_tier 적용.
+      primary: all ? [] : (person.primary_positions || []),
+      adj: all ? -1 : 0,
       lane: laneOf[did], // 배정된 라인 — 고저분리(라인별) 시 이 라인 고정
     });
   }
