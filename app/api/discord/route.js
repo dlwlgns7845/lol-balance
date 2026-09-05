@@ -607,9 +607,8 @@ async function handleComponent(i) {
     const newSize = lane === '20' ? 20 : 10;
     await setQueueSize(qid, newSize);
     queue.size = newSize; // 아래 재렌더에 반영 (신청자는 그대로, 배정만 N=2↔4로 재계산)
-  } else {
-    return ephem('알 수 없는 버튼이에요.');
   }
+  // 알 수 없는/오래된 버튼(구버전 메시지 등)은 에러 대신 현재 모집 상태로 새로고침해서 복구.
   const freshSignups = await listSignups(qid);
   const metaMap = buildMetaMap(await listPersons(queue.gid));
   return updateMsg(queueMessage(queue, freshSignups, false, null, 0, null, metaMap));
@@ -718,6 +717,7 @@ async function handleTeams20Mode(i, qid, mode) {
   const persons = await listPersons(queue.gid);
   const metaMap = buildMetaMap(persons);
   const teams20 = autoTeams20({ ...queue, status: 'closed' }, signups, persons, mode === 'even' ? 'even' : 'split');
+  if (!teams20) return ephem('팀 편성을 못 했어요 — 신청자 20명·라인 배정이 안 맞거나 선수 정보가 바뀌었을 수 있어요. 🔓 다시 열기 후 확인하거나 새로 `/모집` 해주세요.');
   return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, null, 0, teams20, metaMap));
 }
 
@@ -733,6 +733,7 @@ async function handleTeams20Reroll(i, parts) {
   if (mode === 'even') { const step = parts[4] === 'p' ? -1 : 1; idx = [(Number(parts[3]) || 0) + step, 0]; }
   else { const g = Number(parts[3]) || 0; const step = parts[6] === 'p' ? -1 : 1; idx = [Number(parts[4]) || 0, Number(parts[5]) || 0]; idx[g] += step; }
   const teams20 = autoTeams20({ ...queue, status: 'closed' }, signups, persons, mode, idx);
+  if (!teams20) return ephem('팀 편성을 못 했어요 — 선수 정보가 바뀌었거나 라인 배정이 안 맞아요. 🔓 다시 열기 후 확인하거나 새로 `/모집` 해주세요.');
   return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, null, 0, teams20, metaMap));
 }
 
