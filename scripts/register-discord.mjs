@@ -71,6 +71,9 @@ const commands = [
     default_member_permissions: '2', // Kick Members
     options: [{ name: '동작', description: '연결(기본) / 해제', type: 3, required: false,
       choices: [{ name: '연결', value: '연결' }, { name: '해제', value: '해제' }] }] },
+  { name: '롤체', description: '롤토체스 깐부 내전 — 신청받아 랜덤 2인조(깐부)', type: 1,
+    options: [{ name: '인원', description: '목표 인원 (기본 8)', type: 4, required: false,
+      choices: [{ name: '8명', value: 8 }, { name: '4명', value: 4 }, { name: '16명', value: 16 }] }] },
 ];
 
 // --global (또는 GUILD_ID 없음) = 전역 등록(모든 서버, ~1시간). 아니면 GUILD_ID 서버에 즉시(테스트).

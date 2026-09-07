@@ -532,6 +532,7 @@ async function handleComponent(i) {
   if (action === 't20m') return handleTeams20Mode(i, qid, lane); // 풀20 편성 모드 토글 (lane=even|split)
   if (action === 't20r') return handleTeams20Reroll(i, parts); // 풀20 조합 리롤
   if (action === 'br') return handleBalanceReroll(qid, lane, parts[3]); // /밸런스 조합 넘기기
+  if (['tj', 'tl', 'tqc', 'trr', 'tqo'].includes(action)) return handleTftButton(i, action, qid); // 🎲 롤체 깐부
   if (action === 'rec' || action === 'rex') return handleRecordConfirm(i, action, qid); // 스샷 판독 확인/취소
   if (action === 'rswap') return handleRecordSwap(qid); // 승패 뒤집기
   if (action === 'rdur') return handleRecordDurOpen(i, qid); // 시간 수정 모달
@@ -1115,7 +1116,71 @@ async function cmdReports(i, gid) {
   return ephem(body.length > 1900 ? body.slice(0, 1900) + '\n… (더 있음)' : body);
 }
 
-const HANDLERS = { 리더보드: cmdLeaderboard, 전적: cmdRecord, 내전적: cmdMyRecord, 연동: cmdLink, 가입: cmdRegister, 프로필: cmdProfile, 칭호: cmdAwards, 방: cmdRoom, 밸런스: cmdBalance, 모집: cmdRecruit, 기록: cmdMatchShot, 방연결: cmdLinkGuild, 대회공지: cmdTourneyNotice, 관리자: cmdAdmin, 신고: cmdReport, 신고목록: cmdReports, 신고채널: cmdReportChannel };
+// ── 🎲 롤토체스(TFT) 깐부 내전 ── 8명 신청 → 랜덤 2인조(깐부). 티어·등록 불필요, 그냥 참가.
+const tftNameOf = (s) => s.name || '참가자';
+function tftPairs(signups) {
+  const arr = [...signups];
+  for (let i = arr.length - 1; i > 0; i -= 1) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } // 셔플
+  const pairs = [];
+  for (let i = 0; i < arr.length; i += 2) pairs.push(arr.slice(i, i + 2)); // 2명씩 깐부
+  return pairs;
+}
+function tftMessage(queue, signups, closed = false, pairs = null) {
+  const n = signups.length;
+  const btn = (cid, label, style) => ({ type: 2, style, label, custom_id: cid });
+  let desc; let components;
+  if (closed && pairs) {
+    desc = pairs.length
+      ? '🎲 **깐부 확정!**\n\n' + pairs.map((p, idx) => `**깐부 ${idx + 1}** · ${p.map(tftNameOf).join('  +  ')}${p.length < 2 ? ' _(혼자 — 인원 홀수)_' : ''}`).join('\n')
+      : '신청자가 2명 미만이라 깐부를 못 짰어요.';
+    components = [{ type: 1, components: [btn(`trr:${queue.id}`, '🔄 다시 섞기', 2), btn(`tqo:${queue.id}`, '🔓 다시 열기', 2)] }];
+  } else {
+    const list = n ? signups.map((s, idx) => `${idx + 1}. ${tftNameOf(s)}`).join('\n') : '_아직 없음_';
+    desc = `**🎲 참가** 눌러 신청 · ${queue.size}명 모이면 방장이 🔒 마감 → 랜덤 **2인조 깐부**로 짜줘요. (등록 불필요)\n\n**참가자 (${n}/${queue.size})**\n${list}`;
+    components = [{ type: 1, components: [btn(`tj:${queue.id}`, '🎲 참가', 1), btn(`tl:${queue.id}`, '❌ 나가기', 4), btn(`tqc:${queue.id}`, '🔒 마감', 2)] }];
+  }
+  return { embeds: [{ title: `🎲 롤토체스 깐부 내전${closed ? ' · 마감됨' : ` (${n}/${queue.size})`}`, description: desc, color: 0x9b59b6 }], components, allowed_mentions: { parse: [] } };
+}
+async function cmdTft(i, gid) {
+  const existing = await getOpenQueue(gid, 'tft');
+  if (existing) return ephem('이미 열린 롤체 모집이 있어요. 먼저 🔒 마감한 뒤 다시 `/롤체` 해주세요.');
+  const size = opt(i, '인원') || 8;
+  const q = await createQueue(gid, size, callerId(i), i.channel_id, 'tft');
+  waitUntil(captureMessageId(i, q.id));
+  return NextResponse.json({ type: 4, data: tftMessage(q, []) });
+}
+async function handleTftButton(i, action, qid) {
+  const queue = await getQueue(qid);
+  if (!queue) return ephem('모집을 찾을 수 없어요 (오래된 메시지일 수 있어요).');
+  const me = callerId(i);
+  if (action === 'tj') {
+    if (queue.status !== 'open') return ephem('이미 마감된 모집이에요.');
+    const meU = i.member?.user || i.user;
+    const nick = i.member?.nick || meU?.global_name || meU?.username || '참가자';
+    await upsertSignup(qid, me, { name: nick, main: 'tft' });
+  } else if (action === 'tl') {
+    await removeSignup(qid, me);
+  } else if (action === 'tqc') { // 마감 → 깐부 (방장)
+    if (queue.host_id && me !== queue.host_id) return ephem('모집 만든 사람만 마감할 수 있어요.');
+    await closeQueue(qid);
+    const signups = await listSignups(qid);
+    return updateMsg(tftMessage({ ...queue, status: 'closed' }, signups, true, tftPairs(signups)));
+  } else if (action === 'trr') { // 다시 섞기 (방장)
+    if (queue.host_id && me !== queue.host_id) return ephem('방장만 다시 섞을 수 있어요.');
+    const signups = await listSignups(qid);
+    return updateMsg(tftMessage({ ...queue, status: 'closed' }, signups, true, tftPairs(signups)));
+  } else if (action === 'tqo') { // 다시 열기 (방장)
+    if (queue.host_id && me !== queue.host_id) return ephem('방장만 다시 열 수 있어요.');
+    try { await reopenQueue(qid); } catch (e) { return ephem(e.message); }
+    const signups = await listSignups(qid);
+    return updateMsg(tftMessage({ ...queue, status: 'open' }, signups, false));
+  }
+  if (queue.status !== 'open') return updateMsg(tftMessage(queue, await listSignups(qid), false));
+  const fresh = await listSignups(qid);
+  return updateMsg(tftMessage(queue, fresh, false));
+}
+
+const HANDLERS = { 리더보드: cmdLeaderboard, 전적: cmdRecord, 내전적: cmdMyRecord, 연동: cmdLink, 가입: cmdRegister, 프로필: cmdProfile, 칭호: cmdAwards, 방: cmdRoom, 밸런스: cmdBalance, 모집: cmdRecruit, 기록: cmdMatchShot, 방연결: cmdLinkGuild, 대회공지: cmdTourneyNotice, 관리자: cmdAdmin, 신고: cmdReport, 신고목록: cmdReports, 신고채널: cmdReportChannel, 롤체: cmdTft };
 
 export async function POST(request) {
   const body = await request.text();

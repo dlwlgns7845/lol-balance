@@ -866,9 +866,10 @@ export async function dedupeByNick(groupId) {
 
 // ── 내전 모집 큐 (디스코드 봇) ── 상태는 recruit_queues / recruit_signups 에 저장(서버리스라 무상태)
 // 디코↔사이트 양방향 동기화: 큐 테이블이 단일 진실. channel_id/message_id 로 사이트→디코 메시지 갱신.
-export async function createQueue(gid, size, hostId, channelId) {
-  const { data, error } = await db().from('recruit_queues')
-    .insert({ gid, size, status: 'open', host_id: hostId || null, channel_id: channelId || null }).select().single();
+export async function createQueue(gid, size, hostId, channelId, gameType = 'lol') {
+  const base = { gid, size, status: 'open', host_id: hostId || null, channel_id: channelId || null, game_type: gameType };
+  let { data, error } = await db().from('recruit_queues').insert(base).select().single();
+  if (error && /game_type/i.test(error.message || '')) { const { game_type, ...b } = base; ({ data, error } = await db().from('recruit_queues').insert(b).select().single()); } // 컬럼 미생성 폴백
   if (error) throw error;
   return data;
 }
@@ -880,12 +881,13 @@ export async function getQueue(id) {
   return data;
 }
 
-// gid의 가장 최근 열린 큐 (사이트가 "오늘 내전" 으로 미러링)
-export async function getOpenQueue(gid) {
+// gid의 가장 최근 열린 큐 (사이트가 "오늘 내전" 으로 미러링). gameType별로 분리(lol/tft 동시 가능).
+export async function getOpenQueue(gid, gameType = 'lol') {
   if (!gid) return null;
-  const { data, error } = await db().from('recruit_queues')
-    .select('*').eq('gid', gid).eq('status', 'open').order('created_at', { ascending: false }).limit(1).maybeSingle();
-  if (error) throw error;
+  let q = db().from('recruit_queues').select('*').eq('gid', gid).eq('status', 'open');
+  try { q = q.eq('game_type', gameType); } catch { /* 컬럼 미생성 → 필터 생략 */ }
+  const { data, error } = await q.order('created_at', { ascending: false }).limit(1).maybeSingle();
+  if (error) return null; // game_type 컬럼 없거나 조회 실패 → 안전하게 null
   return data;
 }
 
@@ -910,10 +912,12 @@ export async function setQueueSize(id, size) {
 
 // 마감 번복 → 다시 열기 (호스트). 같은 방에 다른 열린 모집이 있으면 거부(한 방 한 모집 규칙).
 export async function reopenQueue(id) {
-  const { data: q } = await db().from('recruit_queues').select('id, gid').eq('id', id).maybeSingle();
+  const { data: q } = await db().from('recruit_queues').select('id, gid, game_type').eq('id', id).maybeSingle();
   if (!q) throw new Error('모집을 찾을 수 없어요');
-  const { data: other } = await db().from('recruit_queues').select('id').eq('gid', q.gid).eq('status', 'open').neq('id', id).limit(1);
-  if (other && other.length) { const e = new Error('이미 다른 열린 모집이 있어요 — 그걸 먼저 마감하세요.'); e.status = 400; throw e; }
+  let other = db().from('recruit_queues').select('id').eq('gid', q.gid).eq('status', 'open').neq('id', id);
+  try { other = other.eq('game_type', q.game_type || 'lol'); } catch { /* 컬럼 없으면 생략 */ }
+  const { data: others } = await other.limit(1);
+  if (others && others.length) { const e = new Error('이미 다른 열린 모집이 있어요 — 그걸 먼저 마감하세요.'); e.status = 400; throw e; }
   const { error } = await db().from('recruit_queues').update({ status: 'open' }).eq('id', id);
   if (error) throw error;
 }

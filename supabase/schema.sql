@@ -163,6 +163,8 @@ create table if not exists recruit_queues (
   created_at timestamptz not null default now()
 );
 create index if not exists idx_recruit_queues_gid on recruit_queues(gid, status);
+-- 게임 종류: 'lol'(내전 5v5) | 'tft'(롤토체스 깐부). LoL·TFT 모집이 한 방에서 동시 가능.
+alter table recruit_queues add column if not exists game_type text not null default 'lol';
 
 -- 모집 신청 (discord_id 또는 'site:<personId>'). created_at = 선착순.
 create table if not exists recruit_signups (
