@@ -1095,14 +1095,14 @@ export async function getStats(groupId) {
   const POS_KEYS = ['top', 'jungle', 'mid', 'adc', 'sup'];
   const posOf = (m) => (m.position && POS_KEYS.includes(m.position) ? m.position : (m.slot != null ? POS_KEYS[((m.slot % 5) + 5) % 5] : null));
   // 점수 공식(리더보드와 동일) — 라인별 리더보드에서 재사용
-  const CRED_GAMES = 12; // 신뢰 게이트: 이 판수면 신뢰도 1.0(만땅), 그 이상은 더 안 오름 → 다판 볼륨 프리미엄 방지
+  const CRED_GAMES = 8;  // 신뢰 게이트: 8판이면 신뢰도 1.0(만땅). 7-1(8판) 같은 소수정예도 상위권 가능. 2판=0.25로 억제.
+  const VOL_W = 5;       // 볼륨(ln 판수) 가중. 낮출수록 실력(승률·KDA)이 우선 (다판 중간실력이 위로 못 감).
   const scoreOf = (games, wins, kda, avgDamage) => {
     if (!games) return 0;
     const adjWr = (wins + 2) / (games + 4);
-    // KDA는 √(제곱근) 곡선 — 낮을 땐 쑥 오르고 높을수록 완만(오목). 직선 kda×10 대비 고KDA 캐리 억제.
-    const raw = adjWr * 100 * 0.9 + Math.log(games) * 10 + Math.sqrt(kda || 0) * 12 + (avgDamage || 0) / 1000 * 0.4;
-    // ⚠️ 소표본만 억제하는 '신뢰 게이트'. 2판→0.17, 12판+→1.0(캡). 게이트라서 다판을 추가로 보상하진 않음
-    //   (볼륨 보상은 ln(판수)항이 이미 담당 — conf까지 다판 밀어주면 중간실력 다판이 1위 먹음).
+    // 스코어 = 실력(승률·KDA·딜) + 소폭 볼륨(ln). KDA는 √곡선(고KDA 캐리 억제).
+    const raw = adjWr * 100 * 0.9 + Math.log(games) * VOL_W + Math.sqrt(kda || 0) * 12 + (avgDamage || 0) / 1000 * 0.4;
+    // 신뢰 게이트: 소표본만 억제(2판→0.25, 8판+→1.0 캡). 캡이라 다판을 추가 보상하진 않음 → 실력 우선.
     const conf = Math.min(1, games / CRED_GAMES);
     return Math.round(raw * conf * 10) / 10;
   };
