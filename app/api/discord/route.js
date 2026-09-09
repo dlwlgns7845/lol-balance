@@ -529,7 +529,7 @@ async function pingTeams(i, signups, teams, metaMap) {
 async function handleComponent(i) {
   const parts = (i.data?.custom_id || '').split(':');
   const [action, qid, lane] = parts;
-  if (action === 'tr') return handleTeamReroll(qid, lane, parts[3]); // 마감 자동팀 조합 넘기기 (lane=현재idx, parts[3]=방향 p/n)
+  if (action === 'tr') return handleTeamReroll(i, qid, lane, parts[3]); // 마감 자동팀 조합 넘기기 (lane=현재idx, parts[3]=방향 p/n)
   if (action === 'tc') return handleTeamConfirm(i, qid, lane); // 이 조합으로 확정 → 전원 호출 (lane=선택 idx)
   if (action === 't20') return handleTrim20(i, qid, lane); // 20인 부분마감 초과인원 빼기 (lane=policy)
   if (action === 't20pick') return handleTrim20Pick(i, qid); // 관리자 지정 빼기 (셀렉트)
@@ -550,12 +550,12 @@ async function handleComponent(i) {
   if (queue.status !== 'open') {
     // 이미 마감됐지만 팀이 안 떴을 수 있음(옛 타임아웃으로 closeQueue만 되고 편성 실패) → 마감 다시 누르면 팀 재생성.
     if (action === 'qc') {
-      if (queue.host_id && me !== queue.host_id) return ephem('모집 만든 사람만 마감할 수 있어요.');
+      if (!(await canManageQueue(i, queue))) return ephem('모집 만든 사람 또는 운영진(관리·추방·차단)만 할 수 있어요.');
       waitUntil(closeAndPost(i, queue));
       return NextResponse.json({ type: 6 });
     }
     if (action === 'qo') { // 🔓 마감 번복 → 다시 열기 (신청자·자리 유지)
-      if (queue.host_id && me !== queue.host_id) return ephem('모집 만든 사람만 다시 열 수 있어요.');
+      if (!(await canManageQueue(i, queue))) return ephem('모집 만든 사람 또는 운영진(관리·추방·차단)만 할 수 있어요.');
       try { await reopenQueue(qid); } catch (e) { return ephem(e.message); }
       const signups = await listSignups(qid);
       const metaMap = buildMetaMap(await listPersons(queue.gid));
@@ -586,14 +586,14 @@ async function handleComponent(i) {
     const after = before.filter((s) => s.discord_id !== me);
     waitUntil(pingPromoted(i, queue, before, after));
   } else if (action === 'qk') { // 🚫 방장 킥 → 신청자 선택 셀렉트 (나만 보이게)
-    if (queue.host_id && me !== queue.host_id) return ephem('모집 만든 사람만 킥할 수 있어요.');
+    if (!(await canManageQueue(i, queue))) return ephem('모집 만든 사람 또는 운영진(관리·추방·차단)만 할 수 있어요.');
     const signups = await listSignups(qid);
     if (!signups.length) return ephem('신청자가 없어요.');
     const metaMap = buildMetaMap(await listPersons(queue.gid));
     const opts = signups.slice(0, 25).map((s) => { const m = metaMap.get(s.discord_id) || {}; return { label: (m.game || s.name || '?').slice(0, 90), value: s.discord_id, description: `${LANE_KR[s.main] || s.main || ''} ${m.baseTier || ''}`.trim().slice(0, 90) }; });
     return NextResponse.json({ type: 4, data: { flags: 64, content: '🚫 뺄 신청자를 고르세요 (여러 명 가능):', components: [{ type: 1, components: [{ type: 3, custom_id: `qks:${qid}`, placeholder: '킥할 신청자 선택', min_values: 1, max_values: Math.min(signups.length, 25), options: opts }] }] } });
   } else if (action === 'qks') { // 킥 실행 (셀렉트 결과)
-    if (queue.host_id && me !== queue.host_id) return ephem('모집 만든 사람만 킥할 수 있어요.');
+    if (!(await canManageQueue(i, queue))) return ephem('모집 만든 사람 또는 운영진(관리·추방·차단)만 할 수 있어요.');
     const kick = i.data?.values || [];
     const before = await listSignups(qid);
     for (const id of kick) await removeSignup(qid, id);
@@ -602,13 +602,13 @@ async function handleComponent(i) {
     waitUntil(syncDiscordMessage(queue, after, buildMetaMap(await listPersons(queue.gid)))); // 원본 모집 메시지 갱신
     return updateMsg({ content: `✅ ${kick.length}명 킥 완료 — 모집 메시지가 갱신됐어요.`, embeds: [], components: [] });
   } else if (action === 'qc') { // 마감 (만든 사람만) → 자동팀 + 신청자 태그 호출
-    if (queue.host_id && me !== queue.host_id) return ephem('모집 만든 사람만 마감할 수 있어요.');
+    if (!(await canManageQueue(i, queue))) return ephem('모집 만든 사람 또는 운영진(관리·추방·차단)만 할 수 있어요.');
     // ⚠️ 팀짜기(balance)는 전원 올라운더(ALL)면 탐색공간이 폭발해 3초를 넘길 수 있음 → Discord 상호작용 시한 초과로 마감이 조용히 실패.
     //    defer(type 6)로 먼저 ACK하고, 무거운 팀계산은 백그라운드에서 돌려 원본 메시지를 편집한다.
     waitUntil(closeAndPost(i, queue));
     return NextResponse.json({ type: 6 }); // DEFERRED_UPDATE_MESSAGE
   } else if (action === 'qsz') { // 👥 10↔20 인원 전환 (만든 사람만) — 신청자·대기 전원 그대로 유지
-    if (queue.host_id && me !== queue.host_id) return ephem('모집 만든 사람만 인원을 바꿀 수 있어요.');
+    if (!(await canManageQueue(i, queue))) return ephem('모집 만든 사람 또는 운영진(관리·추방·차단)만 할 수 있어요.');
     const newSize = lane === '20' ? 20 : 10;
     await setQueueSize(qid, newSize);
     queue.size = newSize; // 아래 재렌더에 반영 (신청자는 그대로, 배정만 N=2↔4로 재계산)
@@ -663,9 +663,10 @@ async function processMatchReplay(i, fileId, gid) {
 const LANE_TAG = ['TOP', 'JG', 'MID', 'BOT', 'SUP']; // 스샷 슬롯 순서
 
 // 마감 자동팀 리롤: 같은 로스터로 다음 균형 조합(랭킹 순환)
-async function handleTeamReroll(qid, curIdxStr, dir) {
+async function handleTeamReroll(i, qid, curIdxStr, dir) {
   const queue = await getQueue(qid);
   if (!queue) return ephem('⌛ 만료된 모집이에요.');
+  if (!(await canManageQueue(i, queue))) return ephem('조합 넘기기는 모집 만든 사람 또는 운영진(관리·추방·차단)만 할 수 있어요.');
   const signups = await listSignups(qid);
   const persons = await listPersons(queue.gid);
   const winMap = (await getWinAdjEnabled(queue.gid)) ? await winStatById(queue.gid) : null; // 승률 보정 토글
@@ -681,7 +682,7 @@ async function handleTeamReroll(qid, curIdxStr, dir) {
 async function handleTeamConfirm(i, qid, idxStr) {
   const queue = await getQueue(qid);
   if (!queue) return ephem('⌛ 만료된 모집이에요.');
-  if (queue.host_id && callerId(i) !== queue.host_id) return ephem('모집 만든 사람만 확정할 수 있어요.');
+  if (!(await canManageQueue(i, queue))) return ephem('모집 만든 사람 또는 운영진(관리·추방·차단)만 할 수 있어요.');
   const signups = await listSignups(qid);
   const persons = await listPersons(queue.gid);
   const winMap = (await getWinAdjEnabled(queue.gid)) ? await winStatById(queue.gid) : null; // 승률 보정 토글
@@ -698,7 +699,7 @@ async function handleTeamConfirm(i, qid, idxStr) {
 async function handleTrim20(i, qid, policy) {
   const queue = await getQueue(qid);
   if (!queue) return ephem('⌛ 만료된 모집이에요.');
-  if (queue.host_id && callerId(i) !== queue.host_id) return ephem('모집 만든 사람만 할 수 있어요.');
+  if (!(await canManageQueue(i, queue))) return ephem('모집 만든 사람 또는 운영진(관리·추방·차단)만 할 수 있어요.');
   const signups = await listSignups(qid);
   const persons = await listPersons(queue.gid);
   const winMap = (await getWinAdjEnabled(queue.gid)) ? await winStatById(queue.gid) : null; // 승률 보정 토글
@@ -721,6 +722,7 @@ async function handleTrim20(i, qid, policy) {
 async function handleTeams20Mode(i, qid, mode) {
   const queue = await getQueue(qid);
   if (!queue) return ephem('⌛ 만료된 모집이에요.');
+  if (!(await canManageQueue(i, queue))) return ephem('편성 모드 변경은 모집 만든 사람 또는 운영진(관리·추방·차단)만 할 수 있어요.');
   const signups = await listSignups(qid);
   const persons = await listPersons(queue.gid);
   const winMap = (await getWinAdjEnabled(queue.gid)) ? await winStatById(queue.gid) : null;
@@ -734,6 +736,7 @@ async function handleTeams20Mode(i, qid, mode) {
 async function handleTeams20Reroll(i, parts) {
   const qid = parts[1], mode = parts[2];
   const queue = await getQueue(qid);
+  if (queue && !(await canManageQueue(i, queue))) return ephem('조합 넘기기는 모집 만든 사람 또는 운영진(관리·추방·차단)만 할 수 있어요.');
   if (!queue) return ephem('⌛ 만료된 모집이에요.');
   const signups = await listSignups(qid);
   const persons = await listPersons(queue.gid);
@@ -751,7 +754,7 @@ async function handleTeams20Reroll(i, parts) {
 async function handleTrim20Pick(i, qid) {
   const queue = await getQueue(qid);
   if (!queue) return ephem('⌛ 만료된 모집이에요.');
-  if (queue.host_id && callerId(i) !== queue.host_id) return ephem('모집 만든 사람만 할 수 있어요.');
+  if (!(await canManageQueue(i, queue))) return ephem('모집 만든 사람 또는 운영진(관리·추방·차단)만 할 수 있어요.');
   for (const id of (i.data?.values || [])) await removeSignup(qid, id);
   const fresh = await listSignups(qid);
   const winMap = (await getWinAdjEnabled(queue.gid)) ? await winStatById(queue.gid) : null;
@@ -957,6 +960,15 @@ async function handleModalSubmit(i) {
 const isServerAdmin = (i) => { const p = BigInt(i.member?.permissions || '0'); return (p & 0x20n) !== 0n || (p & 0x8n) !== 0n; };
 // 모더레이터: 관리자 | 서버관리 | 추방 | 차단 | 메시지관리 — 신고 운영용(모드팀도 가능)
 const isModerator = (i) => { const p = BigInt(i.member?.permissions || '0'); return (p & 0x8n) !== 0n || (p & 0x20n) !== 0n || (p & 0x2n) !== 0n || (p & 0x4n) !== 0n || (p & 0x2000n) !== 0n; };
+// 모집 큐 관리(마감·다시열기·킥·인원전환·확정 등) 권한: 만든 사람(host) OR 운영진(관리/추방/차단) OR 봇관리자.
+// → 연 사람이 자리 비워도 운영진이 강제로 닫거나 정리 가능.
+async function canManageQueue(i, queue) {
+  const me = callerId(i);
+  if (!queue?.host_id || me === queue.host_id) return true;
+  if (isModerator(i)) return true;
+  try { if (await isBotAdmin(queue.gid, me)) return true; } catch { /* 무시 */ }
+  return false;
+}
 
 async function cmdMatchShot(i, gid) {
   // 서버 관리자 또는 봇 관리자(/관리자 승격)만 기록 가능
@@ -1171,16 +1183,16 @@ async function handleTftButton(i, action, qid) {
   } else if (action === 'tl') {
     await removeSignup(qid, me);
   } else if (action === 'tqc') { // 마감 → 깐부 (방장)
-    if (queue.host_id && me !== queue.host_id) return ephem('모집 만든 사람만 마감할 수 있어요.');
+    if (!(await canManageQueue(i, queue))) return ephem('모집 만든 사람 또는 운영진(관리·추방·차단)만 할 수 있어요.');
     await closeQueue(qid);
     const signups = await listSignups(qid);
     return updateMsg(tftMessage({ ...queue, status: 'closed' }, signups, true, tftPairs(signups)));
   } else if (action === 'trr') { // 다시 섞기 (방장)
-    if (queue.host_id && me !== queue.host_id) return ephem('방장만 다시 섞을 수 있어요.');
+    if (!(await canManageQueue(i, queue))) return ephem('모집 만든 사람 또는 운영진(관리·추방·차단)만 할 수 있어요.');
     const signups = await listSignups(qid);
     return updateMsg(tftMessage({ ...queue, status: 'closed' }, signups, true, tftPairs(signups)));
   } else if (action === 'tqo') { // 다시 열기 (방장)
-    if (queue.host_id && me !== queue.host_id) return ephem('방장만 다시 열 수 있어요.');
+    if (!(await canManageQueue(i, queue))) return ephem('모집 만든 사람 또는 운영진(관리·추방·차단)만 할 수 있어요.');
     try { await reopenQueue(qid); } catch (e) { return ephem(e.message); }
     const signups = await listSignups(qid);
     return updateMsg(tftMessage({ ...queue, status: 'open' }, signups, false));
