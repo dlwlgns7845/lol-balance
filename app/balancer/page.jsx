@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { balance, balance20, balance20Split, scoreTeams } from '../../src/engine.js';
+import { balance, balance20, balance20Split, scoreTeams, winrateAdj } from '../../src/engine.js';
 import { TIER_LABEL, POS, POS_KR } from '../../src/table.js';
 import RosterEditor from '../../components/RosterEditor.jsx';
 import { arraysToRoles, rolesToArrays } from '../../components/PositionToggles.jsx';
@@ -28,7 +28,7 @@ function toPlayer(p) {
 }
 
 export default function BalancerPage() {
-  const { group, canEdit, isAdmin } = useGroup();
+  const { group, canEdit, isAdmin, winAdjEnabled } = useGroup();
   const gid = group?.id;
   const [adjustOn, setAdjustOn] = useState(false); // 에메랄드↓ 자동보정 on/off (관리자 토글, 브라우저 로컬)
   const [mode, setMode] = useState(10); // 10명(1게임) / 20명(2게임)
@@ -140,8 +140,12 @@ export default function BalancerPage() {
     people.forEach((p) => { if (p.secondary_tier) [p.display_name, p.nickname].filter(Boolean).forEach((s) => { m[normNm(s)] = p.secondary_tier; }); });
     return m;
   }, [people]);
-  // 선수 객체에 보정·부라인티어 주입 (밸런서 계산 전 공통)
-  const withMeta = (pl) => ({ ...pl, adj: adjOf(pl.name), secondaryTier: secTierByName[normNm(pl.name)] || null });
+  // 선수 객체에 보정·부라인티어·승률보정 주입 (밸런서 계산 전 공통). 디코 마감과 동일 로직.
+  const withMeta = (pl) => {
+    const w = wrByName[normNm(pl.name)];
+    const winAdj = (winAdjEnabled !== false && w) ? winrateAdj(w.wins, w.games) : 0;
+    return { ...pl, adj: adjOf(pl.name), secondaryTier: secTierByName[normNm(pl.name)] || null, winAdj };
+  };
   const titlesOf = (id) => (id && awards?.byPerson?.[id]) || [];
 
   // 이름(정규화) → 승률/판수 (팀짜기 결과 표시용)
