@@ -18,14 +18,15 @@ export function pPts(p, posIdx, table = TABLE) {
 }
 
 // 승률 보정: 내전 승률로 밸런스 점수를 ±maxAdj 안에서 조정 (많이 이기면 +강함 / 많이 지면 −약함).
-//   · 중립밴드 lowStart~highStart(기본 44~66%)는 0. 밖으로 나가면 선형↑, 캡(lowEnd 20% / highEnd 85%)에서 최대.
-//   · 소표본 안전장치 2겹: (1)라플라스(가상 adjK승패)로 승률을 50%로 당김 (2)판수 램프(minGames→0, fullGames→full).
-//     → 2-0(100%) 같은 노이즈는 사실상 0, 진짜 20판+ 극단 승률만 ±6 근처. 극단은 관리자 수동보정으로.
+//   · 중립밴드 lowStart~highStart(기본 44~66%)는 0. 밖으로 나가면 선형↑, 캡(하향 lowEnd 20% / 상향 highEnd 80%)에서 최대±6.
+//     → 실승률 80% = +6(캡), 그 이상 6 고정. 66~80% 사이는 0→6. (하향은 44~20% 사이 0→−6.)
+//   · 소표본 안전장치 = 판수 램프(minGames→0, fullGames→full). 2-0(100%)은 램프로 0, 20판+ 극단만 캡.
+//     (라플라스는 뺌 — 80%를 76%로 당겨 스케일이 안 맞았음. 소표본은 램프가 이미 막음.) 극단은 관리자 수동보정.
 export function winrateAdj(wins, games, opts = {}) {
-  const { lowStart = 0.44, lowEnd = 0.20, highStart = 0.66, highEnd = 0.85, maxAdj = 6, minGames = 5, fullGames = 20, adjK = 2 } = opts;
+  const { lowStart = 0.44, lowEnd = 0.20, highStart = 0.66, highEnd = 0.80, maxAdj = 6, minGames = 5, fullGames = 20 } = opts;
   const g = games || 0;
   if (g < minGames) return 0;
-  const wr = ((wins || 0) + adjK) / (g + adjK * 2); // 라플라스 보정 승률
+  const wr = (wins || 0) / g; // 실제 승률 (라플라스 없음 — 소표본은 아래 램프가 막음)
   const ramp = Math.min(1, Math.max(0, (g - minGames) / (fullGames - minGames)));
   let raw = 0;
   if (wr <= lowEnd) raw = -maxAdj;
