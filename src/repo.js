@@ -575,6 +575,19 @@ export async function getGuildReportChannel(guildId) {
   } catch { return null; }
 }
 
+// 모집 큐 관리 역할: 이 서버에서 지정 역할을 가진 사람은 마감·킥·전환 등 큐 관리 가능 (권한 비트 없이도)
+export async function setGuildManagerRole(guildId, roleId) {
+  const { error } = await db().from('discord_guilds').update({ manager_role_id: roleId || null }).eq('guild_id', guildId);
+  if (error) { if (/manager_role/i.test(error.message || '')) throw new Error('마이그레이션(discord_guilds.manager_role_id)을 먼저 실행하세요'); throw error; }
+}
+export async function getGuildManagerRole(guildId) {
+  if (!guildId) return null;
+  try {
+    const { data } = await db().from('discord_guilds').select('manager_role_id').eq('guild_id', guildId).maybeSingle();
+    return data?.manager_role_id || null;
+  } catch { return null; }
+}
+
 // 본캐 지정 (같은 사람의 다른 계정은 해제)
 export async function setMainAccount(accountId, personId) {
   await db().from('accounts').update({ is_main: false }).eq('person_id', personId);

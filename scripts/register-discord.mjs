@@ -71,6 +71,9 @@ const commands = [
     default_member_permissions: '2', // Kick Members
     options: [{ name: '동작', description: '연결(기본) / 해제', type: 3, required: false,
       choices: [{ name: '연결', value: '연결' }, { name: '해제', value: '해제' }] }] },
+  { name: '모집권한', description: '모집 큐를 관리(마감·킥·전환)할 수 있는 역할 지정/해제 (서버 관리자)', type: 1,
+    default_member_permissions: '32', // Manage Guild — 서버 관리자에게만 노출
+    options: [{ name: '역할', description: '지정할 역할 (비우면 해제)', type: 8, required: false }] },
   { name: '롤체', description: '롤토체스 깐부 내전 — 신청받아 랜덤 2인조(깐부)', type: 1,
     options: [{ name: '인원', description: '목표 인원 (기본 8)', type: 4, required: false,
       choices: [{ name: '8명', value: 8 }, { name: '4명', value: 4 }, { name: '16명', value: 16 }] }] },

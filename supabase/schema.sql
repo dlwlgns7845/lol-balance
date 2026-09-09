@@ -152,6 +152,7 @@ create table if not exists discord_guilds (
 alter table discord_guilds add column if not exists guild_icon text;
 alter table discord_guilds add column if not exists tournament_id uuid;
 alter table discord_guilds add column if not exists notice_channel_id text;
+alter table discord_guilds add column if not exists manager_role_id text; -- /모집권한: 큐 관리 역할
 
 -- 내전 모집 큐 (디코 /모집 + 사이트 미러). 서버리스라 상태는 전부 DB.
 create table if not exists recruit_queues (

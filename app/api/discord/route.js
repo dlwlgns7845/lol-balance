@@ -7,7 +7,7 @@ import { getStats, getAwards, getMatchHistory, listPersons, updatePerson, create
   createQueue, getQueue, getOpenQueue, closeQueue, reopenQueue, setQueueSize, listSignups, getSignup, upsertSignup, removeSignup, setQueueMessage,
   createPending, getPending, updatePending, deletePending,
   getGuildRoom, getGuildLink, requestGuildLink, getGroupByCode,
-  isBotAdmin, grantBotAdmin, revokeBotAdmin, listBotAdmins, createReport, listReports, setGuildReportChannel, getGuildReportChannel, getWinAdjEnabled } from '../../../src/repo.js';
+  isBotAdmin, grantBotAdmin, revokeBotAdmin, listBotAdmins, createReport, listReports, setGuildReportChannel, getGuildReportChannel, setGuildManagerRole, getGuildManagerRole, getWinAdjEnabled } from '../../../src/repo.js';
 import { getTournamentByCode, linkGuildTournament, setGuildNoticeChannel } from '../../../src/repo-tournament.js';
 import { balance, balance20, balance20Split, balance20SplitByLane, balance20EvenByLane, winrateAdj } from '../../../src/engine.js';
 import { LANES, allocateQueue, subLanesOf } from '../../../src/queue.js';
@@ -966,6 +966,13 @@ async function canManageQueue(i, queue) {
   const me = callerId(i);
   if (!queue?.host_id || me === queue.host_id) return true;
   if (isModerator(i)) return true;
+  // 서버에서 지정한 "모집 관리 역할"을 가졌으면 허용 (권한 비트 없이도 — 다른 서버에서 역할로 운영)
+  try {
+    if (i.guild_id) {
+      const roleId = await getGuildManagerRole(i.guild_id);
+      if (roleId && Array.isArray(i.member?.roles) && i.member.roles.includes(roleId)) return true;
+    }
+  } catch { /* 무시 */ }
   try { if (await isBotAdmin(queue.gid, me)) return true; } catch { /* 무시 */ }
   return false;
 }
@@ -1120,6 +1127,19 @@ async function cmdReportChannel(i, gid) {
   return ephem('🚨 이 채널을 신고 알림 채널로 설정했어요 — 방금 **확인 메시지**를 이 채널에 올렸어요(보이면 정상). ⚠️ 이 채널은 운영진만 보이게 권한 잠가주세요.');
 }
 
+// 이 서버에서 모집 큐를 관리(마감·킥·전환·조합넘김 등)할 수 있는 "역할"을 지정/해제 — 서버 관리자만.
+// 권한 비트(추방/차단)가 없어도, 지정된 역할만 가지고 있으면 관리 가능. 역할 ID로 저장 → 이름·띄어쓰기 무관.
+async function cmdManagerRole(i, gid) {
+  if (!i.guild_id) return ephem('서버(길드) 안에서만 쓸 수 있어요.');
+  if (!isServerAdmin(i) && !(await isBotAdmin(gid, callerId(i)))) return ephem('⚠️ 서버 관리 권한이 있는 사람만 모집 관리 역할을 지정할 수 있어요.');
+  const roleId = opt(i, '역할'); // 역할 옵션(type 8) → 역할 ID. 없으면 해제로 간주.
+  try {
+    await setGuildManagerRole(i.guild_id, roleId || null);
+  } catch (e) { return ephem('설정 실패: ' + e.message); }
+  if (!roleId) return ephem('🔓 모집 관리 역할을 **해제**했어요. 이제 모집 만든 사람·운영진(관리/추방/차단)·봇관리자만 큐를 관리할 수 있어요.');
+  return ephem(`✅ <@&${roleId}> 역할을 **모집 관리 역할**로 지정했어요.\n이 역할을 가진 사람은 추방/차단 권한이 없어도 마감·킥·인원전환·조합넘김을 할 수 있어요. (해제: \`/모집권한\` 을 역할 없이 실행)`);
+}
+
 async function cmdReports(i, gid) {
   if (!isModerator(i) && !(await isBotAdmin(gid, callerId(i)))) return ephem('⚠️ 신고 내역은 운영진(관리자·추방·차단 권한)만 볼 수 있어요.');
   const reports = await listReports(gid, { limit: 50 });
@@ -1202,7 +1222,7 @@ async function handleTftButton(i, action, qid) {
   return updateMsg(tftMessage(queue, fresh, false));
 }
 
-const HANDLERS = { 리더보드: cmdLeaderboard, 전적: cmdRecord, 내전적: cmdMyRecord, 연동: cmdLink, 가입: cmdRegister, 프로필: cmdProfile, 칭호: cmdAwards, 방: cmdRoom, 밸런스: cmdBalance, 모집: cmdRecruit, 기록: cmdMatchShot, 방연결: cmdLinkGuild, 대회공지: cmdTourneyNotice, 관리자: cmdAdmin, 신고: cmdReport, 신고목록: cmdReports, 신고채널: cmdReportChannel, 롤체: cmdTft };
+const HANDLERS = { 리더보드: cmdLeaderboard, 전적: cmdRecord, 내전적: cmdMyRecord, 연동: cmdLink, 가입: cmdRegister, 프로필: cmdProfile, 칭호: cmdAwards, 방: cmdRoom, 밸런스: cmdBalance, 모집: cmdRecruit, 기록: cmdMatchShot, 방연결: cmdLinkGuild, 대회공지: cmdTourneyNotice, 관리자: cmdAdmin, 신고: cmdReport, 신고목록: cmdReports, 신고채널: cmdReportChannel, 모집권한: cmdManagerRole, 롤체: cmdTft };
 
 export async function POST(request) {
   const body = await request.text();
