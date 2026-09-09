@@ -1126,7 +1126,7 @@ function Stats({ teams, games, id, reload, user, login, canManage }) {
             <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
               <div className="lb-head">
                 <h2 style={{ margin: 0 }}>리더보드 <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>· 내전 점수순 (라플라스 보정)</span></h2>
-                <span className="formula">보정승률×0.9 + ln(판수)×10 + √KDA×12 + 딜(k)×0.4</span>
+                <span className="formula">(보정승률×0.9 + ln(판수)×10 + √KDA×12 + 딜(k)×0.4) × 판수신뢰도</span>
               </div>
               <div className="lbx">
                 <div className="lbx-row lbx-hd lbx-hd-static">

@@ -14,6 +14,8 @@ alter table groups add column if not exists score_table jsonb;
 alter table groups add column if not exists owner_id uuid;
 -- 칭호(명예의 전당 + 인라인 뱃지) 노출 여부. 방장이 방 설정에서 on/off. 기본 on.
 alter table groups add column if not exists show_awards boolean not null default true;
+-- 승률 보정(티어보정): 내전 승률로 밸런스 점수 ±6 조정. 방 설정 on/off. 기본 on.
+alter table groups add column if not exists winadj_enabled boolean not null default true;
 
 -- 방 멤버 권한 (구글 로그인 유저 단위). role: owner=방장 / editor=편집가능 / viewer=구경만
 create table if not exists room_members (

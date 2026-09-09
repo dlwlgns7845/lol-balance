@@ -14,7 +14,25 @@ export function tierPts(tier, posIdx, table = TABLE) {
 export function pPts(p, posIdx, table = TABLE) {
   const offRole = p.primary && p.primary.length > 0 && !p.primary.includes(POS[posIdx]);
   const tier = (offRole && p.secondaryTier) ? p.secondaryTier : p.tier;
-  return tierPts(tier, posIdx, table) + (p.adj || 0);
+  return tierPts(tier, posIdx, table) + (p.adj || 0) + (p.winAdj || 0);
+}
+
+// 승률 보정: 내전 승률로 밸런스 점수를 ±maxAdj 안에서 조정 (많이 이기면 +강함 / 많이 지면 −약함).
+//   · 중립밴드 lowStart~highStart(기본 44~66%)는 0. 밖으로 나가면 선형↑, 캡(lowEnd 20% / highEnd 85%)에서 최대.
+//   · 소표본 안전장치 2겹: (1)라플라스(가상 adjK승패)로 승률을 50%로 당김 (2)판수 램프(minGames→0, fullGames→full).
+//     → 2-0(100%) 같은 노이즈는 사실상 0, 진짜 20판+ 극단 승률만 ±6 근처. 극단은 관리자 수동보정으로.
+export function winrateAdj(wins, games, opts = {}) {
+  const { lowStart = 0.44, lowEnd = 0.20, highStart = 0.66, highEnd = 0.85, maxAdj = 6, minGames = 5, fullGames = 20, adjK = 2 } = opts;
+  const g = games || 0;
+  if (g < minGames) return 0;
+  const wr = ((wins || 0) + adjK) / (g + adjK * 2); // 라플라스 보정 승률
+  const ramp = Math.min(1, Math.max(0, (g - minGames) / (fullGames - minGames)));
+  let raw = 0;
+  if (wr <= lowEnd) raw = -maxAdj;
+  else if (wr < lowStart) raw = -maxAdj * (lowStart - wr) / (lowStart - lowEnd);
+  else if (wr >= highEnd) raw = maxAdj;
+  else if (wr > highStart) raw = maxAdj * (wr - highStart) / (highEnd - highStart);
+  return Math.round(raw * ramp * 10) / 10;
 }
 
 // 신호등: 총점차 기준

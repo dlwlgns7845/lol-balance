@@ -349,6 +349,21 @@ export async function setShowAwards(groupId, enabled) {
   if (error) throw error;
 }
 
+// ── 승률 보정(티어보정) on/off (방 전체) ── 컬럼 없으면 true(켜짐) 폴백
+export async function getWinAdjEnabled(groupId) {
+  if (!groupId) return true;
+  try {
+    const { data, error } = await db().from('groups').select('winadj_enabled').eq('id', groupId).single();
+    if (error) return true;
+    return data?.winadj_enabled !== false;
+  } catch { return true; }
+}
+export async function setWinAdjEnabled(groupId, enabled) {
+  if (!groupId) throw new Error('groupId 필요');
+  const { error } = await db().from('groups').update({ winadj_enabled: !!enabled }).eq('id', groupId);
+  if (error) throw error;
+}
+
 // ── 사람 (그룹 단위로 격리) ──
 // 디코 유저ID로 이 방의 선수 찾기 (로그인=본인선수 자동매칭)
 export async function findPersonByDiscord(groupId, discordId) {
@@ -991,6 +1006,14 @@ export async function deletePending(id) {
 }
 
 // ── 통계 (승패 + 스샷 추출 상세: KDA/CS/골드/챔프) ──
+// 내전 승률 보정용 — 사람ID → { wins, games }. 밸런스(팀편성)에서 winrateAdj 계산에 씀.
+export async function winStatById(groupId) {
+  try {
+    const { players } = await getStats(groupId);
+    return new Map((players || []).map((p) => [p.id, { wins: p.wins || 0, games: p.games || 0 }]));
+  } catch { return new Map(); }
+}
+
 export async function getStats(groupId) {
   const persons = await listPersons(groupId);
   const ids = persons.map((p) => p.id);
@@ -1072,11 +1095,15 @@ export async function getStats(groupId) {
   const POS_KEYS = ['top', 'jungle', 'mid', 'adc', 'sup'];
   const posOf = (m) => (m.position && POS_KEYS.includes(m.position) ? m.position : (m.slot != null ? POS_KEYS[((m.slot % 5) + 5) % 5] : null));
   // 점수 공식(리더보드와 동일) — 라인별 리더보드에서 재사용
+  const SCORE_SHRINK_K = 8; // 판수 신뢰 계수 K: 2판→×0.2, 20판→×0.71, 50판→×0.86 (소표본 억제)
   const scoreOf = (games, wins, kda, avgDamage) => {
     if (!games) return 0;
     const adjWr = (wins + 2) / (games + 4);
     // KDA는 √(제곱근) 곡선 — 낮을 땐 쑥 오르고 높을수록 완만(오목). 직선 kda×10 대비 고KDA 캐리 억제.
-    return Math.round((adjWr * 100 * 0.9 + Math.log(games) * 10 + Math.sqrt(kda || 0) * 12 + (avgDamage || 0) / 1000 * 0.4) * 10) / 10;
+    const raw = adjWr * 100 * 0.9 + Math.log(games) * 10 + Math.sqrt(kda || 0) * 12 + (avgDamage || 0) / 1000 * 0.4;
+    // ⚠️ 소표본이 통계 1위 먹는 것 방지 — 라플라스는 승률항만 누르고 KDA는 못 눌러서, 스코어 전체에 판수 신뢰도 곱함.
+    const conf = games / (games + SCORE_SHRINK_K);
+    return Math.round(raw * conf * 10) / 10;
   };
 
   const rows = persons.map((p) => {
@@ -1164,7 +1191,7 @@ export async function getStats(groupId) {
     lanes[pos] = list;
   });
 
-  return { totalMatches: matchCount || 0, players: rows, lanes, laneMin: LANE_MIN, scoreFormula: '보정승률×0.9 + ln(판수)×10 + √KDA×12 + 딜량(k)×0.4' };
+  return { totalMatches: matchCount || 0, players: rows, lanes, laneMin: LANE_MIN, scoreFormula: '(보정승률×0.9 + ln(판수)×10 + √KDA×12 + 딜량(k)×0.4) × 판수신뢰도' };
 }
 
 // ── 칭호: 개인(승률·CS·MVP) + 관계형(듀오·상대전적·연승). 사람ID/이름별 뱃지 맵 포함 ──

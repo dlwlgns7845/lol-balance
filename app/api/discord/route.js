@@ -3,13 +3,13 @@
 import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { waitUntil } from '@vercel/functions';
-import { getStats, getAwards, getMatchHistory, listPersons, updatePerson, createPerson, addAccount, uploadAvatarFromUrl, saveMatch, refreshStalePersonTiers,
+import { getStats, getAwards, getMatchHistory, listPersons, updatePerson, createPerson, addAccount, uploadAvatarFromUrl, saveMatch, refreshStalePersonTiers, winStatById,
   createQueue, getQueue, getOpenQueue, closeQueue, reopenQueue, setQueueSize, listSignups, getSignup, upsertSignup, removeSignup, setQueueMessage,
   createPending, getPending, updatePending, deletePending,
   getGuildRoom, getGuildLink, requestGuildLink, getGroupByCode,
-  isBotAdmin, grantBotAdmin, revokeBotAdmin, listBotAdmins, createReport, listReports, setGuildReportChannel, getGuildReportChannel } from '../../../src/repo.js';
+  isBotAdmin, grantBotAdmin, revokeBotAdmin, listBotAdmins, createReport, listReports, setGuildReportChannel, getGuildReportChannel, getWinAdjEnabled } from '../../../src/repo.js';
 import { getTournamentByCode, linkGuildTournament, setGuildNoticeChannel } from '../../../src/repo-tournament.js';
-import { balance, balance20, balance20Split, balance20SplitByLane, balance20EvenByLane } from '../../../src/engine.js';
+import { balance, balance20, balance20Split, balance20SplitByLane, balance20EvenByLane, winrateAdj } from '../../../src/engine.js';
 import { LANES, allocateQueue, subLanesOf } from '../../../src/queue.js';
 import { MAINTENANCE } from '../../../src/maintenance.js';
 import { queueMessage, buildTeamsRanked, buildMetaMap, allocateSignups, syncDiscordMessage, LANE_KR } from '../../../src/discord-queue.js';
@@ -320,10 +320,12 @@ async function cmdBalance(i, gid) {
   const linked = [], missing = [];
   for (const id of ids) { const p = byDiscord.get(id); if (p) linked.push(p); else missing.push(id); }
   if (missing.length) return reply(`먼저 \`/연동\` 필요: ${missing.map((id) => `<@${id}>`).join(' ')}`);
+  const winMap = (await getWinAdjEnabled(gid)) ? await winStatById(gid) : null; // 승률 보정 토글
   const players = linked.map((p) => ({
     name: p.display_name, tier: p.base_tier, secondaryTier: p.secondary_tier || null,
     positions: [...(p.primary_positions || []), ...(p.secondary_positions || [])],
     primary: p.primary_positions || [],
+    winAdj: winMap ? winrateAdj((winMap.get(p.id) || {}).wins, (winMap.get(p.id) || {}).games) : 0,
   }));
   if (players.some((p) => !p.positions.length)) return reply('포지션 미지정 선수가 있어요. 사람관리에서 포지션 지정 후 다시.');
   const r = balance(players, {});
@@ -369,7 +371,7 @@ async function cmdRecruit(i, gid) {
 //  even: counts=[전체 arrangement 수], cur=[선택] · split: counts=[게임1 후보수, 게임2 후보수], cur=[i0,i1]
 const wrap = (i, n) => (((i % n) + n) % n);
 const gameCell = (c) => ({ lanes: c.lanes, sumA: c.sumA, sumB: c.sumB });
-function autoTeams20(queue, signups, persons, mode = 'split', idx = [0, 0]) {
+function autoTeams20(queue, signups, persons, mode = 'split', idx = [0, 0], winMap = null) {
   const alloc = allocateSignups(queue, signups);
   const placedIds = LANES.flatMap((l) => alloc.lanes[l]);
   if (placedIds.length !== 20) return null;
@@ -394,6 +396,7 @@ function autoTeams20(queue, signups, persons, mode = 'split', idx = [0, 0]) {
       // 부라인 티어(secondary) 판단 = 멤버관리의 주포지션 기준(큐 메인 아님). 주포지션 밖 라인에 배치되면 secondary_tier 적용.
       primary: all ? [] : (person.primary_positions || []),
       adj: all ? -1 : 0,
+      winAdj: winMap ? winrateAdj((winMap.get(person.id) || {}).wins, (winMap.get(person.id) || {}).games) : 0, // 승률 보정 (토글 on일 때만 winMap 전달)
       lane: laneOf[did], // 배정된 라인 — 고저분리(라인별) 시 이 라인 고정
     });
   }
@@ -453,12 +456,13 @@ async function closeAndPost(i, queue) {
     await closeQueue(qid);
     const signups = await listSignups(qid);
     const persons = await listPersons(queue.gid);
-    const metaMap = buildMetaMap(persons);
+    const winMap = (await getWinAdjEnabled(queue.gid)) ? await winStatById(queue.gid) : null; // 승률 보정 토글
+    const metaMap = buildMetaMap(persons, winMap);
     if (queue.size === 20) {
       const alloc = allocateSignups({ ...queue, status: 'closed' }, signups);
       const placed = LANES.flatMap((l) => alloc.lanes[l]);
       if (placed.length === 20) { // 20명 배정됨(21명+ 이면 초과분은 대기) → 고저분리 4팀
-        const teams20 = autoTeams20({ ...queue, status: 'closed' }, signups, persons);
+        const teams20 = autoTeams20({ ...queue, status: 'closed' }, signups, persons, 'split', [0, 0], winMap);
         if (teams20) {
           await pingTeams(i, signups, null, metaMap); // 전원 태그(4팀은 메시지에 표시)
           return followupData(i, queueMessage({ ...queue, status: 'closed' }, signups, true, null, 0, teams20, metaMap));
@@ -664,7 +668,8 @@ async function handleTeamReroll(qid, curIdxStr, dir) {
   if (!queue) return ephem('⌛ 만료된 모집이에요.');
   const signups = await listSignups(qid);
   const persons = await listPersons(queue.gid);
-  const metaMap = buildMetaMap(persons);
+  const winMap = (await getWinAdjEnabled(queue.gid)) ? await winStatById(queue.gid) : null; // 승률 보정 토글
+  const metaMap = buildMetaMap(persons, winMap);
   const ranked = buildTeamsRanked({ ...queue, status: 'closed' }, signups, metaMap);
   if (!ranked.length) return ephem('팀을 다시 짤 수 없어요 (10인 아님).');
   const step = dir === 'p' ? -1 : 1; // ◀ 이전 / ▶ 다음
@@ -679,7 +684,8 @@ async function handleTeamConfirm(i, qid, idxStr) {
   if (queue.host_id && callerId(i) !== queue.host_id) return ephem('모집 만든 사람만 확정할 수 있어요.');
   const signups = await listSignups(qid);
   const persons = await listPersons(queue.gid);
-  const metaMap = buildMetaMap(persons);
+  const winMap = (await getWinAdjEnabled(queue.gid)) ? await winStatById(queue.gid) : null; // 승률 보정 토글
+  const metaMap = buildMetaMap(persons, winMap);
   const ranked = buildTeamsRanked({ ...queue, status: 'closed' }, signups, metaMap);
   if (!ranked.length) return ephem('팀을 확정할 수 없어요 (10인 아님).');
   const idx = Math.min(Math.max(Number(idxStr || 0), 0), ranked.length - 1);
@@ -695,7 +701,8 @@ async function handleTrim20(i, qid, policy) {
   if (queue.host_id && callerId(i) !== queue.host_id) return ephem('모집 만든 사람만 할 수 있어요.');
   const signups = await listSignups(qid);
   const persons = await listPersons(queue.gid);
-  const metaMap = buildMetaMap(persons);
+  const winMap = (await getWinAdjEnabled(queue.gid)) ? await winStatById(queue.gid) : null; // 승률 보정 토글
+  const metaMap = buildMetaMap(persons, winMap);
   const renderTeams = (sg) => { const ranked = buildTeamsRanked({ ...queue, status: 'closed' }, sg, metaMap); return updateMsg(queueMessage({ ...queue, status: 'closed' }, sg, true, ranked[0], 0, null, metaMap, ranked.length)); };
   if (signups.length <= 10) return renderTeams(signups); // 이미 10명 이하 → 바로 편성
   if (policy === 'pick') { // 관리자 지정: 뺄 사람 N-10명 선택
@@ -716,8 +723,9 @@ async function handleTeams20Mode(i, qid, mode) {
   if (!queue) return ephem('⌛ 만료된 모집이에요.');
   const signups = await listSignups(qid);
   const persons = await listPersons(queue.gid);
-  const metaMap = buildMetaMap(persons);
-  const teams20 = autoTeams20({ ...queue, status: 'closed' }, signups, persons, mode === 'even' ? 'even' : 'split');
+  const winMap = (await getWinAdjEnabled(queue.gid)) ? await winStatById(queue.gid) : null;
+  const metaMap = buildMetaMap(persons, winMap);
+  const teams20 = autoTeams20({ ...queue, status: 'closed' }, signups, persons, mode === 'even' ? 'even' : 'split', [0, 0], winMap);
   if (!teams20) return ephem('팀 편성을 못 했어요 — 신청자 20명·라인 배정이 안 맞거나 선수 정보가 바뀌었을 수 있어요. 🔓 다시 열기 후 확인하거나 새로 `/모집` 해주세요.');
   return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, null, 0, teams20, metaMap));
 }
@@ -729,11 +737,12 @@ async function handleTeams20Reroll(i, parts) {
   if (!queue) return ephem('⌛ 만료된 모집이에요.');
   const signups = await listSignups(qid);
   const persons = await listPersons(queue.gid);
-  const metaMap = buildMetaMap(persons);
+  const winMap = (await getWinAdjEnabled(queue.gid)) ? await winStatById(queue.gid) : null;
+  const metaMap = buildMetaMap(persons, winMap);
   let idx;
   if (mode === 'even') { const step = parts[4] === 'p' ? -1 : 1; idx = [(Number(parts[3]) || 0) + step, 0]; }
   else { const g = Number(parts[3]) || 0; const step = parts[6] === 'p' ? -1 : 1; idx = [Number(parts[4]) || 0, Number(parts[5]) || 0]; idx[g] += step; }
-  const teams20 = autoTeams20({ ...queue, status: 'closed' }, signups, persons, mode, idx);
+  const teams20 = autoTeams20({ ...queue, status: 'closed' }, signups, persons, mode, idx, winMap);
   if (!teams20) return ephem('팀 편성을 못 했어요 — 선수 정보가 바뀌었거나 라인 배정이 안 맞아요. 🔓 다시 열기 후 확인하거나 새로 `/모집` 해주세요.');
   return updateMsg(queueMessage({ ...queue, status: 'closed' }, signups, true, null, 0, teams20, metaMap));
 }
@@ -745,7 +754,8 @@ async function handleTrim20Pick(i, qid) {
   if (queue.host_id && callerId(i) !== queue.host_id) return ephem('모집 만든 사람만 할 수 있어요.');
   for (const id of (i.data?.values || [])) await removeSignup(qid, id);
   const fresh = await listSignups(qid);
-  const metaMap = buildMetaMap(await listPersons(queue.gid));
+  const winMap = (await getWinAdjEnabled(queue.gid)) ? await winStatById(queue.gid) : null;
+  const metaMap = buildMetaMap(await listPersons(queue.gid), winMap);
   if (fresh.length > 10) return updateMsg(trimOptionsMessage(queue, fresh.length)); // 아직 초과 → 다시
   const ranked = buildTeamsRanked({ ...queue, status: 'closed' }, fresh, metaMap);
   if (!ranked.length) return updateMsg({ embeds: [{ title: '⚠️ 편성 불가', color: GOLD, description: '남은 인원으로 5v5(2인/라인)가 안 나와요. 라인 분포를 확인하세요.' }], components: [] });

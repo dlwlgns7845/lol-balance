@@ -15,7 +15,7 @@ const NAV = [
 ];
 
 export default function AppShell({ children }) {
-  const { group, role, leave, user, discord, canEdit, canRecord, authOn, isAdmin, login, logout, claim, showAwards, setShowAwards } = useGroup();
+  const { group, role, leave, user, discord, canEdit, canRecord, authOn, isAdmin, login, logout, claim, showAwards, setShowAwards, winAdjEnabled, setWinAdjEnabled } = useGroup();
   const path = usePathname();
   const canModerate = isAdmin || role === 'owner' || role === 'editor';
   let nav = canModerate ? [...NAV, { href: '/reports', label: '신고', ic: '🚨' }] : NAV;
@@ -128,6 +128,17 @@ export default function AppShell({ children }) {
               </div>
               <button className={`switch${showAwards ? ' on' : ''}`} role="switch" aria-checked={showAwards}
                 onClick={() => setShowAwards(!showAwards)}>
+                <span className="switch-knob" />
+              </button>
+            </div>
+
+            <div className="set-toggle">
+              <div className="set-toggle-txt">
+                <b>승률 보정 (티어보정)</b>
+                <span className="muted">내전 승률로 밸런스 점수 ±6 조정 · 판수 적으면 자동 축소 (극단은 관리자 수동)</span>
+              </div>
+              <button className={`switch${winAdjEnabled ? ' on' : ''}`} role="switch" aria-checked={winAdjEnabled}
+                onClick={() => setWinAdjEnabled(!winAdjEnabled)}>
                 <span className="switch-knob" />
               </button>
             </div>

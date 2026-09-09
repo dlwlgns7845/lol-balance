@@ -1,7 +1,7 @@
 // 내전 모집 큐 — 디코 메시지 렌더 + 배정 + 사이트↔디코 동기화 (route.js·사이트 API 공유)
 import { allocateQueue, LANES, subLanesOf } from './queue.js';
 import { TABLE, POS } from './table.js';
-import { balance } from './engine.js';
+import { balance, winrateAdj } from './engine.js';
 
 // 마감 시 → 사이트 밸런서(engine.balance)로 최적 팀편성 후보 랭킹 (10인만).
 //  올라운더(ALL)=아무 라인 배치 가능 + 점수 −1 혜택 / 특정 주라인=주+선택라인만. 엔진이 라인배치·팀분할 동시 최적화.
@@ -24,6 +24,7 @@ export function buildTeamsRanked(queue, signups, personMap) {
       // 부라인 티어(secondary) 판단 = 멤버관리 주포지션 기준. 주포지션 밖에 배치되면 secondary_tier 적용. 올라운더는 없음(자유 배치).
       primary: all ? [] : (p.primary || []),
       adj: all ? -1 : 0, // 올라운더 점수 −1 혜택
+      winAdj: p.winAdj || 0, // 승률 보정 (metaMap에 winMap 심었을 때)
     };
   });
   let res;
@@ -41,15 +42,18 @@ export function buildTeams(queue, signups, personMap) { return buildTeamsRanked(
 export const LANE_KR = { top: '탑', jungle: '정글', mid: '미드', adc: '원딜', sup: '서폿' };
 const GOLD = 0xe8c07d;
 
-// 디코 큐 표시용 메타: discord_id·site:personId → { tier, game(인게임닉), tag }. persons(계정 포함) 필요.
-export function buildMetaMap(persons) {
+// 디코 큐 표시용 메타: discord_id·site:personId → { tier, game(인게임닉), tag, winAdj }. persons(계정 포함) 필요.
+// winMap(사람ID→{wins,games}) 주면 승률 보정(winAdj)까지 계산해 심음 → 팀편성에서 자동 반영.
+export function buildMetaMap(persons, winMap = null) {
   const m = new Map();
   (persons || []).forEach((p) => {
     const acc = (p.accounts || []).find((a) => a.is_main) || (p.accounts || [])[0];
+    const w = winMap && winMap.get(p.id);
     const meta = {
       game: acc?.game_name || null, tag: acc?.tag_line || null,
       baseTier: p.base_tier, secTier: p.secondary_tier || null,
       primary: p.primary_positions || [], secondary: p.secondary_positions || [],
+      winAdj: w ? winrateAdj(w.wins, w.games) : 0,
     };
     if (p.discord_id) m.set(p.discord_id, meta);
     m.set(`site:${p.id}`, meta);
