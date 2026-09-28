@@ -1047,8 +1047,8 @@ sup.offtag { color: var(--gold); font-size: 9px; border: 1px solid var(--gold); 
 .lang-switch button + button { border-left: 1px solid var(--line2); }
 .lang-switch button.on { background: var(--panel2); color: var(--text); font-weight: 600; }
 .lang-switch button:not(.on):hover { color: var(--text); }
-.gate-wrap { position: relative; }
-.gate-lang { position: absolute; top: 16px; right: 16px; }
+/* 첫 화면: 카드 안 오른쪽 위. 로고와 겹치지 않게 별도 줄(좁은 화면 대비) */
+.gate-lang-row { display: flex; justify-content: flex-end; margin: -14px -14px 2px 0; }
 .set-section-label { font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; margin: 14px 0 0; }
 .site-credit .lang-link { margin-left: 10px; }
 .tb-menu-lang { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 10px 8px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); margin-bottom: 4px; }
