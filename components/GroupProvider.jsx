@@ -210,7 +210,7 @@ export default function GroupProvider({ children }) {
           <div className="gate-lang-row"><LangSwitch /></div>
           <img src="/logo.webp" alt="logo" className="gate-logo" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
           <div className="brand-big">{lang === 'en' ? <><span className="accent">Inhouse</span> Balance · Stats</> : <><span className="accent">내전</span> 밸런스 · 통계</>}</div>
-          <div className="tagline"><span className="pill"><span className="dot" />{t('AI 밸런싱 · 스크린샷 자동 기록')}</span></div>
+          <div className="tagline"><span className="pill"><span className="dot" />{t('자동 팀 밸런싱 · 스크린샷 자동 기록')}</span></div>
 
           {authConfigured() && <div className="gate-auth">
             {user ? (
