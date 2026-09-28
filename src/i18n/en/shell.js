@@ -13,7 +13,7 @@ const EN = {
     'Delete the room "{name}"?\nAll games, stats, players and members in it will be permanently deleted. This can’t be undone.',
   '방이 삭제됐어요.': 'The room was deleted.',
   '방 삭제 실패: ': 'Couldn’t delete the room: ',
-  'AI 밸런싱 · 스크린샷 자동 기록': 'AI team balancing · Auto-recorded from screenshots',
+  'AI 밸런싱 · 스크린샷 자동 기록': 'AI balancing for League of Legends inhouse (custom) games',
   '로그인됨': 'Signed in',
   '로그아웃': 'Sign out',
   '디스코드로 로그인': 'Sign in with Discord',
