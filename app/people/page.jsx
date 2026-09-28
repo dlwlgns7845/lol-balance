@@ -5,6 +5,7 @@ import PositionToggles, { rolesToArrays, arraysToRoles } from '../../components/
 import { useGroup } from '../../components/GroupProvider.jsx';
 import { apiFetch } from '../../components/api.js';
 import Avatar from '../../components/Avatar.jsx';
+import { useLang } from '../../components/i18n.jsx';
 
 const REGIONS = ['NA', 'KR', 'EUW', 'EUNE', 'BR', 'JP', 'OCE', 'LAN', 'LAS', 'TR', 'RU'];
 const DEFAULT_TAG = { NA: 'NA1', KR: 'KR1', EUW: 'EUW', EUNE: 'EUNE', BR: 'BR1', JP: 'JP1' };
@@ -20,6 +21,7 @@ async function api(url, method, body) {
 }
 
 export default function PeoplePage() {
+  const { t } = useLang();
   const { group, canEdit, isAdmin } = useGroup() || {};
   const gid = group?.id;
   const [persons, setPersons] = useState([]);
@@ -43,7 +45,7 @@ export default function PeoplePage() {
   const addPerson = () => api('/api/persons', 'POST', { group_id: gid, display_name: '' }).then(load).catch((e) => setErr(e.message));
   const patchPerson = (id, patch) => api(`/api/persons/${id}?gid=${gid}`, 'PATCH', patch).then(load).catch((e) => setErr(e.message));
   async function delPerson(id) {
-    if (!confirm('이 사람을 삭제할까요?\n※ 경기 기록이 있으면 보호되어 삭제되지 않아요 (기록 없는 빈 선수만 삭제).')) return;
+    if (!confirm(t('이 사람을 삭제할까요?\n※ 경기 기록이 있으면 보호되어 삭제되지 않아요 (기록 없는 빈 선수만 삭제).'))) return;
     await api(`/api/persons/${id}?gid=${gid}`, 'DELETE').then(load).catch((e) => setErr(e.message));
   }
   function setRoles(p, roles) {
@@ -52,26 +54,26 @@ export default function PeoplePage() {
   }
   const mergeInto = (mergeId, keepId) => api('/api/persons/merge', 'POST', { gid, keepId, mergeId }).then(load).catch((e) => setErr(e.message));
   async function dedupe() {
-    if (!confirm('같은 인게임 닉(#태그·공백 무시)인 중복 사람을 하나로 합칠까요?\n티어가 설정된 쪽으로 합쳐지고, 경기기록도 이전돼요.')) return;
+    if (!confirm(t('같은 인게임 닉(#태그·공백 무시)인 중복 사람을 하나로 합칠까요?\n티어가 설정된 쪽으로 합쳐지고, 경기기록도 이전돼요.'))) return;
     setDeduping(true); setErr(null);
     try {
       const r = await api('/api/persons/dedupe', 'POST', { group_id: gid });
       await load();
-      alert(`중복 ${r.merged}명 병합 · 태그 ${r.cleaned}건 정리 완료.` + (r.merged + r.cleaned === 0 ? '\n(정리할 게 없었어요.)' : ''));
+      alert(t('중복 {merged}명 병합 · 태그 {cleaned}건 정리 완료.', { merged: r.merged, cleaned: r.cleaned }) + (r.merged + r.cleaned === 0 ? t('\n(정리할 게 없었어요.)') : ''));
     } catch (e) { setErr(e.message); }
     setDeduping(false);
   }
 
   async function addAccount(p) {
     const raw = (acctInput[p.id] || '').trim();
-    if (!raw) { setAcctStatus((s) => ({ ...s, [p.id]: { error: '이름#태그 입력' } })); return; }
+    if (!raw) { setAcctStatus((s) => ({ ...s, [p.id]: { error: t('이름#태그 입력') } })); return; }
     const [gn, tg] = raw.split('#');
     const gameName = gn.trim();
     const tag = (tg || '').trim() || DEFAULT_TAG[region] || region;
     setAcctStatus((s) => ({ ...s, [p.id]: { loading: true } }));
     try {
       const prof = await fetch(`/api/seed?name=${encodeURIComponent(gameName)}&tag=${encodeURIComponent(tag)}&region=${region}`).then((x) => x.json());
-      if (!prof.found) { setAcctStatus((s) => ({ ...s, [p.id]: { error: prof.error || '못 찾음' } })); return; }
+      if (!prof.found) { setAcctStatus((s) => ({ ...s, [p.id]: { error: t(prof.error) || t('못 찾음') } })); return; }
       await api('/api/accounts', 'POST', {
         gid, person_id: p.id, game_name: prof.gameName || gameName, tag_line: tag, region,
         opgg_tier: prof.suggestedTier, opgg_games: prof.games, opgg_confidence: prof.confidence,
@@ -83,9 +85,9 @@ export default function PeoplePage() {
       }
       if (Object.keys(patch).length) await api(`/api/persons/${p.id}?gid=${gid}`, 'PATCH', patch);
       setAcctInput((s) => ({ ...s, [p.id]: '' }));
-      setAcctStatus((s) => ({ ...s, [p.id]: { msg: `✓ ${prof.gameName} 추가 · ${prof.suggestedTier || '?'}` } }));
+      setAcctStatus((s) => ({ ...s, [p.id]: { msg: '✓ ' + t('{name} 추가 · {tier}', { name: prof.gameName, tier: prof.suggestedTier || '?' }) } }));
       load();
-    } catch (e) { setAcctStatus((s) => ({ ...s, [p.id]: { error: e.message } })); }
+    } catch (e) { setAcctStatus((s) => ({ ...s, [p.id]: { error: t(e.message) } })); }
   }
   const delAccount = (id) => api(`/api/accounts/${id}?gid=${gid}`, 'DELETE').then(load).catch((e) => setErr(e.message));
   // 같은 계정 op.gg 티어 재조회 → 갱신 (재추가 없이 랭크만 새로고침)
@@ -93,7 +95,7 @@ export default function PeoplePage() {
     setRefreshingId(a.id); setErr(null);
     try {
       const prof = await fetch(`/api/seed?name=${encodeURIComponent(a.game_name)}&tag=${encodeURIComponent(a.tag_line)}&region=${a.region || 'NA'}`).then((x) => x.json());
-      if (!prof || prof.found === false) throw new Error(`${a.game_name}#${a.tag_line} 조회 실패 (닉·태그·지역 확인)`);
+      if (!prof || prof.found === false) throw new Error(t('{acct} 조회 실패 (닉·태그·지역 확인)', { acct: `${a.game_name}#${a.tag_line}` }));
       await api(`/api/accounts/${a.id}?gid=${gid}`, 'PATCH', { tier: { opgg_tier: prof.suggestedTier, opgg_games: prof.games, opgg_confidence: prof.confidence } });
       await load();
     } catch (e) { setErr(e.message); }
@@ -103,7 +105,7 @@ export default function PeoplePage() {
 
   // 수동 고정 해제 → 자동(op.gg)으로 되돌림. 본캐 있으면 즉시 재조회해 base_tier 재계산, 없으면 잠금만 해제.
   async function unlockTier(p) {
-    if (!confirm(`"${p.nickname || p.display_name}" 티어를 자동(op.gg 반영)으로 되돌릴까요?\n다음 갱신부터 op.gg 티어가 반영돼요.`)) return;
+    if (!confirm(t('"{name}" 티어를 자동(op.gg 반영)으로 되돌릴까요?\n다음 갱신부터 op.gg 티어가 반영돼요.', { name: p.nickname || p.display_name }))) return;
     setErr(null);
     try {
       await api(`/api/persons/${p.id}?gid=${gid}`, 'PATCH', { tier_locked: false });
@@ -116,25 +118,25 @@ export default function PeoplePage() {
   return (
     <div>
       <div className="page-head">
-        <div className="title"><h1>멤버 관리</h1><p className="sub" style={{ margin: 0 }}>멤버 등록 · 본캐/부캐 연결 · op.gg 티어 자동. 통계는 사람 단위 합산.</p></div>
+        <div className="title"><h1>{t('멤버 관리')}</h1><p className="sub" style={{ margin: 0 }}>{t('멤버 등록 · 본캐/부캐 연결 · op.gg 티어 자동. 통계는 사람 단위 합산.')}</p></div>
         {canEdit && (
           <div className="controls">
-            <span className="region-pick">서버
+            <span className="region-pick">{t('서버')}
               <select value={region} onChange={(e) => setRegion(e.target.value)}>{REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}</select>
             </span>
-            <button className="btn ghost" onClick={dedupe} disabled={deduping} title="같은 인게임 닉(#태그·공백 무시) 중복 사람을 하나로 합쳐요">
-              {deduping ? '정리 중…' : '🧹 중복 정리'}
+            <button className="btn ghost" onClick={dedupe} disabled={deduping} title={t('같은 인게임 닉(#태그·공백 무시) 중복 사람을 하나로 합쳐요')}>
+              {deduping ? t('정리 중…') : '🧹 ' + t('중복 정리')}
             </button>
-            <button className="btn" onClick={addPerson}>+ 사람 추가</button>
+            <button className="btn" onClick={addPerson}>+ {t('사람 추가')}</button>
           </div>
         )}
-        {!canEdit && <span className="tb-view">👀 구경 모드 · 보기 전용</span>}
+        {!canEdit && <span className="tb-view">👀 {t('구경 모드 · 보기 전용')}</span>}
       </div>
-      {err && <div className="panel err" style={{ padding: '10px 16px' }}>{err}</div>}
+      {err && <div className="panel err" style={{ padding: '10px 16px' }}>{t(err)}</div>}
 
-      {loading && <div className="panel center muted">불러오는 중…</div>}
+      {loading && <div className="panel center muted">{t('불러오는 중…')}</div>}
       {!loading && persons.length === 0 && (
-        <div className="panel center muted">아직 등록된 사람이 없어요. <b>+ 사람 추가</b>로 시작하세요.</div>
+        <div className="panel center muted">{t('아직 등록된 사람이 없어요.')} <b>+ {t('사람 추가')}</b>{t('로 시작하세요.')}</div>
       )}
 
       {persons.length > 0 && (
@@ -149,31 +151,31 @@ export default function PeoplePage() {
             return (
               <div className="member" key={p.id}>
                 <div className="m-main">
-                  <div className="m-prof" title="아바타 (프로필 사진은 디코 /프로필 로 설정)">
+                  <div className="m-prof" title={t('아바타 (프로필 사진은 디코 /프로필 로 설정)')}>
                     <Avatar name={p.nickname || p.display_name} profile={p.profile} size={34} />
                   </div>
-                  <input className="m-name" defaultValue={p.display_name} placeholder="인게임 닉 (스샷 매칭)" readOnly={!canEdit}
-                    title="인게임 닉네임 — 스샷 매칭용. 표시이름은 연동 시 디코 서버별명, 아니면 이 인게임닉."
+                  <input className="m-name" defaultValue={p.display_name} placeholder={t('인게임 닉 (스샷 매칭)')} readOnly={!canEdit}
+                    title={t('인게임 닉네임 — 스샷 매칭용. 표시이름은 연동 시 디코 서버별명, 아니면 이 인게임닉.')}
                     onBlur={(e) => canEdit && e.target.value !== p.display_name && patchPerson(p.id, { display_name: e.target.value })} />
-                  <span className="m-nick-view" title={p.discord_id ? '디스코드 서버 별명(자동 동기화)' : '미연동 — 인게임 닉으로 표시'}>
+                  <span className="m-nick-view" title={p.discord_id ? t('디스코드 서버 별명(자동 동기화)') : t('미연동 — 인게임 닉으로 표시')}>
                     {p.discord_id ? <span className="m-nick-txt">🔗 {p.nickname || '…'}</span> : null}
-                    {canEdit && p.discord_id && <button className="m-unlink" title="이 선수의 디코 연동 해제 (기록은 보존)" onClick={() => { if (confirm(`"${p.nickname || p.display_name}"의 디스코드 연동을 해제할까요?\n기록은 그대로 남습니다.`)) patchPerson(p.id, { discord_id: null }); }}>해제</button>}
+                    {canEdit && p.discord_id && <button className="m-unlink" title={t('이 선수의 디코 연동 해제 (기록은 보존)')} onClick={() => { if (confirm(t('"{name}"의 디스코드 연동을 해제할까요?\n기록은 그대로 남습니다.', { name: p.nickname || p.display_name }))) patchPerson(p.id, { discord_id: null }); }}>{t('해제')}</button>}
                   </span>
                   <div className="m-tiercell">
-                    <select className="m-tier" value={p.base_tier} disabled={!canEdit} title="주라인 티어 (메인 포지션 기준) · 직접 바꾸면 수동 고정됨(자동 갱신이 안 건드림)" onChange={(e) => patchPerson(p.id, { base_tier: e.target.value, tier_locked: true })}>
-                      {TIER_ORDER.map((k) => <option key={k} value={k}>{TIER_LABEL[k]}</option>)}
+                    <select className="m-tier" value={p.base_tier} disabled={!canEdit} title={t('주라인 티어 (메인 포지션 기준) · 직접 바꾸면 수동 고정됨(자동 갱신이 안 건드림)')} onChange={(e) => patchPerson(p.id, { base_tier: e.target.value, tier_locked: true })}>
+                      {TIER_ORDER.map((k) => <option key={k} value={k}>{t(TIER_LABEL[k])}</option>)}
                     </select>
                     {canEdit && (p.tier_locked
-                      ? <button className="tier-lock on" title="수동 고정됨 — op.gg 자동 갱신이 이 티어를 안 건드려요. 클릭하면 자동(op.gg 반영)으로 되돌립니다." onClick={() => unlockTier(p)}>🔒</button>
-                      : <span className="tier-lock" title="자동 — op.gg 갱신이 반영돼요. 티어를 직접 바꾸면 수동 고정됩니다.">🔓</span>)}
-                    <select className="m-sectier" value={p.secondary_tier || ''} disabled={!canEdit} title="부라인 티어 — 주포지션 아닌 라인에 배치되면 이 티어로 계산 (보통 더 낮게). 비우면 주라인 티어 그대로." onChange={(e) => patchPerson(p.id, { secondary_tier: e.target.value || null })}>
-                      <option value="">부라인 —</option>
-                      {TIER_ORDER.map((k) => <option key={k} value={k}>부: {TIER_LABEL[k]}</option>)}
+                      ? <button className="tier-lock on" title={t('수동 고정됨 — op.gg 자동 갱신이 이 티어를 안 건드려요. 클릭하면 자동(op.gg 반영)으로 되돌립니다.')} onClick={() => unlockTier(p)}>🔒</button>
+                      : <span className="tier-lock" title={t('자동 — op.gg 갱신이 반영돼요. 티어를 직접 바꾸면 수동 고정됩니다.')}>🔓</span>)}
+                    <select className="m-sectier" value={p.secondary_tier || ''} disabled={!canEdit} title={t('부라인 티어 — 주포지션 아닌 라인에 배치되면 이 티어로 계산 (보통 더 낮게). 비우면 주라인 티어 그대로.')} onChange={(e) => patchPerson(p.id, { secondary_tier: e.target.value || null })}>
+                      <option value="">{t('부라인 —')}</option>
+                      {TIER_ORDER.map((k) => <option key={k} value={k}>{t('부: ')}{t(TIER_LABEL[k])}</option>)}
                     </select>
                     {isAdmin && (
-                      <select className="m-adjust" value={p.adjust || 0} title="어드민 수동 보정 태그 (자동보정과 합산)"
+                      <select className="m-adjust" value={p.adjust || 0} title={t('어드민 수동 보정 태그 (자동보정과 합산)')}
                         onChange={(e) => patchPerson(p.id, { adjust: Number(e.target.value) })}>
-                        {ADJUST_TAGS.map((t) => <option key={t.v} value={t.v}>{t.ic}{t.label}{t.v ? ` ${t.v > 0 ? '+' : ''}${t.v}` : ''}</option>)}
+                        {ADJUST_TAGS.map((tag) => <option key={tag.v} value={tag.v}>{tag.ic}{t(tag.label)}{tag.v ? ` ${tag.v > 0 ? '+' : ''}${tag.v}` : ''}</option>)}
                       </select>
                     )}
                   </div>
@@ -181,15 +183,15 @@ export default function PeoplePage() {
                   <div className="m-accts">
                     {p.accounts.map((a) => (
                       <span className="acct" key={a.id}>
-                        {a.is_main ? <b className="main-star" title="본캐">★</b> : (canEdit && <button className="mini" title="본캐로 지정" onClick={() => setMain(a.id, p.id)}>본캐</button>)}
+                        {a.is_main ? <b className="main-star" title={t('본캐')}>★</b> : (canEdit && <button className="mini" title={t('본캐로 지정')} onClick={() => setMain(a.id, p.id)}>{t('본캐')}</button>)}
                         {a.game_name}#{a.tag_line} <span className="muted">{a.opgg_tier || a.region}</span>
-                        {canEdit && <button className="acct-refresh" title="랭크 갱신 (op.gg 재조회)" disabled={refreshingId === a.id} onClick={() => refreshAccount(a)}>{refreshingId === a.id ? '…' : '🔄'}</button>}
-                        {canEdit && <button className="acct-x" title="계정 삭제" onClick={() => delAccount(a.id)}>✕</button>}
+                        {canEdit && <button className="acct-refresh" title={t('랭크 갱신 (op.gg 재조회)')} disabled={refreshingId === a.id} onClick={() => refreshAccount(a)}>{refreshingId === a.id ? '…' : '🔄'}</button>}
+                        {canEdit && <button className="acct-x" title={t('계정 삭제')} onClick={() => delAccount(a.id)}>✕</button>}
                       </span>
                     ))}
                     {canEdit && (
                       <span className="acct-add">
-                        <input placeholder="부캐 이름#태그" value={acctInput[p.id] || ''}
+                        <input placeholder={t('부캐 이름#태그')} value={acctInput[p.id] || ''}
                           onChange={(e) => setAcctInput((s) => ({ ...s, [p.id]: e.target.value }))}
                           onKeyDown={(e) => e.key === 'Enter' && addAccount(p)} />
                         <button className="seed-btn" disabled={st.loading} onClick={() => addAccount(p)}>{st.loading ? '…' : '🔎'}</button>
@@ -202,14 +204,14 @@ export default function PeoplePage() {
                         <select className="merge-sel" value=""
                           onChange={(e) => {
                             const target = e.target.value;
-                            if (target && confirm(`"${p.display_name}"을(를) 선택한 사람으로 합칠까요?\n계정·경기기록이 합쳐지고 "${p.display_name}"은 삭제됩니다.`))
+                            if (target && confirm(t('"{name}"을(를) 선택한 사람으로 합칠까요?\n계정·경기기록이 합쳐지고 "{name}"은 삭제됩니다.', { name: p.display_name })))
                               mergeInto(p.id, target);
                           }}>
-                          <option value="">합치기…</option>
-                          {persons.filter((x) => x.id !== p.id).map((x) => <option key={x.id} value={x.id}>→ {x.display_name}</option>)}
+                          <option value="">{t('합치기…')}</option>
+                          {persons.filter((x) => x.id !== p.id).map((x) => <option key={x.id} value={x.id}>{t('→ ')}{x.display_name}</option>)}
                         </select>
                       )}
-                      <button className="x-btn" title="삭제" onClick={() => delPerson(p.id)}>✕</button>
+                      <button className="x-btn" title={t('삭제')} onClick={() => delPerson(p.id)}>✕</button>
                     </div>
                   )}
                 </div>

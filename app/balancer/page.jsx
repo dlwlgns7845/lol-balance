@@ -8,6 +8,7 @@ import { arraysToRoles, rolesToArrays } from '../../components/PositionToggles.j
 import Results from '../../components/Results.jsx';
 import { useGroup } from '../../components/GroupProvider.jsx';
 import { apiFetch } from '../../components/api.js';
+import { useLang } from '../../components/i18n.jsx';
 
 const KEY = 'lol-balance-roster';
 const EMPTY = (n = 10) => Array.from({ length: n }, () => ({ name: '', tier: 'G2', roles: {} }));
@@ -29,6 +30,7 @@ function toPlayer(p) {
 
 export default function BalancerPage() {
   const { group, canEdit, isAdmin, winAdjEnabled } = useGroup();
+  const { t } = useLang();
   const gid = group?.id;
   const [adjustOn, setAdjustOn] = useState(false); // 에메랄드↓ 자동보정 on/off (관리자 토글, 브라우저 로컬)
   const [mode, setMode] = useState(10); // 10명(1게임) / 20명(2게임)
@@ -91,12 +93,12 @@ export default function BalancerPage() {
   async function loadRecruit() {
     if (!gid) return;
     const r = await fetch('/api/recruit?gid=' + gid).then((x) => x.json()).catch(() => null);
-    if (!r?.ok || !r.queue) { setRecruit(null); setErr('열린 오늘 내전이 없어요. 디코에서 /모집으로 시작하세요.'); return; }
+    if (!r?.ok || !r.queue) { setRecruit(null); setErr(t('열린 오늘 내전이 없어요. 디코에서 /모집으로 시작하세요.')); return; }
     setRecruit(r);
     const LN = ['top', 'jungle', 'mid', 'adc', 'sup'];
     const filled = [];
     LN.forEach((l) => (r.lanes[l] || []).forEach((p) => { filled.push({ name: p.name, tier: p.tier || 'G2', roles: arraysToRoles([l], []) }); }));
-    if (!filled.length) { setErr('오늘 내전에 아직 배정된 인원이 없어요.'); return; }
+    if (!filled.length) { setErr(t('오늘 내전에 아직 배정된 인원이 없어요.')); return; }
     const m = r.queue.size === 20 ? 20 : 10;
     setMode(m); setResult(null); setResult20(null); setSplit20(null); setView(null); setViews20([null, null]);
     setSel(null); setSel20(null); setErr(null); setRerollNote(null); setNote20(null);
@@ -109,8 +111,8 @@ export default function BalancerPage() {
       const r = await apiFetch('/api/adjust-setting?gid=' + gid, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: v }),
       }).then((x) => x.json());
-      if (!r.ok) { setAdjustOn(!v); setErr('보정 설정 저장 실패: ' + r.error); }
-    } catch (e) { setAdjustOn(!v); setErr('보정 설정 저장 실패: ' + e.message); }
+      if (!r.ok) { setAdjustOn(!v); setErr(t('보정 설정 저장 실패: ') + t(r.error)); }
+    } catch (e) { setAdjustOn(!v); setErr(t('보정 설정 저장 실패: ') + t(e.message)); }
   }
   // 이름(정규화) → 자동보정값 (에메랄드↓만 ≠0)
   const autoByName = useMemo(() => {
@@ -170,26 +172,26 @@ export default function BalancerPage() {
   // 닉#태그 입력 → op.gg/Riot 시즌평균 티어 자동 측정 → 그 행 티어에 적용
   async function onSeed(i) {
     const raw = (roster[i].name || '').trim();
-    if (!raw) { setSeedStatus((s) => ({ ...s, [i]: { error: '닉(또는 이름#태그) 먼저 입력' } })); return; }
+    if (!raw) { setSeedStatus((s) => ({ ...s, [i]: { error: t('닉(또는 이름#태그) 먼저 입력') } })); return; }
     const [gn, tg] = raw.split('#');
     const gameName = gn.trim();
     const tag = (tg || '').trim() || DEFAULT_TAG[region] || region;
     setSeedStatus((s) => ({ ...s, [i]: { loading: true } }));
     try {
       const prof = await fetch(`/api/seed?name=${encodeURIComponent(gameName)}&tag=${encodeURIComponent(tag)}&region=${region}`).then((x) => x.json());
-      if (!prof.found) { setSeedStatus((s) => ({ ...s, [i]: { error: prof.error || '못 찾음' } })); return; }
+      if (!prof.found) { setSeedStatus((s) => ({ ...s, [i]: { error: prof.error ? t(prof.error) : t('못 찾음') } })); return; }
       if (prof.suggestedTier) {
         // name=순수 닉, tag/region은 행에 보존 → 등록 시 계정으로 저장(op.gg 재측정용)
         setRoster((r) => r.map((p, idx) => (idx === i ? { ...p, name: `${prof.gameName || gameName}#${tag}`, tier: prof.suggestedTier, tag, region } : p)));
       } else {
-        setSeedStatus((s) => ({ ...s, [i]: { error: prof.basis || '랭크 기록 없음 — 직접 선택' } })); return;
+        setSeedStatus((s) => ({ ...s, [i]: { error: prof.basis ? t(prof.basis) : t('랭크 기록 없음 — 직접 선택') } })); return;
       }
-      const tierTxt = TIER_LABEL[prof.suggestedTier] || prof.suggestedTier || '?';
-      const apex = prof.apexNoLp ? ' ⚠과거 마스터+ LP없음, 챌/GM이면 수동 상향' : '';
+      const tierTxt = t(TIER_LABEL[prof.suggestedTier] || prof.suggestedTier || '?');
+      const apex = prof.apexNoLp ? ' ⚠' + t('과거 마스터+ LP없음, 챌/GM이면 수동 상향') : '';
       const warn = prof.confidence === 'low' || prof.apexNoLp || prof.suspect;
       const mark = prof.suspect ? '⚠️' : '✓';
-      setSeedStatus((s) => ({ ...s, [i]: { msg: `${mark} ${tierTxt}${prof.basis ? ` (${prof.basis})` : ''}${apex}`, warn } }));
-    } catch (e) { setSeedStatus((s) => ({ ...s, [i]: { error: e.message } })); }
+      setSeedStatus((s) => ({ ...s, [i]: { msg: `${mark} ${tierTxt}${prof.basis ? ` (${t(prof.basis)})` : ''}${apex}`, warn } }));
+    } catch (e) { setSeedStatus((s) => ({ ...s, [i]: { error: t(e.message) } })); }
   }
 
   const usedNames = useMemo(() => new Set(roster.map((p) => p.name.trim()).filter(Boolean)), [roster]);
@@ -263,19 +265,19 @@ export default function BalancerPage() {
     };
     const { bestDuo, starCrossed, nemesis } = awards;
     if (bestDuo && teamOf[bestDuo.aId] && teamOf[bestDuo.aId] === teamOf[bestDuo.bId]) {
-      push(bestDuo.aId, { ic: '💞', title: '최고의 듀오 (같은 팀!)' });
-      push(bestDuo.bId, { ic: '💞', title: '최고의 듀오 (같은 팀!)' });
+      push(bestDuo.aId, { ic: '💞', title: t('최고의 듀오 (같은 팀!)') });
+      push(bestDuo.bId, { ic: '💞', title: t('최고의 듀오 (같은 팀!)') });
     }
     if (starCrossed && teamOf[starCrossed.aId] && teamOf[starCrossed.bId] && teamOf[starCrossed.aId] !== teamOf[starCrossed.bId]) {
-      push(starCrossed.aId, { ic: '💔', title: '견우와 직녀 (상대 팀 — 드디어 갈라짐)' });
-      push(starCrossed.bId, { ic: '💔', title: '견우와 직녀 (상대 팀)' });
+      push(starCrossed.aId, { ic: '💔', title: t('견우와 직녀 (상대 팀 — 드디어 갈라짐)') });
+      push(starCrossed.bId, { ic: '💔', title: t('견우와 직녀 (상대 팀)') });
     }
     if (nemesis && teamOf[nemesis.winnerId] && teamOf[nemesis.loserId] && teamOf[nemesis.winnerId] !== teamOf[nemesis.loserId]) {
-      push(nemesis.winnerId, { ic: '😈', title: '인간상성 (이 상대에 강함)' });
-      push(nemesis.loserId, { ic: '🥶', title: '약체 (인간상성 상대에 약함)' });
+      push(nemesis.winnerId, { ic: '😈', title: t('인간상성 (이 상대에 강함)') });
+      push(nemesis.loserId, { ic: '🥶', title: t('약체 (인간상성 상대에 약함)') });
     }
     return ctx;
-  }, [view, awards, people, personByNorm]);
+  }, [view, awards, people, personByNorm, t]);
 
   const nameMeta = (name) => {
     const k = normNm(name);
@@ -311,7 +313,7 @@ export default function BalancerPage() {
           body: JSON.stringify({ group_id: gid, display_name: dn, base_tier: roster[i].tier,
             primary_positions: primary, secondary_positions: secondary }),
         }).then((x) => x.json());
-        if (!res.ok) throw new Error(res.error || '등록 실패');
+        if (!res.ok) throw new Error(res.error || t('등록 실패'));
         if (tag) await apiFetch('/api/accounts', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ gid, person_id: res.person.id, game_name: dn, tag_line: tag,
@@ -322,9 +324,9 @@ export default function BalancerPage() {
         // 포지션은 항상 저장. 티어는 바뀌었을 때만 '확인' 받고 저장 (조용히 덮어써서 티어 오염되는 버그 방지)
         const body = { primary_positions: primary, secondary_positions: secondary };
         if (meta.person.base_tier !== roster[i].tier) {
-          const from = TIER_LABEL[meta.person.base_tier] || meta.person.base_tier;
-          const to = TIER_LABEL[roster[i].tier] || roster[i].tier;
-          if (window.confirm(`"${roster[i].name}" 티어를 ${from} → ${to}(으)로 바꿀까요?\n(포지션만 저장하려면 취소 — 티어는 그대로 둡니다)`)) {
+          const from = t(TIER_LABEL[meta.person.base_tier] || meta.person.base_tier);
+          const to = t(TIER_LABEL[roster[i].tier] || roster[i].tier);
+          if (window.confirm(t('"{name}" 티어를 {from} → {to}(으)로 바꿀까요?\n(포지션만 저장하려면 취소 — 티어는 그대로 둡니다)', { name: roster[i].name, from, to }))) {
             body.base_tier = roster[i].tier;
           } else {
             // 취소 시 로스터 행 티어를 DB 값으로 되돌려 드리프트 제거
@@ -335,13 +337,13 @@ export default function BalancerPage() {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         }).then((x) => x.json());
-        if (!res.ok) throw new Error(res.error || '저장 실패');
+        if (!res.ok) throw new Error(res.error || t('저장 실패'));
       }
       loadPeople();
       setRowSave((s) => ({ ...s, [i]: 'saved' }));
       setTimeout(() => setRowSave((s) => { const c = { ...s }; delete c[i]; return c; }), 1600);
     } catch (e) {
-      setErr('저장 실패: ' + e.message);
+      setErr(t('저장 실패: ') + t(e.message));
       setRowSave((s) => { const c = { ...s }; delete c[i]; return c; });
     }
   }
@@ -369,7 +371,7 @@ export default function BalancerPage() {
           body: JSON.stringify({ group_id: gid, display_name: dn, base_tier: p.tier,
             primary_positions: primary, secondary_positions: secondary }),
         }).then((x) => x.json());
-        if (!res.ok) throw new Error(res.error || '등록 실패');
+        if (!res.ok) throw new Error(res.error || t('등록 실패'));
         // 태그 있으면 계정으로 저장 (op.gg 재측정용). display엔 안 보이고 매칭·조회에 쓰임
         if (res.ok && tag) {
           await apiFetch('/api/accounts', {
@@ -379,7 +381,7 @@ export default function BalancerPage() {
         }
       }
       loadPeople();
-    } catch (e) { setErr('등록 실패: ' + e.message); }
+    } catch (e) { setErr(t('등록 실패: ') + t(e.message)); }
     setRegistering(false);
   }
 
@@ -422,9 +424,9 @@ export default function BalancerPage() {
   function run() {
     setErr(null); setResult(null); setResult20(null); setSplit20(null); setView(null); setSel(null); setSel20(null); setRerollNote(null); setNote20(null);
     const filled = roster.filter((p) => p.name.trim());
-    if (filled.length !== mode) { setErr(`${mode}명을 채우세요 (현재 ${filled.length}명).`); return; }
-    if (new Set(filled.map((p) => p.name.trim())).size !== mode) { setErr('이름이 중복됩니다.'); return; }
-    if (roster.some((p) => p.name.trim() && Object.keys(p.roles).length === 0)) { setErr('모든 인원의 포지션(주/부)을 지정하세요.'); return; }
+    if (filled.length !== mode) { setErr(t('{mode}명을 채우세요 (현재 {n}명).', { mode, n: filled.length })); return; }
+    if (new Set(filled.map((p) => p.name.trim())).size !== mode) { setErr(t('이름이 중복됩니다.')); return; }
+    if (roster.some((p) => p.name.trim() && Object.keys(p.roles).length === 0)) { setErr(t('모든 인원의 포지션(주/부)을 지정하세요.')); return; }
     try {
       if (mode === 20) {
         compute20(mode20);
@@ -433,20 +435,20 @@ export default function BalancerPage() {
         const r = balance(roster.map(toPlayer).map(withMeta), opts);
         setResult(r); setCandIdx(0); setView(r.candidates[0] || null);
       }
-    } catch (e) { setErr('계산 오류: ' + e.message); }
+    } catch (e) { setErr(t('계산 오류: ') + t(e.message)); }
   }
 
   // 평균균등 서브모드 전환 — 이미 짜여있으면 즉시 재계산
   function switch20(m) {
     if (m === mode20) return;
     setMode20(m);
-    if (usedNames.size === 20 && (result20 || split20)) { try { compute20(m); } catch (e) { setErr('계산 오류: ' + e.message); } }
+    if (usedNames.size === 20 && (result20 || split20)) { try { compute20(m); } catch (e) { setErr(t('계산 오류: ') + t(e.message)); } }
   }
 
   // 평균균등: 전체 조합 앞/뒤로 넘기기 (arrangements 순환)
   function goArr20(dir) {
     if (!result20?.arrangements?.length) return;
-    if (result20.arrangements.length <= 1) { setNote20('다른 균형 조합이 없어요 — 선수를 클릭해 수동으로 바꿔보세요.'); return; }
+    if (result20.arrangements.length <= 1) { setNote20(t('다른 균형 조합이 없어요 — 선수를 클릭해 수동으로 바꿔보세요.')); return; }
     const n = result20.arrangements.length;
     applyArrangement(result20, (arr20 + dir + n) % n);
   }
@@ -457,7 +459,7 @@ export default function BalancerPage() {
   function goGame(g, dir) {
     const game = split20?.games?.[g];
     if (!game?.candidates?.length) return;
-    if (game.candidates.length <= 1) { setNote20('이 게임은 다른 균형 조합이 없어요 — 선수 이동으로 조정하세요.'); return; }
+    if (game.candidates.length <= 1) { setNote20(t('이 게임은 다른 균형 조합이 없어요 — 선수 이동으로 조정하세요.')); return; }
     const n = game.candidates.length;
     const ni = (candIdx20[g] + dir + n) % n;
     setCandIdx20((c) => c.map((x, i) => (i === g ? ni : x)));
@@ -478,14 +480,14 @@ export default function BalancerPage() {
       const { A, B } = rebuild(views20[g]);
       const i1 = idxOf(views20[g], sel20.pos), i2 = idxOf(views20[g], pos);
       const a1 = sel20.team === 'A' ? A : B, a2 = team === 'A' ? A : B;
-      const t = a1[i1]; a1[i1] = a2[i2]; a2[i2] = t;
+      const tmp = a1[i1]; a1[i1] = a2[i2]; a2[i2] = tmp;
       const snap = { ...scoreTeams(A, B, opts), manual: true };
       setViews20((vs) => vs.map((x, i) => (i === g ? snap : x)));
     } else {
       const r1 = rebuild(views20[sel20.g]), r2 = rebuild(views20[g]);
       const i1 = idxOf(views20[sel20.g], sel20.pos), i2 = idxOf(views20[g], pos);
       const arr1 = sel20.team === 'A' ? r1.A : r1.B, arr2 = team === 'A' ? r2.A : r2.B;
-      const t = arr1[i1]; arr1[i1] = arr2[i2]; arr2[i2] = t;
+      const tmp = arr1[i1]; arr1[i1] = arr2[i2]; arr2[i2] = tmp;
       const s1 = { ...scoreTeams(r1.A, r1.B, opts), manual: true };
       const s2 = { ...scoreTeams(r2.A, r2.B, opts), manual: true };
       setViews20((vs) => vs.map((x, i) => (i === sel20.g ? s1 : i === g ? s2 : x)));
@@ -497,7 +499,7 @@ export default function BalancerPage() {
   function goCand(dir) {
     if (!result?.candidates?.length) return;
     if (result.candidates.length <= 1) {
-      setRerollNote('이게 유일한 최적 배치예요 — 포지션 맞고 균형 잡히는 다른 조합이 없어요.');
+      setRerollNote(t('이게 유일한 최적 배치예요 — 포지션 맞고 균형 잡히는 다른 조합이 없어요.'));
       return;
     }
     const n = result.candidates.length;
@@ -518,50 +520,50 @@ export default function BalancerPage() {
     const i1 = view.lanes.findIndex((l) => l.pos === sel.pos);
     const i2 = view.lanes.findIndex((l) => l.pos === pos);
     const a1 = sel.team === 'A' ? A : B, a2 = team === 'A' ? A : B;
-    const t = a1[i1]; a1[i1] = a2[i2]; a2[i2] = t;
+    const tmp = a1[i1]; a1[i1] = a2[i2]; a2[i2] = tmp;
     try {
       const snap = scoreTeams(A, B, { totalWeight, table: customTable || undefined });
       setView({ ...snap, manual: true });
-    } catch (e) { setErr('스왑 계산 오류: ' + e.message); }
+    } catch (e) { setErr(t('스왑 계산 오류: ') + t(e.message)); }
     setSel(null);
   }
 
   return (
     <div>
       <div className="page-head">
-        <div className="title"><h1>밸런서</h1><p className="sub" style={{ margin: 0 }}>등록된 사람을 불러오거나 직접 입력 → {mode}명 채우면 팀을 짜줘요.{mode === 20 ? ' (20명 = 평균점수 균등한 2게임)' : ''}</p></div>
+        <div className="title"><h1>{t('밸런서')}</h1><p className="sub" style={{ margin: 0 }}>{t('등록된 사람을 불러오거나 직접 입력 → {mode}명 채우면 팀을 짜줘요.', { mode })}{mode === 20 ? ' ' + t('(20명 = 평균점수 균등한 2게임)') : ''}</p></div>
         <div className="bal-mode">
           <div className="mode-toggle">
-            <button className={mode === 10 ? 'on' : ''} onClick={() => switchMode(10)} type="button">10명</button>
-            <button className={mode === 20 ? 'on' : ''} onClick={() => switchMode(20)} type="button">20명 · 2게임</button>
+            <button className={mode === 10 ? 'on' : ''} onClick={() => switchMode(10)} type="button">{t('10명')}</button>
+            <button className={mode === 20 ? 'on' : ''} onClick={() => switchMode(20)} type="button">{t('20명 · 2게임')}</button>
           </div>
-          <span className="attend-count">채움 <b>{usedNames.size}</b>/{mode}</span>
+          <span className="attend-count">{t('채움')} <b>{usedNames.size}</b>/{mode}</span>
         </div>
       </div>
 
       {recruit?.queue && (
         <div className="panel" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', borderColor: 'rgba(79,182,214,.4)' }}>
-          <span>🎮 <b>오늘 내전</b> 진행 중 · <b>{['top', 'jungle', 'mid', 'adc', 'sup'].reduce((a, l) => a + (recruit.lanes?.[l]?.length || 0), 0)}</b>/{recruit.queue.size}명</span>
-          <button className="btn" onClick={loadRecruit}>📥 오늘 내전 인원 불러오기</button>
-          <span className="muted" style={{ fontSize: 12 }}>디코 큐 인원을 로스터에 자동으로 채워서 여기서 자유롭게 조정</span>
+          <span>🎮 <b>{t('오늘 내전')}</b> {t('진행 중')} · <b>{['top', 'jungle', 'mid', 'adc', 'sup'].reduce((a, l) => a + (recruit.lanes?.[l]?.length || 0), 0)}</b>/{t('{n}명', { n: recruit.queue.size })}</span>
+          <button className="btn" onClick={loadRecruit}>📥 {t('오늘 내전 인원 불러오기')}</button>
+          <span className="muted" style={{ fontSize: 12 }}>{t('디코 큐 인원을 로스터에 자동으로 채워서 여기서 자유롭게 조정')}</span>
         </div>
       )}
 
       {people.length > 0 && (
         <div className="panel">
-          <h2>등록된 사람 불러오기 <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>(주 포지션별 · 클릭하면 빈 칸에 들어가요)</span></h2>
+          <h2>{t('등록된 사람 불러오기')} <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>{t('(주 포지션별 · 클릭하면 빈 칸에 들어가요)')}</span></h2>
           <div className="reg-groups">
             {[['top', '탑'], ['jungle', '정글'], ['mid', '미드'], ['adc', '원딜'], ['sup', '서폿'], ['all', 'ALL'], ['etc', '미지정']]
               .filter(([k]) => chipsByPos[k].length > 0).map(([k, label]) => (
                 <div className="reg-group" key={k}>
-                  <span className={`reg-group-label pos-${k}`}>{label} <span className="rg-n">{chipsByPos[k].length}</span></span>
+                  <span className={`reg-group-label pos-${k}`}>{t(label)} <span className="rg-n">{chipsByPos[k].length}</span></span>
                   <div className="reg-chips">
                     {chipsByPos[k].map((p) => {
                       const used = usedNames.has(p.display_name);
                       return (
                         <button key={p.id} className={`reg-chip ${used ? 'used' : ''}`} disabled={used}
                           onClick={() => fillFromPerson(p)} type="button">
-                          {p.display_name} <span className="muted">{TIER_LABEL[p.base_tier]}</span>
+                          {p.display_name} <span className="muted">{t(TIER_LABEL[p.base_tier])}</span>
                         </button>
                       );
                     })}
@@ -574,8 +576,8 @@ export default function BalancerPage() {
 
       <div className="panel">
         <div className="controls" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
-          <h2 style={{ margin: 0 }}>로스터 ({mode}명) <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>· 닉#태그 입력 후 🔎 누르면 티어 자동</span></h2>
-          <span className="region-pick muted" style={{ fontSize: 12 }}>서버
+          <h2 style={{ margin: 0 }}>{t('로스터 ({mode}명)', { mode })} <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>{t('· 닉#태그 입력 후 🔎 누르면 티어 자동')}</span></h2>
+          <span className="region-pick muted" style={{ fontSize: 12 }}>{t('서버')}
             <select value={region} onChange={(e) => setRegion(e.target.value)}>{REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}</select>
           </span>
         </div>
@@ -585,24 +587,24 @@ export default function BalancerPage() {
 
       <div className="panel">
         <div className="controls">
-          <button className="btn" onClick={run} disabled={usedNames.size !== mode}>팀 짜기{mode === 20 ? ' (2게임)' : ''}</button>
-          <button className="btn ghost" onClick={() => { setRoster(EMPTY(mode)); setResult(null); setResult20(null); setSplit20(null); setView(null); setViews20([null, null]); setSel(null); setSel20(null); setErr(null); }}>비우기</button>
-          <button className="btn ghost" title="이름·티어는 두고 모든 포지션(주/부)만 초기화"
-            onClick={() => { setRoster((r) => r.map((p) => ({ ...p, roles: {} }))); setResult(null); setView(null); setSel(null); setErr(null); }}>포지션 비우기</button>
+          <button className="btn" onClick={run} disabled={usedNames.size !== mode}>{t('팀 짜기')}{mode === 20 ? ' ' + t('(2게임)') : ''}</button>
+          <button className="btn ghost" onClick={() => { setRoster(EMPTY(mode)); setResult(null); setResult20(null); setSplit20(null); setView(null); setViews20([null, null]); setSel(null); setSel20(null); setErr(null); }}>{t('비우기')}</button>
+          <button className="btn ghost" title={t('이름·티어는 두고 모든 포지션(주/부)만 초기화')}
+            onClick={() => { setRoster((r) => r.map((p) => ({ ...p, roles: {} }))); setResult(null); setView(null); setSel(null); setErr(null); }}>{t('포지션 비우기')}</button>
           {gid && newNames.length > 0 && canEdit && (
-            <button className="btn ghost" onClick={registerNew} disabled={registering} title="로스터의 새 이름을 사람으로 저장 → 다음부턴 칩으로 불러오기">
-              {registering ? '등록 중…' : `+ 새 인원 ${newNames.length}명 등록`}
+            <button className="btn ghost" onClick={registerNew} disabled={registering} title={t('로스터의 새 이름을 사람으로 저장 → 다음부턴 칩으로 불러오기')}>
+              {registering ? t('등록 중…') : '+ ' + t('새 인원 {n}명 등록', { n: newNames.length })}
             </button>
           )}
           <div className="slider-box">
-            <label><span>라인 우선</span><span>총점 우선</span></label>
+            <label><span>{t('라인 우선')}</span><span>{t('총점 우선')}</span></label>
             <input type="range" min="0" max="1" step="0.05" value={totalWeight} onChange={(e) => setTotalWeight(parseFloat(e.target.value))} />
-            <span className="muted" style={{ fontSize: 11 }}>가중치 {totalWeight.toFixed(2)} (낮을수록 라인 공정 우선)</span>
+            <span className="muted" style={{ fontSize: 11 }}>{t('가중치 {v} (낮을수록 라인 공정 우선)', { v: totalWeight.toFixed(2) })}</span>
           </div>
           {isAdmin && (
             <button className={`btn adj-btn ${adjustOn ? 'on' : 'ghost'}`} onClick={toggleAdjust}
-              title="에메랄드↓ 선수를 내전 실적(승률+개인기여)으로 점수 보정. 관리자 전용 · 방 전체 적용">
-              🧪 저티어 자동보정 {adjustOn ? 'ON' : 'OFF'}
+              title={t('에메랄드↓ 선수를 내전 실적(승률+개인기여)으로 점수 보정. 관리자 전용 · 방 전체 적용')}>
+              🧪 {t('저티어 자동보정')} {adjustOn ? 'ON' : 'OFF'}
             </button>
           )}
         </div>
@@ -626,30 +628,30 @@ export default function BalancerPage() {
           <>
             <div className="panel lobby-note" style={{ gap: 12, flexWrap: 'wrap' }}>
               <div className="mode20-toggle">
-                <button className={!split ? 'on' : ''} onClick={() => switch20('even')} type="button">⚖️ 평균 균등</button>
-                <button className={split ? 'on' : ''} onClick={() => switch20('split')} type="button">📊 고저 분리</button>
+                <button className={!split ? 'on' : ''} onClick={() => switch20('even')} type="button">⚖️ {t('평균 균등')}</button>
+                <button className={split ? 'on' : ''} onClick={() => switch20('split')} type="button">📊 {t('고저 분리')}</button>
               </div>
               <span>
                 {split
-                  ? <>🎮 <b>고저 분리</b> · 상위10=고티어 게임, 하위10=저티어 게임 · 게임별 리롤</>
-                  : <>🎮 <b>4팀 균등</b> · 팀 점수 {sums4.map((s) => s.toFixed(1)).join(' / ')} <b className={spCls}>(편차 {spread.toFixed(1)})</b></>}
-                <span className="muted"> · 선수 클릭 후 다른 게임 선수 클릭 = 게임 간 이동</span>
+                  ? <>🎮 <b>{t('고저 분리')}</b> · {t('상위10=고티어 게임, 하위10=저티어 게임 · 게임별 리롤')}</>
+                  : <>🎮 <b>{t('4팀 균등')}</b> · {t('팀 점수')} {sums4.map((s) => s.toFixed(1)).join(' / ')} <b className={spCls}>{t('(편차 {v})', { v: spread.toFixed(1) })}</b></>}
+                <span className="muted"> · {t('선수 클릭 후 다른 게임 선수 클릭 = 게임 간 이동')}</span>
               </span>
               {!split && (
                 <span className="cand-nav">
-                  <button className="mini nav-arrow" onClick={reroll20Prev} disabled={(result20?.arrangements.length || 0) <= 1} aria-label="이전 조합">◀</button>
-                  <span className="cand-count"><b>{result20?.arrangements.length || 0}</b>개 조합 <span className="muted">· {arr20 + 1}/{result20?.arrangements.length || 0}</span></span>
-                  <button className="mini nav-arrow" onClick={reroll20} disabled={(result20?.arrangements.length || 0) <= 1} aria-label="다음 조합">▶</button>
+                  <button className="mini nav-arrow" onClick={reroll20Prev} disabled={(result20?.arrangements.length || 0) <= 1} aria-label={t('이전 조합')}>◀</button>
+                  <span className="cand-count"><b>{result20?.arrangements.length || 0}</b> {t('개 조합')} <span className="muted">· {arr20 + 1}/{result20?.arrangements.length || 0}</span></span>
+                  <button className="mini nav-arrow" onClick={reroll20} disabled={(result20?.arrangements.length || 0) <= 1} aria-label={t('다음 조합')}>▶</button>
                 </span>
               )}
             </div>
-            {note20 && <div className="panel reroll-note" style={{ marginTop: 0 }}>ℹ️ {note20}</div>}
-            <h2 style={{ margin: '16px 2px 6px' }}>🎮 게임 1{split ? ' · 고티어' : ''}</h2>
+            {note20 && <div className="panel reroll-note" style={{ marginTop: 0 }}>ℹ️ {t(note20)}</div>}
+            <h2 style={{ margin: '16px 2px 6px' }}>🎮 {t('게임 1')}{split ? ' · ' + t('고티어') : ''}</h2>
             <Results feasible outliers={outliers20[0]} view={views20[0]}
               onSwap={(team, pos) => swap20(0, team, pos)} sel={sel20 && sel20.g === 0 ? { team: sel20.team, pos: sel20.pos } : null}
               onReroll={split ? () => rerollGame(0) : undefined} onPrev={split ? () => rerollGamePrev(0) : undefined}
               meta={nameMeta} idx={gIdx(0)} total={gTotal(0)} />
-            <h2 style={{ margin: '20px 2px 6px' }}>🎮 게임 2{split ? ' · 저티어' : ''}</h2>
+            <h2 style={{ margin: '20px 2px 6px' }}>🎮 {t('게임 2')}{split ? ' · ' + t('저티어') : ''}</h2>
             <Results feasible outliers={outliers20[1]} view={views20[1]}
               onSwap={(team, pos) => swap20(1, team, pos)} sel={sel20 && sel20.g === 1 ? { team: sel20.team, pos: sel20.pos } : null}
               onReroll={split ? () => rerollGame(1) : undefined} onPrev={split ? () => rerollGamePrev(1) : undefined}
@@ -661,8 +663,8 @@ export default function BalancerPage() {
       {mode === 10 && result?.feasible && (
         <div className="panel">
           <div className="controls" style={{ gap: 12 }}>
-            <a className="btn" href="https://draftlol.dawe.gg/" target="_blank" rel="noopener noreferrer">🎫 픽/밴 드래프트 열기 (draftlol)</a>
-            <span className="muted" style={{ fontSize: 12 }}>팀 짰으면 여기서 픽/밴 진행 → 게임 후 <Link href="/record" className="accent">📸 경기 기록</Link>에 스샷 올리면 자동 저장.</span>
+            <a className="btn" href="https://draftlol.dawe.gg/" target="_blank" rel="noopener noreferrer">🎫 {t('픽/밴 드래프트 열기 (draftlol)')}</a>
+            <span className="muted" style={{ fontSize: 12 }}>{t('팀 짰으면 여기서 픽/밴 진행 → 게임 후')} <Link href="/record" className="accent">📸 {t('경기 기록')}</Link>{t('에 스샷 올리면 자동 저장.')}</span>
           </div>
         </div>
       )}

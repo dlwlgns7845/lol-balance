@@ -8,20 +8,22 @@ import { apiFetch } from '../../components/api.js';
 import { arraysToRoles } from '../../components/PositionToggles.jsx';
 import { tierClass } from '../../src/table.js';
 import Avatar from '../../components/Avatar.jsx';
+import { useLang } from '../../components/i18n.jsx';
 
 const LANES = ['top', 'jungle', 'mid', 'adc', 'sup'];
 const LANE_KR = { top: '탑', jungle: '정글', mid: '미드', adc: '원딜', sup: '서폿' };
 const ROSTER_KEY = 'lol-balance-roster';
 // 부라인 라벨: 큐에서 고른 부라인 우선, 없으면 사람관리 등록 부라인. 올라운더/부배치는 태그로 이미 표시.
-const subText = (sub) => (sub === 'all' ? 'ALL' : String(sub).split(',').map((l) => LANE_KR[l] || l).join('/'));
-const subLabel = (p) => {
+const subText = (sub, t) => (sub === 'all' ? 'ALL' : String(sub).split(',').map((l) => t(LANE_KR[l]) || l).join('/'));
+const subLabel = (p, t) => {
   if (p.all) return null;
-  if (p.sub) return `부:${subText(p.sub)}`; // 큐에서 고른 부라인(여러 개)
+  if (p.sub) return `${t('부:')}${subText(p.sub, t)}`; // 큐에서 고른 부라인(여러 개)
   return null;
 };
 
 export default function RecruitPage() {
   const { group, isAdmin } = useGroup();
+  const { t } = useLang();
   const gid = group?.id;
   const router = useRouter();
   const [data, setData] = useState(null);
@@ -56,7 +58,7 @@ export default function RecruitPage() {
     setBusy(true);
     try {
       const r = await apiFetch('/api/recruit/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((x) => x.json());
-      if (!r.ok) alert('실패: ' + r.error);
+      if (!r.ok) alert(t('실패: ') + t(r.error));
       await load();
     } finally { setBusy(false); }
   };
@@ -79,16 +81,16 @@ export default function RecruitPage() {
   return (
     <div className="content" style={{ maxWidth: 1000 }}>
       <div className="rc-head">
-        <h1 style={{ margin: 0 }}>🎮 오늘 내전 <span className="muted" style={{ fontSize: 14, fontWeight: 400 }}>디코 모집 실시간</span></h1>
+        <h1 style={{ margin: 0 }}>🎮 {t('오늘 내전')} <span className="muted" style={{ fontSize: 14, fontWeight: 400 }}>{t('디코 모집 실시간')}</span></h1>
         {queue && <span className={`rc-count${full ? ' full' : ''}`}>{placed}/{queue.size}</span>}
       </div>
 
-      {err && <p className="rc-err">불러오기 오류: {err}</p>}
+      {err && <p className="rc-err">{t('불러오기 오류: ')}{t(err)}</p>}
 
       {!queue && (
         <div className="rc-empty">
-          <p>열린 모집이 없어요.</p>
-          <p className="muted">디스코드에서 <code>/모집</code> (또는 <code>/모집 인원:20</code>) 으로 시작하면 여기 실시간으로 떠요.</p>
+          <p>{t('열린 모집이 없어요.')}</p>
+          <p className="muted">{t('디스코드에서')} <code>/모집</code> {t('(또는 ')}<code>/모집 인원:20</code>{t(') 으로 시작하면 여기 실시간으로 떠요.')}</p>
         </div>
       )}
 
@@ -100,26 +102,26 @@ export default function RecruitPage() {
               const N = data.slotsPerLane;
               return (
                 <div key={l} className={`rc-lane${list.length >= N ? ' done' : ''}`}>
-                  <div className="rc-lane-h"><b>{LANE_KR[l]}</b><span className="muted">{list.length}/{N}</span></div>
+                  <div className="rc-lane-h"><b>{t(LANE_KR[l])}</b><span className="muted">{list.length}/{N}</span></div>
                   <div className="rc-slots">
                     {list.map((p) => (
                       <div key={p.id} className="rc-player">
                         <Avatar name={p.name} profile={p.profile} size={24} />
                         <div className="rc-p-info">
-                          <span className="rc-nm">{p.name}{p.off && <span className="rc-off">부</span>}{p.all && <span className="rc-off">올</span>}</span>
+                          <span className="rc-nm">{p.name}{p.off && <span className="rc-off">{t('부')}</span>}{p.all && <span className="rc-off">{t('올')}</span>}</span>
                           <span className="rc-meta">
                             <span className={`rc-ti ${tierClass(p.tier)}`}>{p.tier || '?'}</span>
-                            {subLabel(p) && <span className="rc-sub">{subLabel(p)}</span>}
+                            {subLabel(p, t) && <span className="rc-sub">{subLabel(p, t)}</span>}
                           </span>
                         </div>
                         {isAdmin && (
                           <div className="rc-ctrl">
-                            <select className="rc-move" value={p.main} disabled={busy} title="라인 이동"
+                            <select className="rc-move" value={p.main} disabled={busy} title={t('라인 이동')}
                               onChange={(e) => act({ queueId: queue.id, action: 'move', signupId: p.id, main: e.target.value })}>
-                              {LANES.map((L) => <option key={L} value={L}>{LANE_KR[L]}</option>)}
+                              {LANES.map((L) => <option key={L} value={L}>{t(LANE_KR[L])}</option>)}
                               <option value="all">ALL</option>
                             </select>
-                            <button className="rc-kick" disabled={busy} onClick={() => act({ queueId: queue.id, action: 'kick', signupId: p.id })} title="강퇴">✕</button>
+                            <button className="rc-kick" disabled={busy} onClick={() => act({ queueId: queue.id, action: 'kick', signupId: p.id })} title={t('강퇴')}>✕</button>
                           </div>
                         )}
                       </div>
@@ -133,14 +135,14 @@ export default function RecruitPage() {
 
           {data.waitlist?.length > 0 && (
             <div className="rc-wait">
-              <b>⏳ 대기 ({data.waitlist.length})</b>
+              <b>⏳ {t('대기')} ({data.waitlist.length})</b>
               <div className="rc-slots">
                 {data.waitlist.map((p) => (
                   <div key={p.id} className="rc-player">
                     <Avatar name={p.name} profile={p.profile} size={20} />
                     <span className="rc-nm">{p.name}</span>
-                    <span className="muted" style={{ fontSize: 11 }}>받는 라인: {p.main === 'all' ? 'ALL' : [LANE_KR[p.main], ...(p.sub ? subText(p.sub).split('/') : [])].join('/')}</span>
-                    {isAdmin && <button className="rc-kick" disabled={busy} onClick={() => act({ queueId: queue.id, action: 'kick', signupId: p.id })} title="강퇴">✕</button>}
+                    <span className="muted" style={{ fontSize: 11 }}>{t('받는 라인:')} {p.main === 'all' ? 'ALL' : [t(LANE_KR[p.main]), ...(p.sub ? subText(p.sub, t).split('/') : [])].join('/')}</span>
+                    {isAdmin && <button className="rc-kick" disabled={busy} onClick={() => act({ queueId: queue.id, action: 'kick', signupId: p.id })} title={t('강퇴')}>✕</button>}
                   </div>
                 ))}
               </div>
@@ -149,35 +151,35 @@ export default function RecruitPage() {
 
           {isAdmin && (
             <div className="rc-add">
-              <b>➕ 사람 추가</b>
+              <b>➕ {t('사람 추가')}</b>
               <select value={addP} onChange={(e) => setAddP(e.target.value)}>
-                <option value="">— 선수 선택 —</option>
-                {persons.map((p) => <option key={p.id} value={p.id}>{p.nickname || p.display_name}{p.discord_id ? '' : ' (미연동)'}</option>)}
+                <option value="">{t('— 선수 선택 —')}</option>
+                {persons.map((p) => <option key={p.id} value={p.id}>{p.nickname || p.display_name}{p.discord_id ? '' : t(' (미연동)')}</option>)}
               </select>
               <select value={addMain} onChange={(e) => setAddMain(e.target.value)}>
-                {LANES.map((l) => <option key={l} value={l}>주:{LANE_KR[l]}</option>)}
-                <option value="all">주:ALL (아무 라인)</option>
+                {LANES.map((l) => <option key={l} value={l}>{t('주:')}{t(LANE_KR[l])}</option>)}
+                <option value="all">{t('주:')}ALL {t('(아무 라인)')}</option>
               </select>
               <span className="rc-sub-pick">
-                <span className="muted" style={{ fontSize: 11 }}>받는 라인(여러 개):</span>
+                <span className="muted" style={{ fontSize: 11 }}>{t('받는 라인(여러 개):')}</span>
                 {LANES.map((l) => (
                   <button key={l} type="button" disabled={addMain !== 'all' && l === addMain}
                     className={`rc-sub-chip${addSub.includes(l) ? ' on' : ''}`}
                     onClick={() => setAddSub((s) => (s.includes(l) ? s.filter((x) => x !== l) : [...s, l]))}>
-                    {LANE_KR[l]}
+                    {t(LANE_KR[l])}
                   </button>
                 ))}
               </span>
-              <button className="btn ghost" disabled={busy || !addP} onClick={() => { const subs = addSub.filter((l) => l !== addMain); act({ queueId: queue.id, action: 'add', personId: addP, main: addMain, sub: subs.length ? subs.join(',') : null }).then(() => { setAddP(''); setAddSub([]); }); }}>추가</button>
+              <button className="btn ghost" disabled={busy || !addP} onClick={() => { const subs = addSub.filter((l) => l !== addMain); act({ queueId: queue.id, action: 'add', personId: addP, main: addMain, sub: subs.length ? subs.join(',') : null }).then(() => { setAddP(''); setAddSub([]); }); }}>{t('추가')}</button>
             </div>
           )}
 
           <div className="rc-actions">
-            <button className="btn primary" disabled={!full} onClick={toBalancer} title={full ? '이 명단으로 팀 짜기' : '아직 인원이 다 안 찼어요'}>
-              ⚔️ 이 명단으로 팀 짜기 {!full && `(${placed}/${queue.size})`}
+            <button className="btn primary" disabled={!full} onClick={toBalancer} title={full ? t('이 명단으로 팀 짜기') : t('아직 인원이 다 안 찼어요')}>
+              ⚔️ {t('이 명단으로 팀 짜기')} {!full && `(${placed}/${queue.size})`}
             </button>
-            {isAdmin && <button className="btn ghost" disabled={busy} onClick={() => { if (confirm('모집을 마감할까요? (디코 버튼도 사라짐)')) act({ queueId: queue.id, action: 'close' }); }}>🔒 마감</button>}
-            <span className="muted" style={{ fontSize: 12 }}>2.5초마다 자동 갱신 · 디코와 실시간 동기화</span>
+            {isAdmin && <button className="btn ghost" disabled={busy} onClick={() => { if (confirm(t('모집을 마감할까요? (디코 버튼도 사라짐)'))) act({ queueId: queue.id, action: 'close' }); }}>🔒 {t('마감')}</button>}
+            <span className="muted" style={{ fontSize: 12 }}>{t('2.5초마다 자동 갱신 · 디코와 실시간 동기화')}</span>
           </div>
         </>
       )}

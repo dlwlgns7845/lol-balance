@@ -7,6 +7,7 @@ import { useGroup } from './GroupProvider.jsx';
 import { apiFetch } from './api.js';
 import TitleBadges from './TitleBadges.jsx';
 import PlayerCard from './PlayerCard.jsx';
+import { useLang } from './i18n.jsx';
 
 const normNm = (s) => (s || '').toLowerCase().replace(/\s+/g, '');
 
@@ -15,27 +16,31 @@ function fmtDate(s) {
   const d = new Date(s);
   return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
-const WD = ['일', '월', '화', '수', '목', '금', '토'];
-function fmtDateTime(s) {
+const WD_KO = ['일', '월', '화', '수', '목', '금', '토'];
+const WD_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+// 요일 표기는 로케일 라벨이라 사전 대신 lang으로 직접 배열 선택.
+function fmtDateTime(s, lang) {
   if (!s) return { date: '', time: '' };
   const d = new Date(s);
   const p2 = (n) => String(n).padStart(2, '0');
+  const WD = lang === 'en' ? WD_EN : WD_KO;
   return { date: `${p2(d.getMonth() + 1)}-${p2(d.getDate())} (${WD[d.getDay()]})`, time: `${p2(d.getHours())}:${p2(d.getMinutes())}` };
 }
 const fmtDur = (sec) => { if (!sec) return ''; const s = Math.round(sec); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
-const fmtDurKo = (sec) => { if (!sec) return ''; const s = Math.round(sec); return `${Math.floor(s / 60)}분 ${s % 60}초`; };
-function fmtAgo(s) {
+// 렌더 헬퍼는 t를 인자로 받아 번역 (모듈 함수라 훅 사용 불가).
+const fmtDurKo = (sec, t) => { if (!sec) return ''; const s = Math.round(sec); return t('{m}분 {s}초', { m: Math.floor(s / 60), s: s % 60 }); };
+function fmtAgo(s, t) {
   if (!s) return '';
   const diff = Date.now() - new Date(s).getTime();
   const m = Math.floor(diff / 60000);
-  if (m < 1) return '방금';
-  if (m < 60) return `${m}분 전`;
+  if (m < 1) return t('방금');
+  if (m < 60) return t('{n}분 전', { n: m });
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}시간 전`;
+  if (h < 24) return t('{n}시간 전', { n: h });
   const d = Math.floor(h / 24);
-  if (d < 30) return `${d}일 전`;
+  if (d < 30) return t('{n}일 전', { n: d });
   const mo = Math.floor(d / 30);
-  return mo < 12 ? `${mo}개월 전` : `${Math.floor(mo / 12)}년 전`;
+  return mo < 12 ? t('{n}개월 전', { n: mo }) : t('{n}년 전', { n: Math.floor(mo / 12) });
 }
 const k = (n) => (n >= 1000 ? (n / 1000).toFixed(1) + 'k' : n);
 const kdaRatio = (p) => (p.d ? ((p.k + p.a) / p.d) : (p.k + p.a)).toFixed(2);
@@ -49,17 +54,18 @@ const swapMatchLocal = (m) => ({
 });
 
 function RosterFull({ label, players, win, cs, dd, color, maxDmg, byName, highlight, carryThreshold = 20, onPlayer }) {
+  const { t } = useLang();
   return (
     <div className={`mhf-team t-${color}`}>
       <div className="mhf-team-head">
-        <span className="mhf-label">{label} <span className={`mhf-res ${win ? 'g' : 'r'}`}>{win ? '승리' : '패배'}</span></span>
+        <span className="mhf-label">{t(label)} <span className={`mhf-res ${win ? 'g' : 'r'}`}>{win ? t('승리') : t('패배')}</span></span>
         <span className="muted">CS {sum(players, 'cs')}</span>
         <span className="mhf-tot">{sum(players, 'k')} / <span className="red">{sum(players, 'd')}</span> / {sum(players, 'a')}</span>
       </div>
       {players.map((p, i) => (
         <div className={`mhf-p ${highlight && normNm(p.name) === highlight ? 'me' : ''} ${onPlayer && p.personId ? 'clk' : ''}`} key={i}
           onClick={onPlayer && p.personId ? (e) => { e.stopPropagation(); onPlayer(p.personId); } : undefined}
-          title={onPlayer && p.personId ? '카드 보기' : undefined}>
+          title={onPlayer && p.personId ? t('카드 보기') : undefined}>
           <ChampImg name={p.champion} iconUrl={dd.icon} size={34} />
           <div className="mhf-id">
             <span className="mhf-name">{p.name}<TitleBadges titles={byName?.[normNm(p.name)]} max={3} />{p.mvp && <span className={`mbadge mvp ${(p.score || 0) >= carryThreshold ? 'rainbow' : ''}`}>MVP</span>}{p.ace && <span className="mbadge ace">ACE</span>}</span>
@@ -67,10 +73,10 @@ function RosterFull({ label, players, win, cs, dd, color, maxDmg, byName, highli
           </div>
           <div className="mhf-kdacell">
             <span className="mhf-kda">{p.k} / <span className="red">{p.d}</span> / {p.a}</span>
-            <span className={`mhf-ratio ${rClass(+kdaRatio(p))}`}>{kdaRatio(p)} 평점</span>
+            <span className={`mhf-ratio ${rClass(+kdaRatio(p))}`}>{kdaRatio(p)} {t('평점')}</span>
           </div>
           <div className="dmg-cell">
-            <span className="dmg-num">딜 {k(p.damage || 0)}</span>
+            <span className="dmg-num">{t('딜')} {k(p.damage || 0)}</span>
             <div className="dmg-bar"><span className={`f ${color}`} style={{ width: Math.round((p.damage || 0) / maxDmg * 100) + '%' }} /></div>
           </div>
           <span className="mhf-gold">🌾 {p.cs || 0}</span>
@@ -83,15 +89,16 @@ function RosterFull({ label, players, win, cs, dd, color, maxDmg, byName, highli
 // ── op.gg식 리치 표시 (리플 경기 전용 — detail 있을 때) ──
 // 두 팀 사이 중앙 바: 좌=블루 오브젝트, 중앙=Total Kill/Gold 비교바, 우=레드 오브젝트
 function MiddleBar({ objectives, killsA, killsB, goldA, goldB }) {
+  const { t } = useLang();
   const oA = objectives?.A || {}, oB = objectives?.B || {};
   const objs = (o) => (
     <div className="mhmid-obj">
-      <span className="oc drag" title="드래곤">용<b>{o.dragons || 0}</b>{o.elder ? `+엘${o.elder}` : ''}</span>
-      <span className="oc grub" title="공허 유충">유충<b>{o.grubs || 0}</b></span>
-      <span className="oc her" title="전령">전령<b>{o.heralds || 0}</b></span>
-      <span className="oc bar" title="바론">바론<b>{o.barons || 0}</b></span>
-      {o.atakhan ? <span className="oc ata" title="아타칸">아타칸<b>{o.atakhan}</b></span> : null}
-      <span className="oc tow" title="포탑">타워<b>{o.towers || 0}</b></span>
+      <span className="oc drag" title={t('드래곤')}>{t('용')}<b>{o.dragons || 0}</b>{o.elder ? t('+엘{n}', { n: o.elder }) : ''}</span>
+      <span className="oc grub" title={t('공허 유충')}>{t('유충')}<b>{o.grubs || 0}</b></span>
+      <span className="oc her" title={t('전령')}>{t('전령')}<b>{o.heralds || 0}</b></span>
+      <span className="oc bar" title={t('바론')}>{t('바론')}<b>{o.barons || 0}</b></span>
+      {o.atakhan ? <span className="oc ata" title={t('아타칸')}>{t('아타칸')}<b>{o.atakhan}</b></span> : null}
+      <span className="oc tow" title={t('포탑')}>{t('타워')}<b>{o.towers || 0}</b></span>
     </div>
   );
   const bar = (label, a, b, fmt) => {
@@ -121,6 +128,7 @@ function MiddleBar({ objectives, killsA, killsB, goldA, goldB }) {
 }
 
 function RichRow({ p, dd, color, maxDmg, maxTaken, maxGold, durationMin, byName, onPlayer, itemUrl, highlight, alt }) {
+  const { t } = useLang();
   const det = p.detail || {};
   const items = det.items || [];
   const csm = durationMin ? (p.cs / durationMin).toFixed(1) : null;
@@ -148,7 +156,7 @@ function RichRow({ p, dd, color, maxDmg, maxTaken, maxGold, durationMin, byName,
         </div>
         <div className="mhr-name">
           <span className="mhr-nm">{p.name}<TitleBadges titles={byName?.[normNm(p.name)]} max={2} />{p.mvp && <span className="mbadge mvp">MVP</span>}{p.ace && <span className="mbadge ace">ACE</span>}</span>
-          <span className="mhr-sub"><span className="muted">{dd.label(p.champion)}</span>{p.tier && <span className={tierClass(p.tier)}> · {TIER_LABEL[p.tier] || p.tier}</span>}{riotNick && riotNick !== p.name && <span className="mhr-riot muted"> · {riotNick}</span>}</span>
+          <span className="mhr-sub"><span className="muted">{dd.label(p.champion)}</span>{p.tier && <span className={tierClass(p.tier)}> · {t(TIER_LABEL[p.tier]) || p.tier}</span>}{riotNick && riotNick !== p.name && <span className="mhr-riot muted"> · {riotNick}</span>}</span>
         </div>
       </div>
       <div className="mhr-kda">
@@ -159,10 +167,10 @@ function RichRow({ p, dd, color, maxDmg, maxTaken, maxGold, durationMin, byName,
       {bar(det.dmgTaken, maxTaken, 'taken', true)}
       {bar(p.gold, maxGold, 'gold', false)}
       <div className="mhr-c muted"><b>{det.visionScore || 0}</b><span>👁 {det.wardsPlaced || 0}/{det.wardsKilled || 0}</span></div>
-      <div className="mhr-c muted"><b>{p.cs || 0}</b><span>{csm ? csm + '/분' : 'CS'}</span></div>
+      <div className="mhr-c muted"><b>{p.cs || 0}</b><span>{csm ? csm + t('/분') : 'CS'}</span></div>
       <div className="mhr-items">
         {[0, 1, 2, 3, 4, 5, 6].map((i) => { const u = itemUrl(items[i]); return <span key={i} className="mhr-item">{u ? <img src={u} alt="" width={28} height={28} /> : null}</span>; })}
-        <span className={`mhr-item mhr-qitem ${questDone ? 'done' : ''}`} title={questDone ? '역할 퀘스트 완료 · 보상 신발' : (roleItem ? '역할 보상 신발' : '역할 퀘스트')}>
+        <span className={`mhr-item mhr-qitem ${questDone ? 'done' : ''}`} title={questDone ? t('역할 퀘스트 완료 · 보상 신발') : (roleItem ? t('역할 보상 신발') : t('역할 퀘스트'))}>
           {roleItem && itemUrl(roleItem) ? <img src={itemUrl(roleItem)} alt="" width={28} height={28} /> : (questDone ? <span className="mhr-qcheck">✓</span> : null)}
         </span>
       </div>
@@ -171,21 +179,22 @@ function RichRow({ p, dd, color, maxDmg, maxTaken, maxGold, durationMin, byName,
 }
 
 function RosterRich({ label, players, win, color, dd, maxDmg, maxTaken, maxGold, durationMin, byName, onPlayer, itemUrl, highlight }) {
+  const { t } = useLang();
   return (
     <div className={`mhr-team t-${color}`}>
       <div className="mhr-head">
-        <span className="mhf-label">{label} <span className={`mhf-res ${win ? 'g' : 'r'}`}>{win ? '승리' : '패배'}</span></span>
+        <span className="mhf-label">{t(label)} <span className={`mhf-res ${win ? 'g' : 'r'}`}>{win ? t('승리') : t('패배')}</span></span>
         <span className="muted">{sum(players, 'k')} / <span className="red">{sum(players, 'd')}</span> / {sum(players, 'a')} · 🌾 {k(sum(players, 'gold'))}</span>
       </div>
       <div className="mhr-row mhr-colhead muted">
-        <span>선수</span>
+        <span>{t('선수')}</span>
         <span>KDA</span>
-        <span>피해량</span>
-        <span>받은피해량</span>
-        <span>골드</span>
-        <span>와드</span>
+        <span>{t('피해량')}</span>
+        <span>{t('받은피해량')}</span>
+        <span>{t('골드')}</span>
+        <span>{t('와드')}</span>
         <span>CS</span>
-        <span className="mhr-ihead"><span>아이템</span><span>퀘스트</span></span>
+        <span className="mhr-ihead"><span>{t('아이템')}</span><span>{t('퀘스트')}</span></span>
       </div>
       {players.map((p, i) => <RichRow key={i} p={p} dd={dd} color={color} maxDmg={maxDmg} maxTaken={maxTaken} maxGold={maxGold} durationMin={durationMin} byName={byName} onPlayer={onPlayer} itemUrl={itemUrl} highlight={highlight} alt={i % 2 === 1} />)}
     </div>
@@ -212,6 +221,7 @@ export function RichScoreboard({ m, dd, onPlayer, byName }) {
 // ── op.gg식 "본인 중심" 접힌 행 (내전 참여경기·멸망전 재사용) ──
 // m=경기, me=본인 참가자, teamKills=본인팀 총킬, itemUrl=아이템 URL 함수
 export function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryThreshold = 20, kindLabel = '내전', rosterLabels = null, onToggle, open = false }) {
+  const { t, lang } = useLang();
   const det = me.detail || {};
   const r = kdaRatio(me);
   const carry = me.mvp && (me.score || 0) >= carryThreshold;
@@ -226,7 +236,7 @@ export function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryT
   const roster = (players, label) => (
     <div className="opme-rcol">
       {/* rosterLabels가 주어지면 빈 라벨이어도 자리는 확보 → 팀 없는 경기(자유 스크림)도 같은 높이 */}
-      {rosterLabels ? <span className="opme-rlbl" title={label || undefined}>{label}</span> : null}
+      {rosterLabels ? <span className="opme-rlbl" title={label ? t(label) : undefined}>{label ? t(label) : label}</span> : null}
       {players.map((p, i) => (
         <div className={`opme-pp ${normNm(p.name) === normNm(me.name) ? 'me' : ''}`} key={i} title={`${p.name} · ${p.champion}`}>
           <ChampImg name={p.champion} iconUrl={dd.icon} size={16} />
@@ -236,13 +246,13 @@ export function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryT
     </div>
   );
   return (
-    <div className={`mh-opme ${myWin ? 'w' : 'l'} ${carry ? 'carry' : ''} ${open ? 'is-open' : ''}`} onClick={onToggle} title={open ? '눌러서 접기' : '눌러서 펼치기'}>
+    <div className={`mh-opme ${myWin ? 'w' : 'l'} ${carry ? 'carry' : ''} ${open ? 'is-open' : ''}`} onClick={onToggle} title={open ? t('눌러서 접기') : t('눌러서 펼치기')}>
       <div className="opme-meta">
-        <span className="opme-kind">{kindLabel}</span>
-        <span className="opme-ago muted">{fmtAgo(m.played_at)}</span>
+        <span className="opme-kind">{t(kindLabel)}</span>
+        <span className="opme-ago muted">{fmtAgo(m.played_at, t)}</span>
         <span className="opme-div" />
-        <span className={`opme-res ${myWin ? 'g' : 'r'}`}>{myWin ? '승리' : '패배'}</span>
-        {m.durationSec ? <span className="opme-dur muted">{fmtDurKo(m.durationSec)}</span> : null}
+        <span className={`opme-res ${myWin ? 'g' : 'r'}`}>{myWin ? t('승리') : t('패배')}</span>
+        {m.durationSec ? <span className="opme-dur muted">{fmtDurKo(m.durationSec, t)}</span> : null}
       </div>
       <div className="opme-champ mhr-champ big">
         <ChampImg name={me.champion} iconUrl={dd.icon} size={56} />
@@ -255,13 +265,13 @@ export function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryT
         ? <div className="opme-ru">{runes.map((pid, i) => { const u = dd.rune?.(pid); return <span key={i} className={`opme-slot rune ${i ? 'sub' : ''}`}>{u ? <img src={u} alt="" width={25} height={25} /> : null}</span>; })}</div>
         : <div className="opme-ru" />}
       <div className="opme-nt">
-        <span className="opme-cn">{dd.label(me.champion)}{me.mvp ? <span className={`mbadge mvp ${carry ? 'rainbow' : ''}`}>MVP</span> : me.ace ? <span className="mbadge ace">ACE</span> : me.rank ? <span className="opme-rank"> {me.rank}위</span> : null}</span>
-        {me.tier && <span className={`opme-tier ${tierClass(me.tier)}`}>{TIER_LABEL[me.tier] || me.tier}</span>}
+        <span className="opme-cn">{dd.label(me.champion)}{me.mvp ? <span className={`mbadge mvp ${carry ? 'rainbow' : ''}`}>MVP</span> : me.ace ? <span className="mbadge ace">ACE</span> : me.rank ? <span className="opme-rank"> {t('{n}위', { n: me.rank })}</span> : null}</span>
+        {me.tier && <span className={`opme-tier ${tierClass(me.tier)}`}>{t(TIER_LABEL[me.tier]) || me.tier}</span>}
       </div>
       <div className="opme-kda">
         <span className="opme-kdal">{me.k} / <span className="red">{me.d}</span> / {me.a}</span>
-        <span className={`opme-ratio ${rClass(+r)}`}>{r} 평점</span>
-        {kp != null && <span className="opme-kp muted">킬관여 {kp}%</span>}
+        <span className={`opme-ratio ${rClass(+r)}`}>{r} {t('평점')}</span>
+        {kp != null && <span className="opme-kp muted">{t('킬관여 {n}%', { n: kp })}</span>}
         <span className="opme-kp opme-kcs">CS {me.cs || 0}{csm ? ` (${csm})` : ''}</span>
       </div>
       {hasItems ? (
@@ -271,9 +281,9 @@ export function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryT
         </div>
       ) : <div className="opme-items" />}
       <div className="opme-stats">
-        <span className="opme-sum"><span className="opme-suml">딜</span><span className="opme-sumv">{k(me.damage || 0)}</span></span>
-        {det.dmgTaken ? <span className="opme-sum"><span className="opme-suml">받음</span><span className="opme-sumv">{k(det.dmgTaken)}</span></span> : null}
-        {me.gold ? <span className="opme-sum"><span className="opme-suml">골드</span><span className="opme-sumv">{k(me.gold)}</span></span> : null}
+        <span className="opme-sum"><span className="opme-suml">{t('딜')}</span><span className="opme-sumv">{k(me.damage || 0)}</span></span>
+        {det.dmgTaken ? <span className="opme-sum"><span className="opme-suml">{t('받음')}</span><span className="opme-sumv">{k(det.dmgTaken)}</span></span> : null}
+        {me.gold ? <span className="opme-sum"><span className="opme-suml">{t('골드')}</span><span className="opme-sumv">{k(me.gold)}</span></span> : null}
       </div>
       <div className="opme-rosters">
         {roster(m.A, rosterLabels?.[0])}
@@ -285,6 +295,7 @@ export function OpMeRow({ m, me, myWin, teamKills, max = {}, dd, itemUrl, carryT
 }
 
 function MatchCard({ m, dd, open, onToggle, onDelete, onSwap, byName, highlight, carryThreshold = 20, onPlayer }) {
+  const { t, lang } = useLang();
   const aWin = m.winner === 'A';
   const mvp = [...m.A, ...m.B].find((p) => p.mvp);
   const ace = [...m.A, ...m.B].find((p) => p.ace); // 패배팀 에이스
@@ -307,7 +318,7 @@ function MatchCard({ m, dd, open, onToggle, onDelete, onSwap, byName, highlight,
     if (me) {
       return <OpMeRow m={m} me={me} myWin={myWin} teamKills={teamKills} max={rowMax} dd={dd} itemUrl={itemUrl} carryThreshold={carryThreshold} onToggle={onToggle} />;
     }
-    const dt = fmtDateTime(m.played_at);
+    const dt = fmtDateTime(m.played_at, lang);
     const dur = fmtDur(m.durationSec);
     const side = (players) => (
       <div className="mho-side">
@@ -329,7 +340,7 @@ function MatchCard({ m, dd, open, onToggle, onDelete, onSwap, byName, highlight,
     return (
       <div className={`mh-oprow ${aWin ? 'w-blue' : 'w-red'}`} onClick={onToggle}>
         <div className="mho-result">
-          <span className={`mho-res ${aWin ? 'blue' : 'red'}`}>{aWin ? '블루 승리' : '레드 승리'}</span>
+          <span className={`mho-res ${aWin ? 'blue' : 'red'}`}>{aWin ? t('블루 승리') : t('레드 승리')}</span>
           {dur && <span className="mho-dur muted">⏱ {dur}</span>}
         </div>
         <div className="mho-date muted">
@@ -362,9 +373,9 @@ function MatchCard({ m, dd, open, onToggle, onDelete, onSwap, byName, highlight,
       {me ? (
         <OpMeRow m={m} me={me} myWin={myWin} teamKills={teamKills} max={rowMax} dd={dd} itemUrl={itemUrl} carryThreshold={carryThreshold} onToggle={onToggle} open />
       ) : (
-      <div className="mh-hero clickable" onClick={onToggle} title="배너를 누르면 접혀요" style={splash ? { backgroundImage: `linear-gradient(90deg, var(--panel) 16%, rgba(16,16,25,.5) 46%, transparent 72%), radial-gradient(ellipse 80% 130% at 82% 44%, transparent 40%, var(--panel) 88%), url(${splash})` } : {}}>
+      <div className="mh-hero clickable" onClick={onToggle} title={t('배너를 누르면 접혀요')} style={splash ? { backgroundImage: `linear-gradient(90deg, var(--panel) 16%, rgba(16,16,25,.5) 46%, transparent 72%), radial-gradient(ellipse 80% 130% at 82% 44%, transparent 40%, var(--panel) 88%), url(${splash})` } : {}}>
         <div className="mh-hero-left">
-          <span className={`mh-win-tag ${aWin ? 'blue' : 'r'}`}>{aWin ? '블루 승리' : '레드 승리'}</span>
+          <span className={`mh-win-tag ${aWin ? 'blue' : 'r'}`}>{aWin ? t('블루 승리') : t('레드 승리')}</span>
           <div className="mh-bigscore"><b className="t-blue-c">{m.killsA}</b><span className="muted"> · </span><b className="t-red-c">{m.killsB}</b></div>
           <div className="muted" style={{ fontSize: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <span>📅 {fmtDate(m.played_at)}</span>{m.durationSec ? <span>⏱ {fmtDur(m.durationSec)}</span> : null}
@@ -378,18 +389,18 @@ function MatchCard({ m, dd, open, onToggle, onDelete, onSwap, byName, highlight,
           </div>
         )}
         <div className="mh-hero-actions">
-          {onSwap && <button className="mh-edit" title="블루↔레드 진영 뒤집기 (수동 업로드 보정)" onClick={(e) => { e.stopPropagation(); onSwap(m); }}>🔄 블루↔레드</button>}
-          {onDelete && <Link href={`/record?edit=${m.id}`} className="mh-edit" title="이 경기 수정" onClick={(e) => e.stopPropagation()}>✏️ 수정</Link>}
-          {onDelete && <button className="mh-del" title="이 경기 기록 삭제" onClick={(e) => { e.stopPropagation(); onDelete(m); }}>🗑 삭제</button>}
+          {onSwap && <button className="mh-edit" title={t('블루↔레드 진영 뒤집기 (수동 업로드 보정)')} onClick={(e) => { e.stopPropagation(); onSwap(m); }}>🔄 {t('블루↔레드')}</button>}
+          {onDelete && <Link href={`/record?edit=${m.id}`} className="mh-edit" title={t('이 경기 수정')} onClick={(e) => e.stopPropagation()}>✏️ {t('수정')}</Link>}
+          {onDelete && <button className="mh-del" title={t('이 경기 기록 삭제')} onClick={(e) => { e.stopPropagation(); onDelete(m); }}>🗑 {t('삭제')}</button>}
           <span className="mh-chev open">▴</span>
         </div>
       </div>
       )}
       {me && (onSwap || onDelete) && (
         <div className="mh-open-actions">
-          {onSwap && <button className="mh-edit" onClick={(e) => { e.stopPropagation(); onSwap(m); }}>🔄 블루↔레드</button>}
-          {onDelete && <Link href={`/record?edit=${m.id}`} className="mh-edit" onClick={(e) => e.stopPropagation()}>✏️ 수정</Link>}
-          {onDelete && <button className="mh-del" onClick={(e) => { e.stopPropagation(); onDelete(m); }}>🗑 삭제</button>}
+          {onSwap && <button className="mh-edit" onClick={(e) => { e.stopPropagation(); onSwap(m); }}>🔄 {t('블루↔레드')}</button>}
+          {onDelete && <Link href={`/record?edit=${m.id}`} className="mh-edit" onClick={(e) => e.stopPropagation()}>✏️ {t('수정')}</Link>}
+          {onDelete && <button className="mh-del" onClick={(e) => { e.stopPropagation(); onDelete(m); }}>🗑 {t('삭제')}</button>}
         </div>
       )}
       {m.source === 'replay' && (m.A[0]?.detail || m.B[0]?.detail) ? (
@@ -410,6 +421,7 @@ function MatchCard({ m, dd, open, onToggle, onDelete, onSwap, byName, highlight,
 
 export default function MatchHistory({ gid, dd, filterName, filterPersonId, showSearch }) {
   const { canEdit } = useGroup();
+  const { t } = useLang();
   const [data, setData] = useState(null);
   const [open, setOpen] = useState({});
   const [busy, setBusy] = useState(false);
@@ -449,29 +461,29 @@ export default function MatchHistory({ gid, dd, filterName, filterPersonId, show
 
   async function onDelete(m) {
     if (busy) return;
-    if (!window.confirm(`이 경기 기록을 삭제할까요?\n(${m.killsA} vs ${m.killsB} · ${fmtDate(m.played_at)})\n통계·전적에서 빠집니다.`)) return;
+    if (!window.confirm(t('이 경기 기록을 삭제할까요?\n({killsA} vs {killsB} · {date})\n통계·전적에서 빠집니다.', { killsA: m.killsA, killsB: m.killsB, date: fmtDate(m.played_at) }))) return;
     setBusy(true);
     try {
       const r = await apiFetch(`/api/matches/${m.id}?gid=${gid}`, { method: 'DELETE' }).then((x) => x.json());
       if (!r.ok) throw new Error(r.error);
       setData((d) => d.filter((x) => x.id !== m.id));
-    } catch (e) { window.alert('삭제 실패: ' + e.message); }
+    } catch (e) { window.alert(t('삭제 실패: ') + t(e.message)); }
     setBusy(false);
   }
 
   async function onSwap(m) {
     if (busy) return;
-    if (!window.confirm(`이 경기의 블루↔레드를 뒤집을까요?\n(현재 ${m.winner === 'A' ? '블루' : '레드'} 승리 → ${m.winner === 'A' ? '레드' : '블루'} 승리)`)) return;
+    if (!window.confirm(t('이 경기의 블루↔레드를 뒤집을까요?\n(현재 {from} 승리 → {to} 승리)', { from: t(m.winner === 'A' ? '블루' : '레드'), to: t(m.winner === 'A' ? '레드' : '블루') }))) return;
     setBusy(true);
     try {
       const r = await apiFetch(`/api/matches/${m.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ group_id: gid, action: 'swapSides' }) }).then((x) => x.json());
       if (!r.ok) throw new Error(r.error);
       setData((d) => d.map((x) => (x.id === m.id ? swapMatchLocal(x) : x)));
-    } catch (e) { window.alert('뒤집기 실패: ' + e.message); }
+    } catch (e) { window.alert(t('뒤집기 실패: ') + t(e.message)); }
     setBusy(false);
   }
 
-  if (!data) return <div className="panel center muted">불러오는 중…</div>;
+  if (!data) return <div className="panel center muted">{t('불러오는 중…')}</div>;
 
   // 선수 필터 (그 사람이 낀 경기만) + 검색 (챔피언·선수 이름)
   // person_id 우선 — 동명이인(디코닉·인게임닉 겹침) 오필터 방지. 없으면 이름 폴백.
@@ -486,12 +498,12 @@ export default function MatchHistory({ gid, dd, filterName, filterPersonId, show
     <div>
       {showSearch && (
         <div className="mh-search">
-          <input placeholder="🔎 챔피언·선수 이름으로 검색" value={q} onChange={(e) => setQ(e.target.value)} />
-          <span className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{list.length}경기</span>
+          <input placeholder={t('🔎 챔피언·선수 이름으로 검색')} value={q} onChange={(e) => setQ(e.target.value)} />
+          <span className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{t('{n}경기', { n: list.length })}</span>
         </div>
       )}
       {list.length === 0 ? (
-        <div className="panel center muted" style={{ padding: '24px 0' }}>{data.length ? '검색 결과 없음' : '아직 기록된 경기가 없어요.'}</div>
+        <div className="panel center muted" style={{ padding: '24px 0' }}>{data.length ? t('검색 결과 없음') : t('아직 기록된 경기가 없어요.')}</div>
       ) : (
         <div className="mh-list">
           {list.map((m) => (

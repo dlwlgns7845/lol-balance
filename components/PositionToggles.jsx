@@ -1,5 +1,9 @@
 'use client';
 import { POS, POS_KR } from '../src/table.js';
+import { useLang } from './i18n.jsx';
+
+// 영어는 라벨이 길어 버튼 칸을 넘침 → 롤 유저가 실제 쓰는 약칭으로 (전체 이름은 title로)
+const POS_EN_SHORT = { top: 'Top', jungle: 'Jg', mid: 'Mid', adc: 'ADC', sup: 'Sup' };
 
 function nextRole(cur) {
   if (!cur) return 'primary';
@@ -9,6 +13,7 @@ function nextRole(cur) {
 
 // roles: { top:'primary', mid:'secondary' } 형태. onChange(newRoles)
 export default function PositionToggles({ roles, onChange }) {
+  const { t, lang } = useLang();
   function cycle(pos) {
     const r = { ...roles };
     const nv = nextRole(r[pos]);
@@ -22,8 +27,8 @@ export default function PositionToggles({ roles, onChange }) {
         const r = roles[pos];
         const cls = r === 'primary' ? 'on' : r === 'secondary' ? 'sec' : '';
         return (
-          <button key={pos} className={cls} type="button" onClick={() => cycle(pos)}>
-            {POS_KR[pos]}{r === 'secondary' && <sup>부</sup>}
+          <button key={pos} className={cls} type="button" onClick={() => cycle(pos)} title={t(POS_KR[pos])}>
+            {lang === 'en' ? POS_EN_SHORT[pos] : t(POS_KR[pos])}{r === 'secondary' && <sup>{t('부')}</sup>}
           </button>
         );
       })}

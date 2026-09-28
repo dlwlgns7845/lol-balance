@@ -4,13 +4,15 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useGroup } from '../../components/GroupProvider.jsx';
 import { apiFetch } from '../../components/api.js';
+import { useLang, LangSwitch } from '../../components/i18n.jsx';
 
-const TABS = [['notice', '📢 공지'], ['apply', '📝 신청'], ['stats', '📊 통계']];
+const TABS = [['notice', '📢', '공지'], ['apply', '📝', '신청'], ['stats', '📊', '통계']];
 const ST = { recruiting: '🟢', running: '🔵', done: '🏁' };
 const sInp = { background: '#26262e', color: '#ddd', border: '1px solid #33333c', borderRadius: 6, padding: '5px 8px', fontSize: 12.5 };
 
 export default function TournamentLayout({ children }) {
   const { user, discord, login, logout } = useGroup() || {};
+  const { t, lang, setLang } = useLang();
   const path = usePathname() || '';
   const parts = path.split('/').filter(Boolean); // ['tournament', id?, tab?]
   const RESERVED = ['manage']; // 대회 id가 아닌 특수 경로
@@ -27,7 +29,7 @@ export default function TournamentLayout({ children }) {
 
   async function clearTraces() {
     setMenu(false);
-    if (!window.confirm('내 로그인 기록(관람 흔적·이메일 노출)을 지우고 로그아웃할까요?\n\n다시 로그인하면 정상적으로 이용할 수 있어요.')) return;
+    if (!window.confirm(t('내 로그인 기록(관람 흔적·이메일 노출)을 지우고 로그아웃할까요?\n\n다시 로그인하면 정상적으로 이용할 수 있어요.'))) return;
     try { await apiFetch('/api/directory-optout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); } catch { /* 무시 */ }
     if (logout) logout();
   }
@@ -42,9 +44,9 @@ export default function TournamentLayout({ children }) {
       const r = await apiFetch('/api/tournaments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, max_teams: maxTeams }) }).then((x) => x.json());
       if (r.ok) {
         setName('');
-        if (!isAdmin) window.alert('대회를 만들었어요! 📋\n관리자 승인 후 목록에 공개돼요. 승인 전에도 이 링크로 준비할 수 있어요.');
+        if (!isAdmin) window.alert(t('대회를 만들었어요! 📋\n관리자 승인 후 목록에 공개돼요. 승인 전에도 이 링크로 준비할 수 있어요.'));
         window.location.href = '/tournament/' + r.tournament.id + '/notice';
-      } else alert('실패: ' + r.error);
+      } else alert(t('실패: ') + t(r.error));
     } finally { setBusy(false); }
   }
 
@@ -54,24 +56,24 @@ export default function TournamentLayout({ children }) {
         <div className="tb-brand">
           <a href="/" style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: 10 }}>
             <span className="tb-logo" style={{ display: 'grid', placeItems: 'center', fontSize: 24, background: 'transparent', width: 40, height: 40 }}>🏆</span>
-            <div className="tb-title"><div className="tb-name">멸망전</div><div className="tb-sub">COMMUNITY TOURNAMENT</div></div>
+            <div className="tb-title"><div className="tb-name">{t('멸망전')}</div><div className="tb-sub">COMMUNITY TOURNAMENT</div></div>
           </a>
         </div>
         <nav className="tb-nav">
-          {selId && TABS.map(([k, label]) => (
-            <Link key={k} href={`/tournament/${selId}/${k}`} className={tab === k ? 'active' : ''}>{k === 'apply' && selFormation === 'score' ? '📝 신청·점수' : label}</Link>
+          {selId && TABS.map(([k, ic, label]) => (
+            <Link key={k} href={`/tournament/${selId}/${k}`} className={tab === k ? 'active' : ''}>{ic} {k === 'apply' && selFormation === 'score' ? t('신청·점수') : t(label)}</Link>
           ))}
           {selId && (
-            <Link href={`/tournament/${selId}/schedule`} className={tab === 'schedule' ? 'active' : ''}>🗓 일정·결과</Link>
+            <Link href={`/tournament/${selId}/schedule`} className={tab === 'schedule' ? 'active' : ''}>🗓 {t('일정·결과')}</Link>
           )}
           {selId && user && selFormation === 'auction' && (
-            <Link href={`/tournament/${selId}/auction`} className={tab === 'auction' ? 'active' : ''}>🔨 경매</Link>
+            <Link href={`/tournament/${selId}/auction`} className={tab === 'auction' ? 'active' : ''}>🔨 {t('경매')}</Link>
           )}
           {selId && user && (
-            <Link href={`/tournament/${selId}/admin`} className={tab === 'admin' ? 'active' : ''}>⚙️ 관리자</Link>
+            <Link href={`/tournament/${selId}/admin`} className={tab === 'admin' ? 'active' : ''}>⚙️ {t('관리자')}</Link>
           )}
           {isAdmin && (
-            <Link href="/tournament/manage" className={parts[1] === 'manage' ? 'active' : ''}>🛡 전체 관리</Link>
+            <Link href="/tournament/manage" className={parts[1] === 'manage' ? 'active' : ''}>🛡 {t('전체 관리')}</Link>
           )}
         </nav>
         <div className="tb-actions">
@@ -83,49 +85,52 @@ export default function TournamentLayout({ children }) {
                   <>
                     <div className="tb-menu-backdrop" onClick={() => setMenu(false)} />
                     <div className="tb-menu">
-                      <div className="tb-menu-email">{discord?.name ? <><b>{discord.name}</b> · 디스코드</> : user.email}</div>
-                      <button onClick={() => { setMenu(false); logout && logout(); }}>로그아웃</button>
-                      <button className="danger" onClick={clearTraces}>🙈 로그인 기록 삭제 후 로그아웃</button>
+                      <div className="tb-menu-email">{discord?.name ? <><b>{discord.name}</b> · {t('디스코드')}</> : user.email}</div>
+                      <div className="tb-menu-lang"><span>{t('언어')} · Language</span><LangSwitch /></div>
+                      <button onClick={() => { setMenu(false); logout && logout(); }}>{t('로그아웃')}</button>
+                      <button className="danger" onClick={clearTraces}>🙈 {t('로그인 기록 삭제 후 로그아웃')}</button>
                     </div>
                   </>
                 )}
               </div>
             )
-            : <button className="btn ghost" onClick={() => login('discord')} title="디스코드로 로그인"><span className="dg" aria-hidden>◈</span> 로그인</button>}
-          <a className="btn ghost" href="/" style={{ textDecoration: 'none' }}># 방 입장</a>
+            : <button className="btn ghost" onClick={() => login('discord')} title={t('디스코드로 로그인')}><span className="dg" aria-hidden>◈</span> {t('로그인')}</button>}
+          <a className="btn ghost" href="/" style={{ textDecoration: 'none' }}># {t('방 입장')}</a>
         </div>
       </header>
 
       <div style={{ display: 'flex', minHeight: 'calc(100vh - 62px)', position: 'relative' }}>
         {navOpen && <aside style={{ width: 220, flexShrink: 0, borderRight: '1px solid #1e1e26', background: '#0f0f14', padding: '14px 10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px 8px' }}>
-            <span className="muted" style={{ fontSize: 11, fontWeight: 700 }}>대회 목록</span>
-            <button className="btn ghost" onClick={() => setNavOpen(false)} style={{ fontSize: 11, padding: '2px 8px' }} title="목록 접기">◀ 접기</button>
+            <span className="muted" style={{ fontSize: 11, fontWeight: 700 }}>{t('대회 목록')}</span>
+            <button className="btn ghost" onClick={() => setNavOpen(false)} style={{ fontSize: 11, padding: '2px 8px' }} title={t('목록 접기')}>◀ {t('접기')}</button>
           </div>
-          {list.length === 0 && <div className="muted" style={{ fontSize: 12, padding: 6 }}>아직 없어요</div>}
-          {list.map((t) => (
-            <Link key={t.id} href={`/tournament/${t.id}/notice`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px', borderRadius: 7, textDecoration: 'none', color: selId === t.id ? '#fff' : '#bbb', background: selId === t.id ? 'rgba(79,182,214,.15)' : 'transparent', fontWeight: selId === t.id ? 700 : 400, fontSize: 13, marginBottom: 2 }}>
-              <span>{ST[t.status] || '·'}</span><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
-              {t.visible === false && <span title="승인 대기 (관리자만 보임)" style={{ marginLeft: 'auto', fontSize: 9.5, color: '#e0b24d', border: '1px solid rgba(224,178,77,.4)', borderRadius: 4, padding: '0 4px', flexShrink: 0 }}>대기</span>}
+          {list.length === 0 && <div className="muted" style={{ fontSize: 12, padding: 6 }}>{t('아직 없어요')}</div>}
+          {list.map((t0) => (
+            <Link key={t0.id} href={`/tournament/${t0.id}/notice`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px', borderRadius: 7, textDecoration: 'none', color: selId === t0.id ? '#fff' : '#bbb', background: selId === t0.id ? 'rgba(79,182,214,.15)' : 'transparent', fontWeight: selId === t0.id ? 700 : 400, fontSize: 13, marginBottom: 2 }}>
+              <span>{ST[t0.status] || '·'}</span><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t0.name}</span>
+              {t0.visible === false && <span title={t('승인 대기 (관리자만 보임)')} style={{ marginLeft: 'auto', fontSize: 9.5, color: '#e0b24d', border: '1px solid rgba(224,178,77,.4)', borderRadius: 4, padding: '0 4px', flexShrink: 0 }}>{t('대기')}</span>}
             </Link>
           ))}
-          {isAdmin && <Link href="/tournament/manage" style={{ display: 'block', fontSize: 12, color: '#8fd6ec', padding: '8px 6px 2px', textDecoration: 'none' }}>🛡 전체 관리 · 승인 →</Link>}
+          {isAdmin && <Link href="/tournament/manage" style={{ display: 'block', fontSize: 12, color: '#8fd6ec', padding: '8px 6px 2px', textDecoration: 'none' }}>🛡 {t('전체 관리 · 승인')} →</Link>}
           {user && (
             <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #1e1e26' }}>
-              <div className="muted" style={{ fontSize: 11, padding: '0 6px 6px', fontWeight: 700 }}>+ 새 대회</div>
-              <input placeholder="대회 이름" value={name} onChange={(e) => setName(e.target.value)} style={{ width: '100%', ...sInp, marginBottom: 5 }} />
-              <select value={maxTeams} onChange={(e) => setMaxTeams(+e.target.value)} style={{ width: '100%', ...sInp, marginBottom: 5 }}>{[4, 8, 16, 32].map((n) => <option key={n} value={n}>{n}팀</option>)}</select>
-              <button className="btn" style={{ width: '100%' }} disabled={busy || !name.trim()} onClick={create}>만들기</button>
+              <div className="muted" style={{ fontSize: 11, padding: '0 6px 6px', fontWeight: 700 }}>+ {t('새 대회')}</div>
+              <input placeholder={t('대회 이름')} value={name} onChange={(e) => setName(e.target.value)} style={{ width: '100%', ...sInp, marginBottom: 5 }} />
+              <select value={maxTeams} onChange={(e) => setMaxTeams(+e.target.value)} style={{ width: '100%', ...sInp, marginBottom: 5 }}>{[4, 8, 16, 32].map((n) => <option key={n} value={n}>{t('{n}팀', { n })}</option>)}</select>
+              <button className="btn" style={{ width: '100%' }} disabled={busy || !name.trim()} onClick={create}>{t('만들기')}</button>
             </div>
           )}
         </aside>}
         {/* 접었을 때는 흐름에서 빼서(absolute) 콘텐츠가 내전과 동일하게 뷰포트 정중앙에 오도록 */}
-        {!navOpen && <button className="btn ghost" onClick={() => setNavOpen(true)} style={{ position: 'absolute', left: 10, top: 12, zIndex: 5, fontSize: 12, padding: '5px 10px' }} title="대회 목록 펴기">☰ 목록</button>}
+        {!navOpen && <button className="btn ghost" onClick={() => setNavOpen(true)} style={{ position: 'absolute', left: 10, top: 12, zIndex: 5, fontSize: 12, padding: '5px 10px' }} title={t('대회 목록 펴기')}>☰ {t('목록')}</button>}
         <main className="main" style={{ flex: 1, minWidth: 0 }}>
           <div className="content">{children}</div>
         </main>
       </div>
-      <footer className="site-credit">티어·전적 데이터 제공: <a href="https://op.gg" target="_blank" rel="noreferrer">OP.GG</a></footer>
+      <footer className="site-credit">{t('티어·전적 데이터 제공:')} <a href="https://op.gg" target="_blank" rel="noreferrer">OP.GG</a>
+        {!user && <button type="button" className="linkbtn lang-link" onClick={() => setLang(lang === 'en' ? 'ko' : 'en')}>{lang === 'en' ? '한국어' : 'English'}</button>}
+      </footer>
     </div>
   );
 }

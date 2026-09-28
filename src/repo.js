@@ -1205,7 +1205,7 @@ export async function getStats(groupId) {
     lanes[pos] = list;
   });
 
-  return { totalMatches: matchCount || 0, players: rows, lanes, laneMin: LANE_MIN, scoreFormula: '(보정승률×0.9 + ln(판수)×10 + √KDA×12 + 딜량(k)×0.4) × 판수신뢰도' };
+  return { totalMatches: matchCount || 0, players: rows, lanes, laneMin: LANE_MIN, scoreFormula: '(보정승률×0.9 + ln(판수)×5 + √KDA×12 + 딜량(k)×0.4) × 판수신뢰도(8판=100%)' };
 }
 
 // ── 칭호: 개인(승률·CS·MVP) + 관계형(듀오·상대전적·연승). 사람ID/이름별 뱃지 맵 포함 ──

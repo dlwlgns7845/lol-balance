@@ -6,6 +6,7 @@ import { useGroup } from '../../components/GroupProvider.jsx';
 import { apiFetch } from '../../components/api.js';
 import { useDdragon } from '../../components/ddragon.js';
 import { parseRofl } from '../../components/rofl.js';
+import { useLang } from '../../components/i18n.jsx';
 
 const REGIONS = ['NA', 'KR', 'EUW', 'EUNE', 'BR', 'JP', 'OCE', 'LAN', 'LAS', 'TR', 'RU'];
 const POS = ['top', 'jungle', 'mid', 'adc', 'sup'];       // 팀 내 순서 = 탑/정글/미드/원딜/서폿
@@ -16,6 +17,7 @@ export default function RecordPage() {
   const { group, canRecord } = useGroup();
   const gid = group?.id;
   const dd = useDdragon();
+  const { t } = useLang();
   // 화면에 보인 챔프명(한글/영문/오타) → Data Dragon 정식 ID. 못 찾으면 원문 유지(수동 수정).
   const resolveChamp = (c) => (dd.id && dd.id(c)) || c;
   const [persons, setPersons] = useState([]);
@@ -48,7 +50,7 @@ export default function RecordPage() {
   useEffect(() => {
     if (!gid || !editId) return;
     apiFetch(`/api/matches/${editId}?gid=${gid}`).then((x) => x.json()).then((r) => {
-      if (!r.ok) { setErr('불러오기 실패: ' + r.error); return; }
+      if (!r.ok) { setErr(t('불러오기 실패: ') + t(r.error)); return; }
       const mm = r.match;
       setRows(mm.participants.map((p, i) => ({
         team: p.team === 'B' ? 2 : 1, name: p.name, champion: p.champion,
@@ -134,8 +136,8 @@ export default function RecordPage() {
       })));
       setObjectives(obj); setSource('replay'); setWinner(w); setDurationSec(dsec);
       setPlayedAt(file.lastModified ? new Date(file.lastModified).toISOString() : null); // 리플 저장시각 = 게임일
-      setMsg('리플 분석 완료 — 사람·포지션 확인하고 저장하세요.');
-    } catch (er) { setErr('리플 분석 실패: ' + er.message); }
+      setMsg(t('리플 분석 완료 — 사람·포지션 확인하고 저장하세요.'));
+    } catch (er) { setErr(t('리플 분석 실패: ') + er.message); }
     setLoading(false);
     if (roflRef.current) roflRef.current.value = '';
   }
@@ -152,7 +154,7 @@ export default function RecordPage() {
   async function save(force = false) {
     // 수동/수정: 빈 이름 신규가 있으면 안내
     if (rows.some((r) => (!r.personId || r.personId === '__new__') && !(r.name || '').trim())) {
-      setErr('모든 자리에 사람을 선택하거나 이름을 입력하세요.'); return;
+      setErr(t('모든 자리에 사람을 선택하거나 이름을 입력하세요.')); return;
     }
     setSaving(true); setErr(null); setMsg(null);
     try {
@@ -160,7 +162,7 @@ export default function RecordPage() {
       const newRows = rows.filter((r) => (!r.personId || r.personId === '__new__') && (r.name || '').includes('#'));
       const tierByName = {};
       if (newRows.length) {
-        setMsg('새 선수 티어 조회 중…');
+        setMsg(t('새 선수 티어 조회 중…'));
         await Promise.all(newRows.map(async (r) => {
           const [gn, tg] = (r.name || '').split('#');
           if (!gn || !tg) return;
@@ -187,7 +189,7 @@ export default function RecordPage() {
           body: JSON.stringify({ group_id: gid, winner, participants, durationSec }),
         }).then((x) => x.json());
         if (!res.ok) throw new Error(res.error);
-        setMsg('수정 완료 — 통계·전적 반영됨.');
+        setMsg(t('수정 완료 — 통계·전적 반영됨.'));
         setRows([]); setEditing(false);
         setSaving(false);
         return;
@@ -199,15 +201,15 @@ export default function RecordPage() {
       if (!res.ok) throw new Error(res.error);
       if (res.duplicate) {
         setSaving(false);
-        if (window.confirm('이미 저장된 경기와 거의 같아요 (중복으로 보임). 그래도 저장할까요?')) {
+        if (window.confirm(t('이미 저장된 경기와 거의 같아요 (중복으로 보임). 그래도 저장할까요?'))) {
           return save(true);
         }
-        setErr('중복으로 판단되어 저장하지 않았어요. 같은 경기라면 다시 올릴 필요 없어요.');
+        setErr(t('중복으로 판단되어 저장하지 않았어요. 같은 경기라면 다시 올릴 필요 없어요.'));
         return;
       }
-      setMsg('저장 완료 — 통계·전적 반영됨.');
+      setMsg(t('저장 완료 — 통계·전적 반영됨.'));
       setRows([]); if (roflRef.current) roflRef.current.value = '';
-    } catch (e) { setErr(editing ? '수정 실패: ' + e.message : '저장 실패: ' + e.message); }
+    } catch (e) { setErr(editing ? t('수정 실패: ') + t(e.message) : t('저장 실패: ') + t(e.message)); }
     setSaving(false);
   }
 
@@ -262,88 +264,88 @@ export default function RecordPage() {
 
   if (group && !canRecord) return (
     <div>
-      <h1>경기 기록</h1>
+      <h1>{t('경기 기록')}</h1>
       <div className="panel center muted" style={{ padding: '26px 0' }}>
-        👀 구경 모드예요. 경기 기록은 <b>편집 권한</b>이 있어야 올릴 수 있어요. 방장에게 권한을 요청하세요.
+        👀 {t('구경 모드예요. 경기 기록은')} <b>{t('편집 권한')}</b>{t('이 있어야 올릴 수 있어요. 방장에게 권한을 요청하세요.')}
       </div>
     </div>
   );
 
   return (
     <div>
-      <h1>{editing ? '경기 수정' : '경기 기록'}</h1>
+      <h1>{editing ? t('경기 수정') : t('경기 기록')}</h1>
       <p className="sub">
-        {editing ? '저장된 경기의 값을 고치고 수정 저장하세요.'
-          : '게임 후 저장된 .rofl 리플 파일을 올리면 자동 추출돼요. 수동 입력도 가능해요.'}
+        {editing ? t('저장된 경기의 값을 고치고 수정 저장하세요.')
+          : t('게임 후 저장된 .rofl 리플 파일을 올리면 자동 추출돼요. 수동 입력도 가능해요.')}
       </p>
 
       {editing ? (
         <div className="panel" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span>✏️ <b>경기 수정 중</b> — 아래 표에서 값을 고치고 저장하세요.</span>
-          <Link href="/" className="btn ghost" style={{ marginLeft: 'auto' }}>취소</Link>
+          <span>✏️ <b>{t('경기 수정 중')}</b> — {t('아래 표에서 값을 고치고 저장하세요.')}</span>
+          <Link href="/" className="btn ghost" style={{ marginLeft: 'auto' }}>{t('취소')}</Link>
         </div>
       ) : (
         <div className="panel">
           <div className="controls">
-            <span className="muted" style={{ fontSize: 12 }}>🎬 리플:</span>
+            <span className="muted" style={{ fontSize: 12 }}>🎬 {t('리플:')}</span>
             <input ref={roflRef} type="file" accept=".rofl" onChange={onRofl} disabled={loading} style={{ width: 'auto' }} />
-            <span className="muted" style={{ fontSize: 12 }}>│ 📦 일괄:</span>
-            <input ref={bulkRef} type="file" accept=".rofl" multiple onChange={onBulk} disabled={loading} style={{ width: 'auto' }} title="여러 리플 한 번에 — 검토 후 아래 '전체 저장'" />
-            {loading && <span className="muted">분석 중…</span>}
-            <span className="muted" style={{ fontSize: 11 }}>게임 후 저장된 <code>.rofl</code> 넣으면 자동 추출. 일괄은 날짜(파일 저장시각)순 정렬</span>
+            <span className="muted" style={{ fontSize: 12 }}>│ 📦 {t('일괄:')}</span>
+            <input ref={bulkRef} type="file" accept=".rofl" multiple onChange={onBulk} disabled={loading} style={{ width: 'auto' }} title={t("여러 리플 한 번에 — 검토 후 아래 '전체 저장'")} />
+            {loading && <span className="muted">{t('분석 중…')}</span>}
+            <span className="muted" style={{ fontSize: 11 }}>{t('게임 후 저장된')} <code>.rofl</code> {t('넣으면 자동 추출. 일괄은 날짜(파일 저장시각)순 정렬')}</span>
             <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <span className="muted" style={{ fontSize: 11 }}>새 선수 티어 조회 지역</span>
-              <select value={region} onChange={(e) => setRegion(e.target.value)} title="새로 등록될 선수의 티어를 이 지역 기준으로 자동 조회" style={{ fontSize: 12 }}>{REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}</select>
+              <span className="muted" style={{ fontSize: 11 }}>{t('새 선수 티어 조회 지역')}</span>
+              <select value={region} onChange={(e) => setRegion(e.target.value)} title={t('새로 등록될 선수의 티어를 이 지역 기준으로 자동 조회')} style={{ fontSize: 12 }}>{REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}</select>
             </span>
-            <button className="btn ghost" onClick={manualEntry} title="리플 없이 직접 10명 입력">✏️ 수동 입력</button>
+            <button className="btn ghost" onClick={manualEntry} title={t('리플 없이 직접 10명 입력')}>✏️ {t('수동 입력')}</button>
           </div>
-          {err && <div className="err">{err}</div>}
-          {msg && <div className="seed-status" style={{ fontSize: 13 }}>✓ {msg} — <Link href="/" className="accent">통계 보기</Link></div>}
+          {err && <div className="err">{t(err)}</div>}
+          {msg && <div className="seed-status" style={{ fontSize: 13 }}>✓ {t(msg)} — <Link href="/" className="accent">{t('통계 보기')}</Link></div>}
         </div>
       )}
-      {editing && err && <div className="panel err" style={{ padding: '10px 16px' }}>{err}</div>}
-      {editing && msg && <div className="panel" style={{ padding: '10px 16px' }}>✓ {msg} — <Link href="/" className="accent">통계 보기</Link></div>}
+      {editing && err && <div className="panel err" style={{ padding: '10px 16px' }}>{t(err)}</div>}
+      {editing && msg && <div className="panel" style={{ padding: '10px 16px' }}>✓ {t(msg)} — <Link href="/" className="accent">{t('통계 보기')}</Link></div>}
 
       {bulkResult && (
         <div className="panel" style={{ padding: '12px 16px' }}>
-          <b>일괄 저장 완료</b> — 저장 {bulkResult.filter((r) => r.status === 'saved').length} · 중복 {bulkResult.filter((r) => r.status === 'dup').length} · 실패 {bulkResult.filter((r) => r.status === 'error' || r.status === 'parse_error').length}
+          <b>{t('일괄 저장 완료')}</b> — {t('저장 {saved} · 중복 {dup} · 실패 {failed}', { saved: bulkResult.filter((r) => r.status === 'saved').length, dup: bulkResult.filter((r) => r.status === 'dup').length, failed: bulkResult.filter((r) => r.status === 'error' || r.status === 'parse_error').length })}
           <div style={{ marginTop: 6, fontSize: 12 }}>{bulkResult.map((r, i) => (
-            <div key={i} className="muted">{r.status === 'saved' ? '✅' : r.status === 'dup' ? '♻️ 중복' : '⚠️'} {r.file}{r.msg ? ` — ${r.msg}` : ''}</div>
+            <div key={i} className="muted">{r.status === 'saved' ? '✅' : r.status === 'dup' ? `♻️ ${t('중복')}` : '⚠️'} {r.file}{r.msg ? ` — ${t(r.msg)}` : ''}</div>
           ))}</div>
-          <Link href="/" className="accent" style={{ fontSize: 13 }}>→ 통계 보기</Link>
+          <Link href="/" className="accent" style={{ fontSize: 13 }}>→ {t('통계 보기')}</Link>
         </div>
       )}
 
       {batch.length > 0 && (
         <div className="panel">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
-            <b>📦 일괄 검토 · {batch.length}경기</b>
-            <span className="muted" style={{ fontSize: 12 }}>날짜순(오래된 → 최신). 승리팀·챔피언·사람 매핑 확인하고 저장</span>
-            <button className="btn ghost" onClick={() => setBatch([])} disabled={bulkBusy} style={{ marginLeft: 'auto' }}>취소</button>
-            <button className="btn" onClick={saveBatch} disabled={bulkBusy}>{bulkBusy ? '저장 중…' : `⬇ 전체 저장 (${batch.filter((m) => !m.error).length}경기)`}</button>
+            <b>📦 {t('일괄 검토 · {n}경기', { n: batch.length })}</b>
+            <span className="muted" style={{ fontSize: 12 }}>{t('날짜순(오래된 → 최신). 승리팀·챔피언·사람 매핑 확인하고 저장')}</span>
+            <button className="btn ghost" onClick={() => setBatch([])} disabled={bulkBusy} style={{ marginLeft: 'auto' }}>{t('취소')}</button>
+            <button className="btn" onClick={saveBatch} disabled={bulkBusy}>{bulkBusy ? t('저장 중…') : t('⬇ 전체 저장 ({n}경기)', { n: batch.filter((m) => !m.error).length })}</button>
           </div>
           {batch.map((m) => (
             <div key={m.id} className="panel" style={{ padding: '10px 12px', marginBottom: 8, background: 'rgba(255,255,255,.02)' }}>
               {m.error ? (
-                <div className="muted">⚠️ {m.fileName} — 파싱 실패: {m.error}</div>
+                <div className="muted">⚠️ {m.fileName} — {t('파싱 실패:')} {t(m.error)}</div>
               ) : (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, marginBottom: 6, flexWrap: 'wrap' }}>
                     <span className="muted">{m.fileName}</span>
-                    <span className="muted">· {m.played_at ? new Date(m.played_at).toLocaleString() : '날짜?'}</span>
+                    <span className="muted">· {m.played_at ? new Date(m.played_at).toLocaleString() : t('날짜?')}</span>
                     <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
-                      승리:
-                      <button className={`mini ${m.winner === 'A' ? 'on' : ''}`} onClick={() => setBatch((bs) => bs.map((x) => (x.id === m.id ? { ...x, winner: 'A' } : x)))}>1팀</button>
-                      <button className={`mini ${m.winner === 'B' ? 'on' : ''}`} onClick={() => setBatch((bs) => bs.map((x) => (x.id === m.id ? { ...x, winner: 'B' } : x)))}>2팀</button>
+                      {t('승리:')}
+                      <button className={`mini ${m.winner === 'A' ? 'on' : ''}`} onClick={() => setBatch((bs) => bs.map((x) => (x.id === m.id ? { ...x, winner: 'A' } : x)))}>{t('1팀')}</button>
+                      <button className={`mini ${m.winner === 'B' ? 'on' : ''}`} onClick={() => setBatch((bs) => bs.map((x) => (x.id === m.id ? { ...x, winner: 'B' } : x)))}>{t('2팀')}</button>
                     </span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12 }}>
                     {[1, 2].map((tm) => (
                       <div key={tm} style={{ borderLeft: `3px solid ${tm === 1 ? '#4d7cfe' : '#e0576b'}`, paddingLeft: 8 }}>
-                        <div className="muted" style={{ marginBottom: 2 }}>{tm === 1 ? '1팀' : '2팀'}{m.winner === (tm === 1 ? 'A' : 'B') ? ' 승' : ''}</div>
+                        <div className="muted" style={{ marginBottom: 2 }}>{tm === 1 ? t('1팀') : t('2팀')}{m.winner === (tm === 1 ? 'A' : 'B') ? ` ${t('승')}` : ''}</div>
                         {m.rows.filter((r) => r.team === tm).map((r, i) => (
                           <div key={i} style={{ display: 'flex', gap: 6, padding: '1px 0' }}>
-                            <span style={{ minWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(r.name || '').split('#')[0]}{(!r.personId || r.personId === '__new__') && <span className="accent" title="새 선수로 등록됨"> ✚</span>}</span>
+                            <span style={{ minWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(r.name || '').split('#')[0]}{(!r.personId || r.personId === '__new__') && <span className="accent" title={t('새 선수로 등록됨')}> ✚</span>}</span>
                             <span className="muted" style={{ minWidth: 80 }}>{r.champion}</span>
                             <span className="muted">{r.k}/{r.d}/{r.a}</span>
                           </div>
@@ -361,27 +363,27 @@ export default function RecordPage() {
       {rows.length === 10 && (
         <div className="panel">
           <div className="controls" style={{ marginBottom: 12 }}>
-            <span>승리 팀 <span className="muted" style={{ fontSize: 11 }}>(눌러서 선택)</span>:</span>
-            <button className={`mini ${winner === 'A' ? 'on' : ''}`} onClick={() => setWinner('A')}>1팀(A) 승</button>
-            <button className={`mini ${winner === 'B' ? 'on' : ''}`} onClick={() => setWinner('B')}>2팀(B) 승</button>
+            <span>{t('승리 팀')} <span className="muted" style={{ fontSize: 11 }}>({t('눌러서 선택')})</span>:</span>
+            <button className={`mini ${winner === 'A' ? 'on' : ''}`} onClick={() => setWinner('A')}>{t('1팀(A) 승')}</button>
+            <button className={`mini ${winner === 'B' ? 'on' : ''}`} onClick={() => setWinner('B')}>{t('2팀(B) 승')}</button>
             <span className="muted" style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-              게임 시간
+              {t('게임 시간')}
               <input type="number" min={0} value={Math.floor(durationSec / 60)}
                 onChange={(e) => setDurationSec(Math.max(0, Number(e.target.value)) * 60 + (durationSec % 60))}
-                style={{ width: 60 }} title="분" />분
+                style={{ width: 60 }} title={t('분')} />{t('분')}
               <input type="number" min={0} max={59} value={durationSec % 60}
                 onChange={(e) => setDurationSec(Math.floor(durationSec / 60) * 60 + Math.min(59, Math.max(0, Number(e.target.value))))}
-                style={{ width: 56 }} title="초" />초
+                style={{ width: 56 }} title={t('초')} />{t('초')}
             </span>
-            <button className="btn" onClick={() => save()} disabled={saving}>{saving ? (editing ? '수정 중…' : '저장 중…') : (editing ? '수정 저장' : '저장')}</button>
+            <button className="btn" onClick={() => save()} disabled={saving}>{saving ? (editing ? t('수정 중…') : t('저장 중…')) : (editing ? t('수정 저장') : t('저장'))}</button>
           </div>
           {source === 'replay' && objectives && (
             <div style={{ margin: '0 0 12px', fontSize: 12.5, padding: '10px 12px', background: '#181820', borderRadius: 8, border: '1px solid #2a2a33' }}>
-              <div className="muted" style={{ fontSize: 11, marginBottom: 7 }}>리플 추출 · 팀 오브젝트</div>
-              {[['A', '블루', '#4fb6d6'], ['B', '레드', '#e06a78']].map(([tm, label, color]) => {
+              <div className="muted" style={{ fontSize: 11, marginBottom: 7 }}>{t('리플 추출 · 팀 오브젝트')}</div>
+              {[['A', t('블루'), '#4fb6d6'], ['B', t('레드'), '#e06a78']].map(([tm, label, color]) => {
                 const o = objectives[tm];
                 const g = o.gold >= 1000 ? (o.gold / 1000).toFixed(1) + 'k' : (o.gold || 0);
-                const stats = [['킬', o.kills], ['골드', g], ['용', `${o.dragons || 0}${o.elder ? ` +엘더${o.elder}` : ''}`], ['전령', o.heralds || 0], ['유충', o.grubs || 0], ['바론', o.barons || 0], ['타워', o.towers || 0], ['억제기', o.inhibs || 0], ['아타칸', o.atakhan || 0], ['처형', o.objStolen || 0]];
+                const stats = [[t('킬'), o.kills], [t('골드'), g], [t('용'), `${o.dragons || 0}${o.elder ? t(' +엘더{n}', { n: o.elder }) : ''}`], [t('전령'), o.heralds || 0], [t('유충'), o.grubs || 0], [t('바론'), o.barons || 0], [t('타워'), o.towers || 0], [t('억제기'), o.inhibs || 0], [t('아타칸'), o.atakhan || 0], [t('처형'), o.objStolen || 0]];
                 return (
                   <div key={tm} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', padding: '3px 0' }}>
                     <span style={{ color, fontWeight: 700, minWidth: 34 }}>{label}</span>
@@ -389,12 +391,12 @@ export default function RecordPage() {
                   </div>
                 );
               })}
-              <div className="muted" style={{ fontSize: 10.5, marginTop: 6 }}>※ 아이템·비전·딜분포 등 상세는 저장돼요. 첫 용 타이밍은 리플 스탯에 없어 카운트만.</div>
+              <div className="muted" style={{ fontSize: 10.5, marginTop: 6 }}>{t('※ 아이템·비전·딜분포 등 상세는 저장돼요. 첫 용 타이밍은 리플 스탯에 없어 카운트만.')}</div>
             </div>
           )}
           <table className="rec-table">
             <thead>
-              <tr><th>팀</th><th>포지션</th><th className="l">닉/이름</th><th className="l">→ 사람</th><th>챔피언</th><th>K</th><th>D</th><th>A</th><th>딜량</th><th>CS</th></tr>
+              <tr><th>{t('팀')}</th><th>{t('포지션')}</th><th className="l">{t('닉/이름')}</th><th className="l">{t('→ 사람')}</th><th>{t('챔피언')}</th><th>K</th><th>D</th><th>A</th><th>{t('딜량')}</th><th>CS</th></tr>
             </thead>
             <tbody>
               {rows.map((r, i) => (
@@ -402,13 +404,13 @@ export default function RecordPage() {
                   <td>{r.team}</td>
                   <td>
                     <select value={r.position || ''} onChange={(e) => editRow(i, { position: e.target.value })} style={{ width: 62 }}>
-                      {POS.map((p) => <option key={p} value={p}>{POS_KR[p]}</option>)}
+                      {POS.map((p) => <option key={p} value={p}>{t(POS_KR[p])}</option>)}
                     </select>
                   </td>
                   <td className="l">{r.name}</td>
                   <td className="l">
                     <select value={r.personId} onChange={(e) => editRow(i, { personId: e.target.value })}>
-                      <option value="__new__">+ 신규 등록 ({r.name})</option>
+                      <option value="__new__">{t('+ 신규 등록 ({name})', { name: r.name })}</option>
                       {persons.map((p) => <option key={p.id} value={p.id}>{p.display_name}</option>)}
                     </select>
                   </td>
@@ -422,7 +424,7 @@ export default function RecordPage() {
           </table>
           <datalist id="champ-list">{champList.map((c) => <option key={c} value={c} />)}</datalist>
           <p className="hint">
-            챔피언은 스샷에 이름이 적혀 있어 AI가 바로 읽어요. 틀린 값만 고치고 저장하세요. 사람은 닉 같으면 자동 선택, 신규는 자동 등록(<Link href="/people" className="accent">멤버 관리</Link>에서 합치기).
+            {t('챔피언은 스샷에 이름이 적혀 있어 AI가 바로 읽어요. 틀린 값만 고치고 저장하세요. 사람은 닉 같으면 자동 선택, 신규는 자동 등록(')}<Link href="/people" className="accent">{t('멤버 관리')}</Link>{t('에서 합치기).')}
           </p>
         </div>
       )}

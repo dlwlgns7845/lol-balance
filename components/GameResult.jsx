@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react';
 import Results from './Results.jsx';
 import { scoreTeams } from '../src/engine.js';
+import { useLang } from './i18n.jsx';
 
 export default function GameResult({ result, playerMap, opts = {}, meta, label }) {
+  const { t } = useLang();
   const [candIdx, setCandIdx] = useState(0);
   const [view, setView] = useState(null);
   const [sel, setSel] = useState(null);
@@ -16,7 +18,7 @@ export default function GameResult({ result, playerMap, opts = {}, meta, label }
 
   function reroll() {
     if (!result?.candidates?.length) return;
-    if (result.candidates.length <= 1) { setNote('이게 유일한 최적 배치예요.'); return; }
+    if (result.candidates.length <= 1) { setNote(t('이게 유일한 최적 배치예요.')); return; }
     const ni = (candIdx + 1) % result.candidates.length;
     setCandIdx(ni); setView(result.candidates[ni]); setSel(null); setNote(null);
   }
@@ -38,8 +40,8 @@ export default function GameResult({ result, playerMap, opts = {}, meta, label }
   return (
     <>
       {label && (
-        <h2 style={{ margin: '20px 2px 8px' }}>{label}
-          {result && !result.feasible && <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}> · 포지션이 안 맞아 편성 실패 — 포지션 조정 또는 스왑 필요</span>}
+        <h2 style={{ margin: '20px 2px 8px' }}>{t(label)}
+          {result && !result.feasible && <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}> · {t('포지션이 안 맞아 편성 실패 — 포지션 조정 또는 스왑 필요')}</span>}
         </h2>
       )}
       <Results feasible={result?.feasible} outliers={result?.outliers || []} view={view}

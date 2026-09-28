@@ -1041,6 +1041,18 @@ sup.offtag { color: var(--gold); font-size: 9px; border: 1px solid var(--gold); 
   background: #fff; transition: transform .15s ease; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
 .switch.on .switch-knob { transform: translateX(20px); }
 
+/* ── 언어 스위치 (한국어 | English) — 첫 화면 우상단 + 설정 모달 ── */
+.lang-switch { display: inline-flex; border: 1px solid var(--line2); border-radius: 8px; overflow: hidden; flex: 0 0 auto; }
+.lang-switch button { background: transparent; border: 0; color: var(--muted); font: inherit; font-size: 12px; padding: 5px 11px; cursor: pointer; }
+.lang-switch button + button { border-left: 1px solid var(--line2); }
+.lang-switch button.on { background: var(--panel2); color: var(--text); font-weight: 600; }
+.lang-switch button:not(.on):hover { color: var(--text); }
+.gate-wrap { position: relative; }
+.gate-lang { position: absolute; top: 16px; right: 16px; }
+.set-section-label { font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; margin: 14px 0 0; }
+.site-credit .lang-link { margin-left: 10px; }
+.tb-menu-lang { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 10px 8px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+
 /* ── 관리자 대시보드 ── */
 .admin-table { width: 100%; border-collapse: collapse; }
 .admin-table th, .admin-table td { padding: 11px 14px; text-align: center; font-size: 13px; white-space: nowrap; }

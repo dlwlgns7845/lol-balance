@@ -1,0 +1,162 @@
+// EN 사전 — people 영역 (멤버 관리 · 권한 관리 · 관리자 · 신고). 키 = 코드의 한국어 원문(정확히 일치), 값 = 영어.
+// {name}/{n}/{merged}/{cleaned}/{acct}/{tier}/{label} 등 자리표시자는 그대로 유지.
+const EN = {
+  // app/people/page.jsx
+  '이 사람을 삭제할까요?\n※ 경기 기록이 있으면 보호되어 삭제되지 않아요 (기록 없는 빈 선수만 삭제).':
+    'Delete this person?\n※ Protected if they have recorded games (only empty, record-free players can be deleted).',
+  '같은 인게임 닉(#태그·공백 무시)인 중복 사람을 하나로 합칠까요?\n티어가 설정된 쪽으로 합쳐지고, 경기기록도 이전돼요.':
+    'Merge duplicate people with the same in-game nickname (ignoring #tag and spaces)?\nThey’ll merge into whichever has a tier set, and games move over too.',
+  '중복 {merged}명 병합 · 태그 {cleaned}건 정리 완료.': 'Merged {merged} duplicates · cleaned up {cleaned} tags.',
+  '\n(정리할 게 없었어요.)': '\n(Nothing to clean up.)',
+  '이름#태그 입력': 'Enter name#tag',
+  '못 찾음': 'Not found',
+  '{name} 추가 · {tier}': 'Added {name} · {tier}',
+  '{acct} 조회 실패 (닉·태그·지역 확인)': 'Lookup failed for {acct} (check nickname/tag/region).',
+  '"{name}" 티어를 자동(op.gg 반영)으로 되돌릴까요?\n다음 갱신부터 op.gg 티어가 반영돼요.':
+    'Revert "{name}"’s tier to automatic (from op.gg)?\nFrom the next refresh, the op.gg tier will be applied.',
+  '멤버 등록 · 본캐/부캐 연결 · op.gg 티어 자동. 통계는 사람 단위 합산.':
+    'Register members · link main/alt accounts · auto op.gg tiers. Stats are totaled per person.',
+  '서버': 'Region',
+  '같은 인게임 닉(#태그·공백 무시) 중복 사람을 하나로 합쳐요': 'Merges duplicate people with the same in-game nickname (ignoring #tag and spaces)',
+  '정리 중…': 'Cleaning up…',
+  '중복 정리': 'Clean up duplicates',
+  '사람 추가': 'Add person',
+  '구경 모드 · 보기 전용': 'View only · Read-only',
+  '불러오는 중…': 'Loading…',
+  '아직 등록된 사람이 없어요.': 'No one’s registered yet.',
+  '로 시작하세요.': ' to get started.',
+  '아바타 (프로필 사진은 디코 /프로필 로 설정)': 'Avatar (set a profile photo with the Discord /프로필 command)',
+  '인게임 닉 (스샷 매칭)': 'In-game nickname (screenshot matching)',
+  '인게임 닉네임 — 스샷 매칭용. 표시이름은 연동 시 디코 서버별명, 아니면 이 인게임닉.':
+    'In-game nickname — used for screenshot matching. The display name is the Discord server nickname when linked, otherwise this nickname.',
+  '디스코드 서버 별명(자동 동기화)': 'Discord server nickname (auto-synced)',
+  '미연동 — 인게임 닉으로 표시': 'Not linked — shown as in-game nickname',
+  '이 선수의 디코 연동 해제 (기록은 보존)': 'Unlink this player’s Discord (records are kept)',
+  '"{name}"의 디스코드 연동을 해제할까요?\n기록은 그대로 남습니다.': 'Unlink "{name}"’s Discord?\nTheir records will stay as they are.',
+  '해제': 'Unlink',
+  '주라인 티어 (메인 포지션 기준) · 직접 바꾸면 수동 고정됨(자동 갱신이 안 건드림)':
+    'Main-role tier (based on main position) · Changing it manually locks it (auto refresh won’t touch it)',
+  '수동 고정됨 — op.gg 자동 갱신이 이 티어를 안 건드려요. 클릭하면 자동(op.gg 반영)으로 되돌립니다.':
+    'Manually locked — automatic op.gg refresh won’t touch this tier. Click to revert to automatic (op.gg).',
+  '자동 — op.gg 갱신이 반영돼요. 티어를 직접 바꾸면 수동 고정됩니다.': 'Automatic — op.gg refreshes apply here. Changing the tier manually locks it.',
+  '부라인 티어 — 주포지션 아닌 라인에 배치되면 이 티어로 계산 (보통 더 낮게). 비우면 주라인 티어 그대로.':
+    'Secondary-role tier — used when placed in a role other than the main one (usually lower). Leave blank to keep the main-role tier.',
+  '부라인 —': 'Secondary —',
+  '부: ': 'Sec: ',
+  '어드민 수동 보정 태그 (자동보정과 합산)': 'Admin manual adjustment tag (added to the automatic adjustment)',
+  '본캐': 'Main',
+  '본캐로 지정': 'Set as main',
+  '랭크 갱신 (op.gg 재조회)': 'Refresh rank (re-query op.gg)',
+  '계정 삭제': 'Delete account',
+  '부캐 이름#태그': 'Alt name#tag',
+  '"{name}"을(를) 선택한 사람으로 합칠까요?\n계정·경기기록이 합쳐지고 "{name}"은 삭제됩니다.':
+    'Merge "{name}" into the selected person?\nAccounts and game records will merge, and "{name}" will be deleted.',
+  '합치기…': 'Merge…',
+  '→ ': '→ ',
+  '삭제': 'Delete',
+
+  // src/table.js — TIER_LABEL (render-point translation)
+  '마/그/챌 1800+': 'Master/GM/Chall 1800+',
+  '마/그/챌 1700~1799': 'Master/GM/Chall 1700–1799',
+  '마/그/챌 1600~1699': 'Master/GM/Chall 1600–1699',
+  '마/그/챌 1500~1599': 'Master/GM/Chall 1500–1599',
+  '마/그/챌 1400~1499': 'Master/GM/Chall 1400–1499',
+  '마/그/챌 1300~1399': 'Master/GM/Chall 1300–1399',
+  '마/그/챌 1200~1299': 'Master/GM/Chall 1200–1299',
+  '마/그/챌 1100~1199': 'Master/GM/Chall 1100–1199',
+  '마/그/챌 1000~1099': 'Master/GM/Chall 1000–1099',
+  '마/그/챌 900~999': 'Master/GM/Chall 900–999',
+  '마/그/챌 800~899': 'Master/GM/Chall 800–899',
+  '마/그/챌 700~799': 'Master/GM/Chall 700–799',
+  '마/그/챌 600~699': 'Master/GM/Chall 600–699',
+  '마/그/챌 500~599': 'Master/GM/Chall 500–599',
+  '마/그/챌 400~499': 'Master/GM/Chall 400–499',
+  '마/그/챌 300~399': 'Master/GM/Chall 300–399',
+  '마/그/챌 200~299': 'Master/GM/Chall 200–299',
+  '마/그/챌 100~199': 'Master/GM/Chall 100–199',
+  '마/그/챌 0~99': 'Master/GM/Chall 0–99',
+  '다이아1': 'Diamond 1', '다이아2': 'Diamond 2', '다이아3': 'Diamond 3', '다이아4': 'Diamond 4',
+  '에메랄드1': 'Emerald 1', '에메랄드2': 'Emerald 2', '에메랄드3': 'Emerald 3', '에메랄드4': 'Emerald 4',
+  '플래티넘1': 'Platinum 1', '플래티넘2': 'Platinum 2', '플래티넘3': 'Platinum 3', '플래티넘4': 'Platinum 4',
+  '골드1': 'Gold 1', '골드2': 'Gold 2', '골드3': 'Gold 3', '골드4': 'Gold 4',
+  '실버1': 'Silver 1', '실버2': 'Silver 2', '실버3 이하': 'Silver 3 and below',
+
+  // src/table.js — ADJUST_TAGS (render-point translation)
+  '팀망침': 'Wrecks team',
+  '발목': 'Holds team back',
+  '없음': 'None',
+  '티어압도': 'Outclasses tier',
+  '하드캐리': 'Hard carries',
+
+  // components/MembersPanel.jsx
+  '{label} 님을 방에서 내보낼까요?\n\n권한과 관람 흔적만 지워져요. 경기·통계 기록은 그대로 남아요.':
+    'Remove {label} from the room?\n\nOnly their permissions and visit history are cleared. Game and stat records stay as they are.',
+  '이름 없음': 'No name',
+  '권한 관리': 'Access management',
+  '· 권한 가진 사람만 표시 · 방장만 변경': '· Only people with access are shown · owner only',
+  '방장': 'Owner',
+  '편집자': 'Editor',
+  '기록 담당자': 'Recorder',
+  '구경꾼': 'Viewer',
+  '· 본인': '· you',
+  '편집자=멤버관리·기록 다 / 기록 담당자=리플·경기 기록만': 'Editor = members + recording / Recorder = replays and game recording only',
+  '편집자 (전체)': 'Editor (full access)',
+  '기록 담당자 (기록만)': 'Recorder (recording only)',
+  '권한 회수 + 방에서 내보내기': 'Revoke access and remove from the room',
+  '내보내기': 'Remove',
+  '아직 권한을 준 사람이 없어요. 아래에서 방에 들어온 사람에게 권한을 줄 수 있어요.':
+    'No one has access yet. You can grant access below to people who’ve joined the room.',
+  '권한 추가': 'Grant access',
+  '권한 줄 사람이 없어요. 친구가 로그인해서 이 방 코드로 들어오면 여기 목록에 떠요.':
+    'No one to grant access to yet. Once a friend signs in and enters this room code, they’ll show up here.',
+  '— 방에 들어온 사람 선택 —': '— Select someone who joined the room —',
+  '부여': 'Grant',
+  '기록 담당자 = 리플·경기 기록만 · 편집자 = 멤버관리까지 전부': 'Recorder = replays and game recording only · Editor = everything, including members',
+  '방을 삭제하면 이 방의 ': 'Deleting the room permanently removes all of its ',
+  '모든 경기·통계·사람·멤버가 영구 삭제': 'games, stats, people and members',
+  '돼요. 되돌릴 수 없어요.': '. This can’t be undone.',
+  '이 방 삭제': 'Delete this room',
+
+  // app/admin/page.jsx
+  '"{name}" 방을 삭제할까요?\n경기·통계·사람·멤버 전부 영구 삭제됩니다.':
+    'Delete the room "{name}"?\nAll games, stats, people and members will be permanently deleted.',
+  '삭제 실패: ': 'Delete failed: ',
+  '관리자 전용 페이지예요.': 'This page is for admins only.',
+  '생성된 모든 방 목록. 아무 방이나 입장하거나 삭제할 수 있어요.': 'All rooms that have been created. Enter or delete any of them.',
+  '새로고침': 'Refresh',
+  '방': 'Room',
+  '코드': 'Code',
+  '사람': 'People',
+  '경기': 'Games',
+  '멤버': 'Members',
+  '생성일': 'Created',
+  '· 현재': '· current',
+  '주인 없음': 'No owner',
+  '입장': 'Enter',
+
+  // app/reports/page.jsx — categories & statuses (render-point translation)
+  '노쇼/잠수': 'No-show / AFK',
+  '트롤/대리': 'Trolling / Boosting',
+  '비매너/욕설': 'Toxic behavior / Abuse',
+  '기타': 'Other',
+  '접수': 'Open',
+  '확인': 'Reviewed',
+  '기각': 'Dismissed',
+  '제재': 'Actioned',
+  '방에 먼저 입장하세요.': 'Enter a room first.',
+  '신고 내역은 운영자(방장·편집자)만 볼 수 있어요.': 'Reports are only visible to operators (owner/editor).',
+  '신고 관리': 'Reports',
+  '비공개 · 운영자 전용. 판단 근거로 누적돼요. 자동 제재는 없어요 — 직접 확인 후 처리하세요.':
+    'Private · operators only. These accumulate as evidence for judgment calls. There’s no automatic action — review and handle them yourself.',
+  '접수된 신고가 없어요.': 'No reports yet.',
+  '누적 많은 대상': 'Most-reported',
+  '· 유효(기각 제외) 기준': '· based on valid reports (dismissed excluded)',
+  '{n}건': '{n} reports',
+  ' (총 {n})': ' ({n} total)',
+  '전체 신고': 'All reports',
+  '· 최신순': '· newest first',
+  '신고: ': 'Reported by: ',
+  '되돌리기': 'Revert',
+};
+
+export default EN;
