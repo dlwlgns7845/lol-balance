@@ -29,10 +29,10 @@ LoL 내전 밸런서·통계 웹앱 (Next.js 14 App Router, JS/JSX, Supabase, Ve
 3. 사람에게 바로 알린다.
 
 ## 배포 = git push (Vercel 자동배포)
-- 원격 `fbwlgkr7845-hash/lol-balance` (main) → push하면 Vercel 자동 빌드.
+- 원격 `dlwlgns7845/lol-balance` (main) → push하면 Vercel 자동 빌드.
 - **`vercel` CLI 쓰지 말 것** (`npx vercel --prod` 금지).
-- **커밋 author = Vercel 소유자 `fbwlgkr7845` 여야 무료 플랜에서 배포됨.**
-  `git config user.email fbwlgkr7845@gmail.com` · `git config user.name fbwlgkr7845` 확인.
+- **커밋 author = Vercel 소유자(본계정 `dlwlgns7845`) 여야 무료 플랜에서 배포됨.**
+  `git config user.email dlwlgns714@gmail.com` · `git config user.name Jihoon` 확인.
 
 ## 공동작업 — push 전 절차
 `git fetch origin` → 원격에 변경 있으면 `git pull --rebase` 후 리뷰(겹치는 파일 확인) →

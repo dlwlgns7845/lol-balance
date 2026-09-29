@@ -5,11 +5,12 @@
 LoL 내전 밸런서·통계 웹앱 (Next.js 14 App Router, JS/JSX, Supabase, Vercel).
 
 ## 배포 = git push (Vercel 자동배포)
-- 원격: `fbwlgkr7845-hash/lol-balance` (main). Vercel이 이 repo에 연결돼 **push하면 자동 빌드·배포**.
-- **라이브 URL = `https://lol-balance-gamma.vercel.app`** (새 fbwlgkr 프로젝트). ⚠️ `lol-balance.vercel.app`는 죽은 옛 CLI 배포 — 확인/링크에 쓰지 말 것.
+- 원격: `dlwlgns7845/lol-balance` (main). (2026-09-29 부계정 fbwlgkr7845-hash에서 이전 — 옛 주소는 GitHub가 자동 리다이렉트) Vercel이 이 repo에 연결돼 **push하면 자동 빌드·배포**.
+- **라이브 URL = `https://lol-balance-gamma.vercel.app`** (Vercel 프로젝트 = 본계정 dlwlgns7845 소유, 2026-09-29 이전). ⚠️ `lol-balance.vercel.app`는 죽은 옛 CLI 배포 — 확인/링크에 쓰지 말 것.
 - **`vercel` CLI 절대 쓰지 말 것** (`npx vercel --prod` 금지). 계정이 달라서 엉뚱한 데로 나감. 배포는 오직 git push.
-- ⚠️ **커밋 author = Vercel 소유자(fbwlgkr7845) 여야 배포됨.** Vercel Hobby(무료)는 private repo에서 **소유자 명의 커밋만** 자동배포. 다른 명의는 "contributing access 없음"으로 차단.
-  - 이 repo git 설정 확인/고정: `git config user.email fbwlgkr7845@gmail.com` · `git config user.name fbwlgkr7845`
+- ⚠️ **커밋 author = Vercel 소유자(본계정 dlwlgns7845) 여야 배포됨.** Vercel Hobby(무료)는 private repo에서 **소유자 명의 커밋만** 자동배포. 다른 명의는 "contributing access 없음"으로 차단.
+  - 이 repo git 설정 확인/고정: `git config user.email dlwlgns714@gmail.com` · `git config user.name Jihoon`
+  - 옛 커밋의 `fbwlgkr7845@gmail.com`은 본계정 GitHub에 등록된 보조 이메일이라 본계정 커밋으로 인식됨
   - (진짜 공동작업으로 여러 명의가 push해야 하면 → repo public 전환 or Vercel Pro 필요.)
 
 ## 🤝 공동작업 — push 전 필수 절차 (파트너와 협업)
