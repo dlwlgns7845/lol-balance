@@ -1,56 +1,59 @@
-# lol-balance
+# League of Legends Team Balancer & Stats Platform
 
-리그 오브 레전드 내전(커스텀 게임) **팀 밸런싱 + 경기 기록 + 통계** 도구.
-기존 franklin-worker 툴의 "187 캡" 방식을 대체 — 라인 단위로 공정한 팀을 자동 구성하고, 결과를 기록해 레이팅을 보정한다.
+A web app and Discord bot for running League of Legends custom games ("inhouses"): it builds fair 5v5 teams, records match results, and turns them into per-player stats and leaderboards.
 
-## 설계 결정 (확정)
+**Live:** [lol-balance-gamma.vercel.app](https://lol-balance-gamma.vercel.app) — used by 8 gaming communities (280+ players, 170+ recorded matches).
 
-- **스택**: Next.js + Supabase (예정). 엔진은 순수 ESM 모듈이라 그대로 import.
-- **점수표**: 형이 준 표 그대로(`src/table.js`). 손대지 않음 — 넓은 점수 폭이 정확도의 원천이고, 서폿이 폭 좁은 것(저티어 성비 좋음)이 이미 인코딩돼 있음.
-- **밸런싱 = 캡 통과 ❌ → 가중 라인갭 최소화 ✅**.
-  - `objective = Σ(라인갭 × 포지션가중치) + 총점차 × totalWeight`
-  - 포지션 가중치 = 그 포지션의 점수 폭(탑/정글/원딜 ≈ 1.0, 미드 0.88, 서폿 0.66). 폭 큰 라인의 갭이 더 치명적.
-  - 기본 `totalWeight=0.3` → **라인 우선**. "총점은 같은데 한 라인 압살"되는 해를 상위로 안 뽑음.
-- **정직성**: 스머프/아웃라이어 z-score 감지, 신호등(총점차 🟢≤10 🟡≤20 🔴), 라인별 갭 ⚠️ 표시. 수학으로 못 맞추는 로비는 그렇다고 보여줌.
-- **상위 후보 N개**(중복 제거) 제시 — 하나를 강요하지 않음.
-- **lock**: "이 사람 무조건 이 포지션/팀" 고정 후 나머지 최적화.
+## What it does
 
-## 데이터 시드 전략 (티어 자동 배정)
+- **Team balancing.** Picks 10 players and proposes the fairest teams, lane by lane rather than by total score alone.
+- **Automatic tiers.** Enter a Riot ID and the server pulls the player's current and peak ranks from op.gg's official MCP server, then maps them to a tier score.
+- **Replay parsing.** Upload a `.rofl` replay file and the browser extracts the 10-player match data (KDA, gold, damage, objectives) and fills in the match record.
+- **Stats.** Leaderboards, per-player profiles, champion pools, and match history, with small-sample damping so a player with two lucky games doesn't top the board.
+- **Discord bot.** Slash commands for sign-up, lane-based recruiting queues, team balancing, and match recording. Results can be read from a screenshot by a vision model and are saved only after a person confirms them.
+- **Rooms and roles.** Each community gets its own room with owner, editor, recorder, and view-only access. Visitors without a role can only read.
+- **English and Korean.** The interface follows the browser language.
 
-닉네임 → 자동 제안 → **운영자 확정**(자동 머지 금지). 현실에서 가능한 최대치:
+## How the balancer scores a split
 
-| 데이터 | 소스 | 범위 |
-|---|---|---|
-| 전 시즌 **티어** 히스토리 + 챔프풀 + 현 시즌 승률 | op.gg 공식 MCP (`https://mcp-api.op.gg/mcp`, 무료·무키) | ~2013부터 |
-| 시즌별 **솔랭 판수** | Riot match-v5 (Personal 키, queue=420 날짜범위 카운트) | 2021.6 이후 + 최근 ~1000매치 |
-| 지속 보정 | 내전 경기 결과 | — |
-
-- op.gg MCP는 전시즌 **티어는** 주지만 시즌별 **판수는 null**(웹에도 없음). 판수는 Riot match-v5로만.
-- op.gg HTML 스크래핑 ❌ (ToS·Cloudflare·취약). 내부 API도 불안정.
-
-## 구조
+Most balancers only compare team totals, which can produce teams that are equal on paper while one lane is badly mismatched. This engine minimizes
 
 ```
-src/table.js   점수표 + 포지션 가중치 (순수 데이터)
-src/engine.js  balance(players, opts) — 순수 로직, IO 없음
-demo.js        CLI 데모 (3 시나리오)
-test.js        스모크 테스트 (node test.js)
+Σ (lane gap × lane weight) + total gap × totalWeight + distribution gap × 0.4
 ```
 
-## 사용
+- **Lane weight** is each role's score spread (top, jungle, and ADC ≈ 1.0; mid 0.88; support 0.66), so a gap in a high-impact lane costs more.
+- **Distribution gap** compares the teams player by player after sorting, which keeps the weakest players from landing on the same team.
+- The engine also flags likely smurfs with a z-score and returns several distinct candidate splits instead of forcing one.
 
-```js
-import { balance } from './src/engine.js';
-const res = balance(players, { totalWeight: 0.3, topK: 5, locks: { sup: { A: '민수' } } });
-// res.candidates[0] = 최적 배치, res.outliers = 스머프 경고
+The engine is a pure module ([src/engine.js](src/engine.js)) with no framework dependencies.
+
+## Architecture
+
+| Layer | Choice |
+|---|---|
+| Web app | Next.js 14 (App Router), React 18 |
+| Data | Supabase (PostgreSQL); schema in [supabase/schema.sql](supabase/schema.sql) |
+| Discord bot | Serverless interactions endpoint ([app/api/discord/route.js](app/api/discord/route.js)) with Ed25519 signature verification, no always-on gateway process |
+| Rank data | op.gg MCP server over JSON-RPC ([src/opgg.js](src/opgg.js)); Riot API as an optional fallback |
+| Replay parsing | In-browser `.rofl` metadata scanner, version-independent ([src/rofl.js](src/rofl.js)) |
+| Screenshot reading | GPT-4o through GitHub Models ([src/vision.js](src/vision.js)), always confirmed by a person |
+| Abuse protection | Rate limiting with Upstash Redis, falling back to in-memory limits ([src/ratelimit.js](src/ratelimit.js)) |
+| Hosting | Vercel |
+
+## Running locally
+
+```bash
+npm install
+cp .env.local.example .env.local   # fill in your Supabase project values
+npm run dev                        # http://localhost:3000
+npm test                           # engine, parser, and rate-limit tests
 ```
 
-players: `[{ name, tier, positions:[...] }]` (정확히 10명). tier 키는 `src/table.js` 참고.
+Apply [supabase/schema.sql](supabase/schema.sql) to your Supabase project first. The Discord bot, op.gg lookup, and screenshot reading are optional and turn on when their environment variables are set.
 
-## 로드맵
+## How it was built
 
-1. ✅ 밸런싱 엔진 (라인우선·스머프감지·lock·후보N)
-2. ⬜ Next.js + Supabase 스캐폴딩 (players/tiers/matches 스키마 + 엔진 이식)
-3. ⬜ op.gg MCP + Riot match-v5 시드 연동 (제안→확정 UI)
-4. ⬜ 경기 기록 / 통계 / 레이팅 보정
-5. ⬜ (옵션) AI 요약·자연어 질문
+This started in 2024 as a C++ command-line tool I wrote to balance games with friends. I rebuilt it as this web app in July 2026 using AI-assisted development (Claude Code and Codex); I designed the scoring model and data model, reviewed and tested the changes, and run it for the communities that use it.
+
+Design notes from development (Korean): [docs/DESIGN.ko.md](docs/DESIGN.ko.md)
