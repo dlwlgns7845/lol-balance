@@ -10,7 +10,7 @@ A web app and Discord bot for running League of Legends custom games ("inhouses"
 - **Automatic tiers.** Enter a Riot ID and the server pulls the player's current and peak ranks from op.gg's official MCP server, then maps them to a tier score.
 - **Replay parsing.** Upload a `.rofl` replay file and the browser extracts the 10-player match data (KDA, gold, damage, objectives) and fills in the match record.
 - **Stats.** Leaderboards, per-player profiles, champion pools, and match history, with small-sample damping so a player with two lucky games doesn't top the board.
-- **Discord bot.** Slash commands for sign-up, lane-based recruiting queues, team balancing, and match recording. Results can be read from a screenshot by a vision model and are saved only after a person confirms them.
+- **Discord bot.** Slash commands for sign-up, lane-based recruiting queues, and team balancing, so players never have to leave Discord.
 - **Rooms and roles.** Each community gets its own room with owner, editor, recorder, and view-only access. Visitors without a role can only read.
 - **English and Korean.** The interface follows the browser language.
 
@@ -37,7 +37,6 @@ The engine is a pure module ([src/engine.js](src/engine.js)) with no framework d
 | Discord bot | Serverless interactions endpoint ([app/api/discord/route.js](app/api/discord/route.js)) with Ed25519 signature verification, no always-on gateway process |
 | Rank data | op.gg MCP server over JSON-RPC ([src/opgg.js](src/opgg.js)); Riot API as an optional fallback |
 | Replay parsing | In-browser `.rofl` metadata scanner, version-independent ([src/rofl.js](src/rofl.js)) |
-| Screenshot reading | GPT-4o through GitHub Models ([src/vision.js](src/vision.js)), always confirmed by a person |
 | Abuse protection | Rate limiting with Upstash Redis, falling back to in-memory limits ([src/ratelimit.js](src/ratelimit.js)) |
 | Hosting | Vercel |
 
@@ -50,7 +49,7 @@ npm run dev                        # http://localhost:3000
 npm test                           # engine, parser, and rate-limit tests
 ```
 
-Apply [supabase/schema.sql](supabase/schema.sql) to your Supabase project first. The Discord bot, op.gg lookup, and screenshot reading are optional and turn on when their environment variables are set.
+Apply [supabase/schema.sql](supabase/schema.sql) to your Supabase project first. The Discord bot and op.gg lookup are optional and turn on when their environment variables are set.
 
 ## How it was built
 
