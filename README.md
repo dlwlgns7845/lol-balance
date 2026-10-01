@@ -16,15 +16,17 @@ A web app and Discord bot for running League of Legends custom games ("inhouses"
 
 ## How the balancer scores a split
 
-Most balancers only compare team totals, which can produce teams that are equal on paper while one lane is badly mismatched. This engine minimizes
+Most balancers only compare team totals, which can produce teams that are equal on paper while one lane is badly mismatched. This engine backtracks through every lane-by-lane split of the 10 players (only positions each player can play, with mirror-image splits pruned) and keeps the splits with the lowest score:
 
 ```
-Σ (lane gap × lane weight) + total gap × totalWeight + distribution gap × 0.4
+Σ (lane gap × lane weight) + total gap × 0.3 + distribution gap × 0.4 + off-role picks × 3
 ```
 
 - **Lane weight** is each role's score spread (top, jungle, and ADC ≈ 1.0; mid 0.88; support 0.66), so a gap in a high-impact lane costs more.
 - **Distribution gap** compares the teams player by player after sorting, which keeps the weakest players from landing on the same team.
-- The engine also flags likely smurfs with a z-score and returns several distinct candidate splits instead of forcing one.
+- **Off-role picks** are a light penalty: when two splits are equally fair, players stay on their main role.
+- **Win-rate adjustment** nudges a player's rating by up to ±6 points when their recorded win rate is far from even, and is damped for players with few games.
+- The search stops at 500,000 splits when everyone can play every role, and returns the best split plus the tightest-total and tightest-lanes alternatives, so a host can reroll. Hosts can also lock a player to a lane, and likely smurfs are flagged by z-score.
 
 The engine is a pure module ([src/engine.js](src/engine.js)) with no framework dependencies.
 
